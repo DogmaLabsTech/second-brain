@@ -69,6 +69,13 @@ class Remember(unittest.TestCase):
         self.assertNotIn("(repo:", self.run_it("titanium is a metal"))
         self.assertTrue(self.run_it("the example-game fight").endswith("(repo: example-game)"))
 
+    def test_said_tag_must_look_like_a_folder(self):
+        self.assertTrue(self.run_it("bar gap (repo: omarchy setup)").endswith("bar gap (repo: omarchy-setup)"))
+        line = self.run_it("odd one (repo: x → started with Claude 2026-10-16)")
+        self.assertEqual(line.split(": ", 1)[1], "odd one (repo x → started with Claude 2026-10-16)")
+        self.assertEqual(len(rl.items(self.file)), 1)   # still open: the said text was kept as it was
+        self.assertTrue(self.run_it("x (repo: ../../etc)").endswith(": x (repo ../../etc)"))
+
     def test_cap_500_then_tag(self):
         line = self.run_it("a" * 600 + " (repo: x)")
         self.assertEqual(len(line.split(": ", 1)[1]), 500 + len(" (repo: x)"))

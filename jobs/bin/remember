@@ -24,15 +24,17 @@ PROJECTS = os.path.expanduser(os.environ.get("BRAIN_PROJECTS_DIR", "~/projects")
 COMMON_WORDS = {"bullpen", "decider", "digest", "expedition", "factory", "example-flights", "example", "example-trader", "example-board",
                 "example-power", "reimagine-it"}
 SAID = re.compile(r"\(\s*repo\s*:\s*([^()]*?)\s*\)", re.I)
+NAME = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 
 
 def said_tag(text):
     """(text without the first '(repo: x)', x) or (text, None). Any further tags are dropped."""
     m = SAID.search(text)
-    if not m or not m.group(1).strip():
-        return text, None
+    tag = re.sub(r"\s+", "-", m.group(1).strip().lower()) if m else ""
+    if not NAME.fullmatch(tag):   # only folder-like names ("omarchy setup" -> omarchy-setup); anything else stays
+        return (SAID.sub(lambda k: "(repo %s)" % k.group(1), text) if m else text), None   # as words, not a tag
     rest = SAID.sub(" ", text[:m.start()] + " " + text[m.end():])
-    return " ".join(rest.split()), m.group(1).strip().lower()
+    return " ".join(rest.split()), tag
 
 
 def auto_tag(text):
