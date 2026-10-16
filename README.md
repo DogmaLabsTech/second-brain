@@ -67,6 +67,8 @@ One small file per job in `jobs/` (what to say, whether it asks first, the comma
 | `what-changed` | "what moved today?", "what happened overnight?" | no | `brain day … --say`: two spoken sentences from the day page (below) |
 | `goodnight` | "goodnight", "I'm going to bed", "close out the day" | yes | `brain goodnight` (below) |
 | `start-claude` | "start a Claude on Example Game" | yes | `pm open <project> --launch` (that project's PM in agent) |
+| `remember-fix` | "fix the thing on my remember list tonight" | yes ("Start a fix from your remember list?") | hands your words to agent-os (below) |
+| `start-job` | "start a job on agent-os: make the report shorter" | yes ("Start a job on Agent Os?") | hands your words to agent-os (below) |
 | `music` | "pause", "next song" | no | the music app (MPRIS over D-Bus) |
 | `tv` | "turn the TV down" | no | the deck's TV remote scripts, volume up / down / mute only |
 | `remember` | "remember that …" | yes | adds a dated line to `~/OMARCHY-BRAIN/inbox/remembered.md` |
@@ -83,6 +85,19 @@ stay awake, reminders (1 minute to 24 hours, and show them), go to workspace 1-1
 emoji and clipboard pickers, Bluetooth on / off, lock, log out, restart, shut down, move a window to a screen.
 A how/why question ("how do I turn on the night light") is answered from the notes, not run.
 Tests: `python3 jobs/test_desktop_jobs.py` and `python3 jobs/test_send_move.py`.
+
+**Handing a job to agent-os.** "Fix the thing on my remember list tonight" and "start a job on <project>: <what>"
+show a Yes / No card. Yes hands your words to agent-os (`jobs/bin/agent-os-start`): it makes a job folder with
+`ask.md` (what you said, how, when), starts agent-os in the background and says "Started. It will wait for your go."
+agent-os then works out the fix and stops at `go.md` in that folder, a file only you write: nothing is built or
+pushed until you say go there (by voice is not possible yet; the PM or a terminal does it). No on the card starts
+nothing. These two only fire when the sentence starts that way: "what's on my remembered list?", "remember that
+..." and "what should I fix on my remember list?" stay what they were, and a sentence with two asks in it ("fix
+the thing on my remember list and then open Spotify") is asked again. The island can't yet tell spoken from typed
+words, so `ask.md` says `how: typed` for now (`brain ask --how voice` is ready for when it can). For now agent-os
+only builds from the remember list: "start a job on ..." makes the folder, but agent-os stops at "nothing to build"
+until it learns other jobs. Tests: `CRABBOX_LOCAL=1 python3 -I jobs/test_agent_jobs.py` (a fake agent-os; the
+real one never runs).
 
 **Moving a window.** "Move this window to my other screen", "move Chrome to the left monitor", "open VS Code
 on my second monitor". A screen is said as other / second (the next one, left to right, wrapping), left, right,
