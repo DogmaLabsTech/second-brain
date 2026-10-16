@@ -54,6 +54,17 @@ NOT_DESKTOP = re.compile(r"\b(tv|television|telly|songs?|tracks?|music|spotify)\
 # Jobs whose own rule beats the decider's "question" or "unsure" (their rules are tight commands, and a
 # decider trained before they existed doesn't know their labels).
 DESKTOP_JOBS = ("desktop", "open-app", "open-file", "send-file")
+# Jobs that sound like questions ("what moved today?"): their rule beats the decider's "question" too, and a
+# how-question doesn't undo them (they are new to the decider; add them to the next the local decider round).
+DAY_JOBS = ("what-changed", "goodnight")
+OVERNIGHT_WORDS = re.compile(r"\b(overnight|last night|while i (slept|was asleep)|since (bed|i went to bed))\b", re.I)
+
+
+def day_when(text):
+    t = clean_text(text)
+    if OVERNIGHT_WORDS.search(t):
+        return "overnight"
+    return "yesterday" if re.search(r"\byesterday\b", t, re.I) else "today"
 # "How do I turn on the night light" is a question about it, not the job ("can you ..." still is a job).
 HOW_QUESTION = re.compile(r"^(how|why|what|where|when|who|which|did|does|do i|is|was|should|where'?s|what'?s|how'?s)\b"
                           r"(?!.*\b(remind|reminders?)\b)", re.I)
@@ -407,6 +418,14 @@ def build(job_id, text, search=None, local_writer=None):
         args = {"text": what}
         label = f"Remember: {what[:80]}"
         answer = "I'll add it to your remembered list."
+    elif job_id == "what-changed":
+        args = {"when": day_when(text)}
+        label = {"today": "What moved today", "yesterday": "What moved yesterday",
+                 "overnight": "What happened overnight"}[args["when"]]
+        answer = "Checking."
+    elif job_id == "goodnight":
+        label = job["label"]
+        answer = "I'll ask what may run tonight, then lock the screen and turn it off."
     else:  # whats-waiting
         label = job["label"]
         answer = "Checking who needs you."
@@ -456,6 +475,10 @@ def _check(job_id, args):
         if a.get("action") not in allowed:
             raise ValueError("that isn't something I can do")
         return {"action": a["action"]}
+    if job_id == "what-changed":
+        if a.get("when") not in load()[job_id]["args"]["when"]:
+            raise ValueError("I can only say today, yesterday or overnight")
+        return {"when": a["when"]}
     if job_id == "remember":
         text = " ".join(str(a.get("text", "")).split())[:500]
         if not text:

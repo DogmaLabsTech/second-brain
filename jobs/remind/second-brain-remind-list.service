@@ -1,7 +1,9 @@
 [Unit]
-Description=Second brain: say the remember list, offer to start an agent on one item
+Description=Second brain: the morning standup (9:00), then the remember list; offer to start an agent on one item
 
 [Service]
 Type=oneshot
+# 9:00 only (it skips itself from 11:00 and once done): the morning standup first, then the list.
+ExecStartPre=-%h/projects/second-brain/jobs/bin/day standup --once
 ExecStart=%h/projects/second-brain/jobs/bin/remind-list
 TimeoutStartSec=30min

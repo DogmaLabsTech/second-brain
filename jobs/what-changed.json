@@ -1,0 +1,27 @@
+{
+  "id": "what-changed",
+  "label": "Say what moved",
+  "phrases": [
+    "what moved today",
+    "what changed yesterday",
+    "what happened overnight",
+    "what got done today"
+  ],
+  "match": "\\bwhat\\b.*\\b(moved|changed|happened|got done|did (i|we) (do|get done))\\b.*\\b(today|yesterday|overnight|last night|this morning|so far|while i (slept|was asleep))\\b|\\bwhat moved\\b|\\b(day|daily) (summary|recap)\\b",
+  "order": 20,
+  "needs_confirm": false,
+  "args": {
+    "when": [
+      "today",
+      "yesterday",
+      "overnight"
+    ]
+  },
+  "command": [
+    "{jobs}/bin/day",
+    "day",
+    "{when}",
+    "--say"
+  ],
+  "speak": true
+}
