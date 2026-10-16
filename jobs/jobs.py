@@ -57,6 +57,15 @@ DESKTOP_JOBS = ("desktop", "open-app", "open-file", "send-file")
 # Jobs that sound like questions ("what moved today?"): their rule beats the decider's "question" too, and a
 # how-question doesn't undo them (they are new to the decider; add them to the next the local decider round).
 DAY_JOBS = ("what-changed", "goodnight")
+# Jobs that hand <user>'s words to agent-os (jobs/bin/agent-os-start). Their rules are tight (anchored at the start of
+# the sentence), so a fitting rule beats any decider label until the local decider knows them; a line holding two asks never fits.
+AGENT_JOBS = ("remember-fix", "start-job")
+TWO_ASKS = re.compile(r"\b(and|then|also|plus)\s+(then\s+|also\s+)?(start|open|remind|remember|send|play|pause|fix|do|"
+                      r"sort|take|turn|move|lock|check|tell|show|close|put|make|add|write)\b|[.?!;]\s+\w", re.I)
+
+
+def two_asks(text):
+    return bool(TWO_ASKS.search(clean_text(text)))
 OVERNIGHT_WORDS = re.compile(r"\b(overnight|last night|while i (slept|was asleep)|since (bed|i went to bed))\b", re.I)
 
 
@@ -109,6 +118,8 @@ def match_rule(text, jobs=None):
             if sendfiles.is_send_request(text):
                 return job["id"]
         elif m and re.search(m, text, re.I):
+            if job["id"] in AGENT_JOBS and two_asks(text):
+                continue
             return job["id"]
     return None
 
@@ -193,6 +204,40 @@ def tv_action(text):
     if re.search(r"\b(down|quieter|lower|softer|decrease|turn it down)\b", t):
         return "down"
     return None
+
+
+START_JOB = re.compile(r"^(please |can you |could you )?(start|kick off|begin|open) (a |an )?(new )?(job|run|build) "
+                       r"(on|for)\b\s*", re.I)
+HOWS = ("voice", "typed")
+
+
+def job_project(text):
+    """"start a job on <project>: <what>" -> (project, what). The project is the first 1-4 words after "on"/"for"
+    (or everything before a colon) that best fit a known project name; (None, "") when none does."""
+    rest = START_JOB.sub("", clean_text(text), count=1).strip()
+    if ":" in rest:
+        head, what = rest.split(":", 1)
+        repo = find_project(head)
+        return (repo, what.strip()) if repo and repo != "desk" else (None, "")
+    words = rest.split()
+    best, best_k, best_score = None, 0, 0.0
+    for k in range(1, min(4, len(words)) + 1):
+        cand = " ".join(words[:k])
+        repo = find_project(cand)
+        if not repo or repo == "desk":
+            continue
+        score = difflib.SequenceMatcher(None, _norm(repo), _norm(cand)).ratio()
+        if score >= 0.82 and score >= best_score:
+            best, best_k, best_score = repo, k, score
+    return (best, " ".join(words[best_k:]).strip(" ,-")) if best else (None, "")
+
+
+def one_line(text):
+    """The words handed to agent-os: one line, no control characters, 1-500 characters, not starting with '-'."""
+    t = " ".join(re.sub(r"[\x00-\x1f\x7f]", " ", str(text or "")).split())
+    if not t or len(t) > 500 or t.startswith("-"):
+        raise ValueError("the words didn't fit on one short line")
+    return t
 
 
 def remember_text(text):
@@ -302,13 +347,13 @@ def _desktop_job(job, action, value):
 MUSIC_WORDS = re.compile(r"\b(play|pause|resume|unpause|stop|next|skip|previous|back)\b", re.I)
 
 
-def build_with_details(job_id, text, search=None, local_writer=None, fill=None):
+def build_with_details(job_id, text, search=None, local_writer=None, fill=None, how="typed"):
     """build(), and when its word rules come up empty (no job) or unsure (an "open" that fell through to a note,
     music with no play/pause/skip word), the local writer's form for that job (details.py), turned back into a
     plain command and built again, so every value is found and checked as usual. Adds "details": "rules",
     "local" (the writer's form made the job) or "none" (it didn't help), and "details_ms"."""
     t0 = time.monotonic()
-    first = build(job_id, text, search, local_writer)
+    first = build(job_id, text, search, local_writer, how=how)
     got = (first.get("job") or {}).get("id")
     unsure = (job_id in ("open-app", "open-file") and got == "open-note") or \
         (job_id == "music" and got and not MUSIC_WORDS.search(text))
@@ -331,10 +376,11 @@ def build_with_details(job_id, text, search=None, local_writer=None, fill=None):
     return dict(first, details="none", details_ms=ms, form=f)
 
 
-def build(job_id, text, search=None, local_writer=None):
+def build(job_id, text, search=None, local_writer=None, how="typed"):
     """Turn what <user> said into {kind, answer, sources, job}. `search(topic)` returns hits
     ([{path, title, snippet}]) for open-note. Returns kind "answer" (a polite "I can't") when an
-    argument is missing, so the island never runs a half-filled job."""
+    argument is missing, so the island never runs a half-filled job. `how` (voice or typed) is how the words came,
+    for the agent-os jobs."""
     jobs = load()
     job = jobs.get(job_id)
     if not job:
@@ -418,6 +464,26 @@ def build(job_id, text, search=None, local_writer=None):
         args = {"text": what}
         label = f"Remember: {what[:80]}"
         answer = "I'll add it to your remembered list."
+    elif job_id in AGENT_JOBS:
+        try:
+            words = one_line(clean_text(text))
+        except ValueError:
+            return {"kind": "answer", "answer": "That was too long for one job. Say it in one short sentence.",
+                    "sources": [], "job": None}
+        args = {"text": words, "how": how if how in HOWS else "typed"}
+        if job_id == "start-job":
+            repo, what = job_project(text)
+            if not repo:
+                return {"kind": "answer", "answer": "Which project? I didn't catch a project name I know.",
+                        "sources": [], "job": None}
+            if not what:
+                return {"kind": "answer", "answer": f"What should the job on {pretty(repo)} do? Say, start a job on "
+                        f"{pretty(repo)}, then what to do.", "sources": [], "job": None}
+            args = {"project": repo, "name": pretty(repo), **args}
+            label = f"Start a job on {pretty(repo)}"
+        else:
+            label = job["label"]
+        answer = "This hands it to agent-os. It will wait for your go before anything is built."
     elif job_id == "what-changed":
         args = {"when": day_when(text)}
         label = {"today": "What moved today", "yesterday": "What moved yesterday",
@@ -475,6 +541,14 @@ def _check(job_id, args):
         if a.get("action") not in allowed:
             raise ValueError("that isn't something I can do")
         return {"action": a["action"]}
+    if job_id in AGENT_JOBS:
+        out = {"text": one_line(a.get("text")), "how": a.get("how") if a.get("how") in HOWS else "typed"}
+        if job_id == "start-job":
+            repo = str(a.get("project", ""))
+            if repo == "desk" or repo not in project_names():
+                raise ValueError(f"I don't know a project called {repo or 'that'}")
+            out = {"project": repo, "name": pretty(repo), **out}
+        return out
     if job_id == "what-changed":
         if a.get("when") not in load()[job_id]["args"]["when"]:
             raise ValueError("I can only say today, yesterday or overnight")

@@ -1,0 +1,12 @@
+{
+  "id": "start-job",
+  "label": "Start a job on {name}",
+  "phrases": ["start a job on agent-os: make the report shorter", "start a job on example-game fix the map loading", "kick off a job for example: tidy the logs"],
+  "match": "^(please |can you |could you )?(start|kick off|begin|open) (a |an )?(new )?(job|run|build) (on|for)\\b",
+  "order": 40,
+  "needs_confirm": true,
+  "args": {"project": "a repo from `pm list` / ~/projects", "name": "its plain name", "text": "what <user> said, one line", "how": "voice or typed"},
+  "command": ["{jobs}/bin/agent-os-start", "--how", "{how}", "--", "{text}"],
+  "message": "Started. It will wait for your go.",
+  "speak": true
+}
