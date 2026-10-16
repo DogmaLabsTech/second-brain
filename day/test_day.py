@@ -48,6 +48,12 @@ class Time(Base):
         day.append_jsonl(day.CLOSEOUTS, {"t": ts("2026-10-16 01:40"), "day": "2026-10-15", "picked": []})
         self.assertEqual(day.window(d, now=ts("2026-10-16 10:00"))[1:], (ts("2026-10-16 01:40"), True))
 
+    def test_bed_after_5_am_still_counts_for_this_morning(self):
+        day.append_jsonl(day.CLOSEOUTS, {"t": ts("2026-10-14 23:00"), "day": "2026-10-14"})
+        day.append_jsonl(day.CLOSEOUTS, {"t": ts("2026-10-16 06:10"), "day": "2026-10-16"})
+        self.assertEqual(day.last_goodnight(ts("2026-10-16 09:00"))["day"], "2026-10-16")
+        self.assertIsNone(day.last_goodnight(ts("2026-10-16 06:00")))
+
     def test_never_past_now(self):
         d = dt.date(2026, 10, 15)
         self.assertEqual(day.window(d, now=ts("2026-10-15 12:00"))[1], ts("2026-10-15 12:00"))
@@ -69,8 +75,12 @@ class Git(Base):
             commit("inside main", "2026-10-15T10:00:00")
             commit("inside branch", "2026-10-15T23:00:00", branch="side")
             commit("after", "2026-10-16T06:00:00")
+            commit("old copy", "2026-10-15T12:00:00", branch="gone")
+            subprocess.run(["git", "-C", r, "update-ref", "refs/local-backup/x", "gone"], check=True)
+            subprocess.run(["git", "-C", r, "checkout", "-q", "side"], check=True)
+            subprocess.run(["git", "-C", r, "branch", "-qD", "gone"], check=True)
             got = [s for _, s in day.git_commits(r, ts("2026-10-15 05:00"), ts("2026-10-16 05:00"))]
-            self.assertEqual(got, ["inside main", "inside branch"])
+            self.assertEqual(got, ["inside main", "inside branch"])   # not the backup ref's copy
 
 
 class Page(Base):
@@ -167,16 +177,16 @@ class Goodnight(Base):
         real.items = lambda p=path, f=real.items: f(p)
         real.menu = lambda prompt, options: "1. build the thing" if "1. build the thing" in options else options[0]
         calls = []
-        saved = (day.remind_list, day.say, day.lock_and_dark, day.helpers, day.save_snapshot, day.all_commits,
+        saved = (day.remind_list, day.say, day.lock_and_dark, day.busy, day.save_snapshot, day.all_commits,
                  day.subprocess.run)
         day.remind_list, day.say = (lambda: real), (lambda text, wait=True: calls.append(("say", text)))
-        day.lock_and_dark, day.helpers = (lambda: calls.append(("lock",))), (lambda: [("example-game", 0)])
+        day.lock_and_dark, day.busy = (lambda: calls.append(("lock",))), (lambda: ["example-game"])
         day.save_snapshot, day.all_commits = (lambda d, overwrite=True: None), (lambda s, e: {})
         day.subprocess.run = lambda argv, **k: calls.append(("run", argv[:2])) or subprocess.CompletedProcess(argv, 0)
         try:
             self.assertEqual(day.cmd_goodnight(["--run"]), 0)
         finally:
-            (day.remind_list, day.say, day.lock_and_dark, day.helpers, day.save_snapshot, day.all_commits,
+            (day.remind_list, day.say, day.lock_and_dark, day.busy, day.save_snapshot, day.all_commits,
              day.subprocess.run) = saved
         c = day.read_jsonl(day.CLOSEOUTS)[-1]
         self.assertEqual((c["picked"], c["running"]), (["build the thing"], ["example-game"]))
@@ -191,6 +201,38 @@ class Goodnight(Base):
                   "x\tbuilt:done\t2026-10-16 02:10\t/runs/abc\tbuild the thing\n")
         self.assertEqual(day.handled_since("build the thing", ts("2026-10-16 02:00")), ("built:done", "/runs/abc"))
         self.assertIsNone(day.handled_since("build the thing", ts("2026-10-16 03:00")))
+
+
+class Standup(Base):
+    def run_once(self):
+        saved = (day.standup, day.say, day.notify_open)
+        calls = []
+        day.standup = lambda now=None: (calls.append(1) or "page\n", "spoken")
+        day.say, day.notify_open = (lambda *a, **k: None), (lambda *a, **k: None)
+        try:
+            day.cmd_standup(["--once"])
+        finally:
+            day.standup, day.say, day.notify_open = saved
+        return len(calls)
+
+    def test_once_a_day_and_only_in_the_morning(self):
+        old = day.STANDUP_BEFORE
+        try:
+            day.STANDUP_BEFORE = 25          # any hour counts as morning
+            self.assertEqual(self.run_once(), 1)
+            self.assertEqual(self.run_once(), 0)   # already done today
+            for f in os.listdir(day.DATA):
+                if f.startswith("standup-done-"):
+                    os.remove(os.path.join(day.DATA, f))
+            day.STANDUP_BEFORE = 0           # every hour is past 11:00 (the 12:00 and 18:00 reminders)
+            self.assertEqual(self.run_once(), 0)
+        finally:
+            day.STANDUP_BEFORE = old
+
+    def test_result_words(self):
+        self.assertEqual(day.result_words("built:done"), "built")
+        self.assertEqual(day.result_words("built:failed"), "build failed")
+        self.assertEqual(day.result_words("not_idea"), "skipped, not something to build")
 
 
 class Jobs(unittest.TestCase):

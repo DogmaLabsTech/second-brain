@@ -145,7 +145,7 @@ intent decider (`deciders/README.md`).
 A day runs from **5 in the morning to 5 the next morning**, or until you say goodnight.
 
 - **What moved?** `brain day` (or `yesterday`, `overnight`, a date like `2026-10-15`) shows about 20 lines:
-  saved changes in every project (all branches, so helpers' worktrees count), grouped per project with the
+  saved changes in every project (local and pushed branches, so helpers' worktrees count; not stashes or backup copies), grouped per project with the
   newest three; changes logged with `brain changed`; and folders that appeared or went away with no note.
   A script makes it in under a second, with no AI. Ask the island "what moved today?" and it says it.
   Each day's page is kept in `~/.local/share/second-brain/day/pages/` and is searchable (collection `days`).

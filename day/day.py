@@ -12,6 +12,8 @@ next morning's standup. Plan: docs/plan-day-journal.md.
   day.py nightly         5:00 (timer): save the folder list and the page of the day that just ended
 
 Data: ~/.local/share/second-brain/day/ (changes.jsonl, closeouts.jsonl, overnight.jsonl, snapshots/, pages/).
+Safe test run of goodnight (nothing locked, said or built for real): BRAIN_DAY_DIR=<tmp> BRAIN_REMEMBER_FILE=<tmp list>
+BRAIN_MORNING_BUILD=<fake> BRAIN_MORNING_BUILD_STATE=<tmp> BRAIN_DAY_NO_LOCK=1 BRAIN_DAY_QUIET=1 BRAIN_DAY_TEST_PICKS="1. ,Done".
 Sources, read only: git history of <user>'s repos (all branches, so worktrees count), the change log, the folders.
 """
 import concurrent.futures as cf
@@ -38,9 +40,14 @@ SNAPS = os.path.join(DATA, "snapshots")
 PAGES = os.path.join(DATA, "pages")
 DAY_START = 5            # 5 am
 STANDUP_BEFORE = 11      # --once does nothing from 11:00 (the 12:00 and 18:00 reminders)
-MORNING_BUILD = os.path.join(HOME, ".local/bin/morning-build")
-MB_HANDLED = os.path.join(HOME, ".local/state/morning-build/handled.tsv")
-MB_LOCK = os.path.join(HOME, ".local/state/morning-build/.lock")
+MORNING_BUILD = os.environ.get("BRAIN_MORNING_BUILD") or os.path.join(HOME, ".local/bin/morning-build")
+MB_STATE = os.environ.get("BRAIN_MORNING_BUILD_STATE") or os.path.join(HOME, ".local/state/morning-build")
+MB_HANDLED = os.path.join(MB_STATE, "handled.tsv")
+MB_LOCK = os.path.join(MB_STATE, ".lock")
+# For a safe test run of goodnight: no lock / dark screen, no voice, picks made for you ("1. …,Done").
+TEST_NO_LOCK = os.environ.get("BRAIN_DAY_NO_LOCK") == "1"
+TEST_QUIET = os.environ.get("BRAIN_DAY_QUIET") == "1"
+TEST_PICKS = [p for p in os.environ.get("BRAIN_DAY_TEST_PICKS", "").split(",") if p]
 PM = os.path.join(HOME, "projects/project-manager/bin/pm")
 ISLAND_SAY = os.path.join(HOME, ".config/omarchy/plugins/user.brain-island/bin/say")
 # Folders whose children are watched for "appeared / went away without a note".
@@ -69,6 +76,12 @@ def closeout(d, path=None):
         if c.get("day") == d.isoformat():
             last = c
     return last
+
+
+def last_goodnight(now, hours=24, path=None):
+    """The newest goodnight in the `hours` before now (bed after 5 am still counts for this morning)."""
+    got = [c for c in read_jsonl(path or CLOSEOUTS) if now - hours * 3600 <= c.get("t", 0) <= now]
+    return got[-1] if got else None
 
 
 def window(d, now=None):
@@ -131,9 +144,9 @@ def repos():
 
 
 def git_commits(repo, start, end):
-    """[(time, subject)] of commits made in [start, end) on any branch of repo (worktrees share it)."""
+    """[(time, subject)] of commits made in [start, end) on any branch of repo, local and remote (worktrees share them; not stashes or backup refs)."""
     fmt = "%Y-%m-%d %H:%M:%S"
-    argv = ["git", "-C", repo, "log", "--all", "--no-merges", "--format=%H%x09%ct%x09%s",
+    argv = ["git", "-C", repo, "log", "--branches", "--remotes", "--no-merges", "--format=%H%x09%ct%x09%s",
             "--since=" + dt.datetime.fromtimestamp(start).strftime(fmt),
             "--until=" + dt.datetime.fromtimestamp(end).strftime(fmt)]
     try:
@@ -279,7 +292,7 @@ def resolve(when, now=None):
     now = now or time.time()
     today = day_of(now)
     if when == "overnight":
-        c = closeout(today) or closeout(today - dt.timedelta(days=1))
+        c = last_goodnight(now)
         start = c["t"] if c else day_start(today)
         return None, start, now, f"Overnight since {clock(start)}", "overnight", False
     if when == "yesterday":
@@ -329,18 +342,13 @@ def cmd_changed(args):
 # ---------- talking to <user> ----------
 
 def remind_list():
-    """jobs/bin/remind-list as a module (it has no .py name)."""
-    path = os.path.join(ROOT, "jobs/bin/remind-list")
-    sys.path.insert(0, os.path.join(ROOT, "jobs"))
-    loader = importlib.machinery.SourceFileLoader("remind_list", path)
-    spec = importlib.util.spec_from_loader("remind_list", loader)
-    mod = importlib.util.module_from_spec(spec)
-    loader.exec_module(mod)
-    return mod
+    return _script_module("remind-list")
 
 
 def say(text, wait=True):
     """The island speaks (unless muted). wait: until it has finished, so the next voice doesn't talk over it."""
+    if TEST_QUIET:
+        return
     try:
         muted = remind_list().island_muted()
     except Exception:  # noqa: BLE001
@@ -368,21 +376,43 @@ def notify_open(title, body, path):
         pass
 
 
-def helpers():
-    """PM chats that are open, and how many of their runs wait on <user>: [(repo, waiting)]."""
+def _script_module(name):
+    """jobs/bin/<name> as a module (those scripts have no .py name)."""
+    path = os.path.join(ROOT, "jobs/bin", name)
+    sys.path.insert(0, os.path.join(ROOT, "jobs"))
+    loader = importlib.machinery.SourceFileLoader(name.replace("-", "_"), path)
+    mod = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+    loader.exec_module(mod)
+    return mod
+
+
+def busy():
+    """Names of the Claudes and agent helpers working right now (as the bar and whats-waiting count them)."""
     try:
-        out = subprocess.run([PM, "list", "--json"], capture_output=True, text=True, timeout=15)
-        rows = json.loads(out.stdout or "[]")
-    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return [x["name"] for x in _script_module("whats-waiting").agents() if x["group"] == "working"]
+    except Exception:  # noqa: BLE001
         return []
-    return [(r.get("repo", "?"), int(r.get("waiting") or 0)) for r in rows
-            if isinstance(r, dict) and (r.get("alive") or r.get("waiting"))]
+
+
+def waiting_line():
+    """whats-waiting's own sentence: who needs <user> (Claudes, helpers, PM runs) and who still works."""
+    try:
+        out = subprocess.run([os.path.join(ROOT, "jobs/bin/whats-waiting")], capture_output=True, text=True, timeout=30)
+        return json.loads(out.stdout.strip().splitlines()[-1])["message"]
+    except (OSError, ValueError, KeyError, IndexError, subprocess.TimeoutExpired):
+        return ""
 
 
 # ---------- goodnight ----------
 
 def pick_overnight(mod, menu=None):
     """<user> ticks remember-list items that may run tonight, one at a time. Returns [(line, date, text)]."""
+    if menu is None and TEST_PICKS:
+        answers = iter(TEST_PICKS)
+
+        def menu(prompt, options):
+            want = next(answers, None)
+            return next((o for o in options if want and o.startswith(want)), None)
     menu = menu or mod.menu
     left, picked = list(mod.items())[:12], []
     while left:
@@ -405,12 +435,14 @@ def mark_overnight(line_no, path):
 
 
 def lock_and_dark():
-    for argv, pause in ((["omarchy", "system", "lock"], 3), (["hyprctl", "dispatch", "dpms", "off"], 0)):
-        try:
-            subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-        except OSError:
-            pass
-        time.sleep(pause)
+    """Omarchy's lock: it locks, then its lock screen turns the screens (and keyboard light) off after 5 quiet
+    seconds (shell plugins/lock, blankProcess). `hyprctl dispatch dpms off` is not valid in the Lua config."""
+    if TEST_NO_LOCK:
+        return
+    try:
+        subprocess.run(["omarchy", "system", "lock"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
 
 
 def handled_since(text, since):
@@ -471,6 +503,7 @@ def cmd_goodnight(args):
         # The island's job runner gives a job 60 s, and the menu waits on <user>: go on in our own unit.
         argv = [sys.executable, "-I", os.path.abspath(__file__), "goodnight", "--run"]
         unit = ["systemd-run", "--user", "--collect", "--quiet", f"--unit=second-brain-goodnight-{int(time.time())}"]
+        unit += [f"--setenv={k}" for k in sorted(os.environ) if k.startswith("BRAIN_")]   # the unit starts clean
         try:
             subprocess.run(unit + argv, check=True, timeout=15, capture_output=True)
         except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
@@ -484,7 +517,7 @@ def cmd_goodnight(args):
     picked = pick_overnight(mod)
     for line_no, _, _ in picked:
         mark_overnight(line_no, mod.PATH)
-    running = [r for r, _ in helpers() if r != "desk"]
+    running = busy()
     append_jsonl(CLOSEOUTS, {"t": int(now), "day": d.isoformat(), "picked": [t for _, _, t in picked],
                              "running": running})
     start, end, _ = window(d, now)
@@ -519,6 +552,15 @@ def cmd_overnight_run(args):
 
 # ---------- standup ----------
 
+RESULTS = {"built:done": "built", "not_idea": "skipped, not something to build", "vague": "skipped, too vague",
+           "error": "didn't run (error)", "not run": "didn't run"}
+
+
+def result_words(r):
+    r = str(r)
+    return RESULTS.get(r) or ("build failed" if r.startswith("built:") else r)
+
+
 def standup(now=None):
     """(page text, spoken text) for this morning."""
     now = now or time.time()
@@ -528,11 +570,11 @@ def standup(now=None):
     g = gather(start, end, y)
     write(os.path.join(PAGES, y.isoformat() + ".md"),
           page(f"{day_name(y)} ({clock(start)} to {clock(end)}{', closed out' if closed else ''})", g))
-    c = closeout(y)
+    c = last_goodnight(now)
     night_start = c["t"] if c else day_start(today)
     night = gather(night_start, now)
-    ran = [r for r in read_jsonl(OVERNIGHT) if r.get("day") == y.isoformat()]
-    waiting = [(r, w) for r, w in helpers() if w]
+    ran = [r for r in read_jsonl(OVERNIGHT) if c and r.get("day") == c.get("day")]
+    waiting = waiting_line()
     try:
         open_items = len(remind_list().items())
     except Exception:  # noqa: BLE001
@@ -544,16 +586,17 @@ def standup(now=None):
     if c:
         for t in c.get("picked", []):
             r = next((x for x in ran if x.get("text") == t), None)
-            lines.append(f"- {cut(t, 90)}: " + (f"{r['result']} ({cut(str(r.get('where', '')), 120)})" if r else "still running"))
+            lines.append(f"- {cut(t, 90)}: " + (f"{result_words(r['result'])} ({cut(str(r.get('where', '')), 120)})"
+                                                 if r else "still running"))
         if c.get("running"):
             lines.append("- Helpers that were busy at bedtime: " + ", ".join(c["running"]))
         if not c.get("picked") and not c.get("running"):
             lines.append("- Nothing was ticked to run.")
     else:
         lines.append("- No goodnight last night, so nothing was queued.")
-    lines += page("x", night).splitlines()[2:]
+    lines += ["", "Since bedtime:"] + page("x", night).splitlines()[2:]
     lines += ["", "## Waiting on you", ""]
-    lines += [f"- {r}: {w} run{'s' if w != 1 else ''}" for r, w in waiting] or ["- Nobody."]
+    lines.append(f"- {waiting or 'Could not check.'}")
     lines.append(f"- Remember list: {open_items} open item{'s' if open_items != 1 else ''}.")
     text = "\n".join(lines) + "\n"
 
@@ -566,8 +609,7 @@ def standup(now=None):
     if n_night:
         spoken.append(f"Since bedtime: {n_night} saved change{'s' if n_night != 1 else ''}.")
     if waiting:
-        spoken.append(f"{len(waiting)} project{'s' if len(waiting) != 1 else ''} wait on you: "
-                      + ", ".join(spoken_name(r) for r, _ in waiting[:3]) + ".")
+        spoken.append(waiting)
     return text, " ".join(spoken)
 
 
@@ -585,7 +627,8 @@ def cmd_standup(args):
         print("\nspoken:", spoken)
         return 0
     say(spoken, wait=True)
-    notify_open("Morning standup", spoken[:300] + "\nClick to read it.", path)
+    if not TEST_QUIET:
+        notify_open("Morning standup", spoken[:300] + "\nClick to read it.", path)
     return 0
 
 
