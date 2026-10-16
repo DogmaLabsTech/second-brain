@@ -64,6 +64,8 @@ One small file per job in `jobs/` (what to say, whether it asks first, the comma
 |---|---|---|---|
 | `open-note` | "open my notes on the bar" | no | opens the best matching note (`xdg-open`) |
 | `whats-waiting` | "what's waiting on me?" | no | reads the bar's Claude list, agent helpers and PM runs, says who needs you |
+| `what-changed` | "what moved today?", "what happened overnight?" | no | `brain day … --say`: two spoken sentences from the day page (below) |
+| `goodnight` | "goodnight", "I'm going to bed", "close out the day" | yes | `brain goodnight` (below) |
 | `start-claude` | "start a Claude on Example Game" | yes | `pm open <project> --launch` (that project's PM in agent) |
 | `music` | "pause", "next song" | no | the music app (MPRIS over D-Bus) |
 | `tv` | "turn the TV down" | no | the deck's TV remote scripts, volume up / down / mute only |
@@ -138,6 +140,28 @@ action), so a changed job object can't run anything else. No job deletes, sends 
 To add a job: a new file in `jobs/`, its `build` and `_check` lines in `jobs/jobs.py`, and examples for the
 intent decider (`deciders/README.md`).
 
+## Your day: what moved, goodnight and the morning standup
+
+A day runs from **5 in the morning to 5 the next morning**, or until you say goodnight.
+
+- **What moved?** `brain day` (or `yesterday`, `overnight`, a date like `2026-10-15`) shows about 20 lines:
+  saved changes in every project (all branches, so helpers' worktrees count), grouped per project with the
+  newest three; changes logged with `brain changed`; and folders that appeared or went away with no note.
+  A script makes it in under a second, with no AI. Ask the island "what moved today?" and it says it.
+  Each day's page is kept in `~/.local/share/second-brain/day/pages/` and is searchable (collection `days`).
+- **Log a change by hand:** `brain changed move "~/old -> ~/new"`. `move-to-hdd.sh` does this by itself.
+- **Goodnight:** say "goodnight" (or type `brain goodnight`). It shows your remember list; tick what may run
+  tonight, one at a time, then Done. Ticked items run one by one through the morning build (Claude in its
+  safe sandbox, never pushes; each gets a PM run folder). Helpers already working keep going; nothing else
+  starts. Then the island says goodnight, the screen locks and goes dark, and the computer won't sleep
+  until the work is done (until 7 am if helpers were busy).
+- **Morning standup:** at 9:00, before the remember list, the island says yesterday in short, how the
+  overnight work went and who waits on you, and a notification opens the full page
+  (`pages/standup-<date>.md`). Once a day; `brain standup --print` shows it any time.
+
+Timers: `second-brain-day.timer` (5:00: keeps the folder list and yesterday's page) and the 9:00
+`second-brain-remind-list` (standup first). Code: `day/day.py`, tests `day/test_day.py`.
+
 ## Speech to text (for the island)
 
 `second-brain-stt.service` keeps voxtype's parakeet model loaded (`stt/server.py`, about 1 GB of
@@ -176,15 +200,15 @@ Numbers from the first build: `docs/index-report.md`.
 ## How to undo
 
 ```
-systemctl --user disable --now second-brain-reindex.timer second-brain-mcp.service second-brain-ollama.service second-brain-stt.service
-rm ~/.config/systemd/user/second-brain-reindex.{timer,service} ~/.config/systemd/user/second-brain-{mcp,ollama,stt}.service
+systemctl --user disable --now second-brain-day.timer second-brain-reindex.timer second-brain-mcp.service second-brain-ollama.service second-brain-stt.service
+rm ~/.config/systemd/user/second-brain-{day,reindex}.{timer,service} ~/.config/systemd/user/second-brain-{mcp,ollama,stt}.service
 claude mcp remove --scope user brain
 rm ~/.local/bin/brain
 npm uninstall -g @tobilu/qmd
 rm -rf ~/.cache/qmd ~/.config/qmd ~/.local/share/second-brain
 ```
 
-Then delete the "The second brain" section at the end of `~/.claude/CLAUDE.md`.
+Then delete the "The second brain" and "day-journal" sections in `~/.claude/CLAUDE.md` and `~/.pi/agent/AGENTS.md`.
 Your notes are untouched either way.
 
 ## Weekly check-up

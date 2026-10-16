@@ -68,6 +68,7 @@ COLLECTIONS = {
     "experiments": os.path.join(HOME, "projects", "experiments"),
     "content": os.path.join(HOME, "projects", "assets", "content-library"),
     "hermes": os.path.join(HOME, ".hermes"),
+    "days": os.path.join(HOME, ".local", "share", "second-brain", "day", "pages"),
 }   # keep in step with index/index.yml
 MODEL_SHORT = {"qwen2.5:3b": "qwen2.5", "granite4.2:3b": "granite4.2", "gpt-oss:20b": "gpt-oss"}
 
@@ -585,7 +586,7 @@ def ask(q, writer="auto"):
     if label == "unsure" or not label:
         if not again:
             label, by = (f"job:{rule}", "rule") if rule else ("question", by)
-    elif rule in jobslib.DESKTOP_JOBS and label in ("question", "chitchat", "job:open-note"):
+    elif rule in jobslib.DESKTOP_JOBS + jobslib.DAY_JOBS and label in ("question", "chitchat", "job:open-note"):
         label, by = f"job:{rule}", "rule"
     elif jobslib.route_label(rule, label, q) != label:   # "send it to the laptop" is not an open-file
         label, by = jobslib.route_label(rule, label, q), "rule"

@@ -75,6 +75,12 @@ collections:
     # Tests, scratch runs, automated PM builder runs and near-empty chats (chats/convert.py, low_value).
     ignore:
       - "low/**"
+  days:
+    includeByDefault: false
+    path: ~/.local/share/second-brain/day/pages
+    pattern: "**/*.md"
+    context:
+      "/": "Day pages and morning standups (day/day.py): what moved on each day (5 am to 5 am, or to goodnight), grouped per project, logged changes, folders that changed without a note, and what ran overnight."
   pm:
     includeByDefault: false
     path: ~/projects/project-manager

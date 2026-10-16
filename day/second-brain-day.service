@@ -1,0 +1,7 @@
+[Unit]
+Description=Second brain: at 5:00, keep the folder list and the page of the day that just ended (day/day.py nightly)
+
+[Service]
+Type=oneshot
+ExecStart=%h/projects/second-brain/jobs/bin/day nightly
+TimeoutStartSec=5min
