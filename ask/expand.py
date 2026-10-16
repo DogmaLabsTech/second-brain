@@ -55,7 +55,7 @@ def llm_keywords(q, model="qwen2.5:3b", timeout=60):
     import json
     import time
     import urllib.request
-    body = {"model": model, "stream": False, "keep_alive": "30m",
+    body = {"model": model, "stream": False, "keep_alive": "5m",
             "options": {"num_ctx": 1024, "temperature": 0, "num_predict": 40},
             "messages": [{"role": "system", "content":
                           "Give 3 to 5 search keywords or short phrases a note answering this question would "

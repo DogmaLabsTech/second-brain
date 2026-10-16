@@ -109,7 +109,7 @@ def loaded():
 
 def wake():
     try:
-        req = urllib.request.Request(f"http://{OLLAMA}/api/generate", json.dumps({"model": MODEL, "keep_alive": "30m"}).encode(),
+        req = urllib.request.Request(f"http://{OLLAMA}/api/generate", json.dumps({"model": MODEL, "keep_alive": "5m"}).encode(),
                                      {"content-type": "application/json"})
         urllib.request.urlopen(req, timeout=0.3)
     except Exception:  # noqa: BLE001  (it keeps loading after we stop waiting)
@@ -131,7 +131,7 @@ def fill(job_id, text, projects=(), timeout=SECONDS):
     msgs = [{"role": "system", "content": system}]
     for said, f in ex:
         msgs += [{"role": "user", "content": said}, {"role": "assistant", "content": json.dumps(f)}]
-    body = {"model": MODEL, "stream": False, "keep_alive": "30m", "format": form,
+    body = {"model": MODEL, "stream": False, "keep_alive": "5m", "format": form,
             "options": {"temperature": 0, "num_predict": 80, "num_ctx": 4096},   # ask.py's size, or Ollama reloads (13 s)
             "messages": msgs + [{"role": "user", "content": text}]}
     host, _, port = OLLAMA.partition(":")

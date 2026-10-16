@@ -247,7 +247,7 @@ def local_write(prompt, model=LOCAL_MODEL, deadline=None, system=SYSTEM, max_tok
     """Ollama chat, streamed. Returns (text, first_ms, total_ms). Raises TimeoutError past `deadline`
     (seconds from now): the connection is closed, which stops Ollama generating."""
     t0 = time.monotonic()
-    body = {"model": model, "stream": True, "keep_alive": "30m",
+    body = {"model": model, "stream": True, "keep_alive": "5m",
             "options": {"num_ctx": 4096, "temperature": 0.1, "num_predict": max_tokens},
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}]}
     if model.startswith("granite") or model.startswith("gpt-oss"):
@@ -405,7 +405,7 @@ def warm_local(model=LOCAL_MODEL):
     def go():
         try:
             req = urllib.request.Request(f"http://{OLLAMA}/api/generate",
-                                         json.dumps({"model": model, "keep_alive": "30m"}).encode(),
+                                         json.dumps({"model": model, "keep_alive": "5m"}).encode(),
                                          {"content-type": "application/json"})
             urllib.request.urlopen(req, timeout=120).read()
         except Exception:  # noqa: BLE001
