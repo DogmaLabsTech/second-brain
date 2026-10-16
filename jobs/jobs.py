@@ -64,8 +64,10 @@ TWO_ASKS = re.compile(r"\b(and|then|also|plus)\s+(then\s+|also\s+)?(start|open|r
                       r"sort|take|turn|move|lock|check|tell|show|close|put|make|add|write)\b|[.?!;]\s+\w", re.I)
 
 
-def two_asks(text):
-    return bool(TWO_ASKS.search(clean_text(text)))
+def two_asks(text, job_id="remember-fix"):
+    """Two asks in one line ("fix the thing on my remember list and then open Spotify")? Only for remember-fix:
+    start-job's task after the project is free text handed to agent-os, so "fix the bug. Then add tests" is one job."""
+    return job_id != "start-job" and bool(TWO_ASKS.search(clean_text(text)))
 OVERNIGHT_WORDS = re.compile(r"\b(overnight|last night|while i (slept|was asleep)|since (bed|i went to bed))\b", re.I)
 
 
@@ -118,8 +120,10 @@ def match_rule(text, jobs=None):
             if sendfiles.is_send_request(text):
                 return job["id"]
         elif m and re.search(m, text, re.I):
-            if job["id"] in AGENT_JOBS and two_asks(text):
+            if job["id"] in AGENT_JOBS and (two_asks(text, job["id"]) or is_how_question(text)):
                 continue
+            if job["id"] == "start-job" and not all(job_project(text)):
+                continue   # "start a run on tuesday" names no project: not this job
             return job["id"]
     return None
 

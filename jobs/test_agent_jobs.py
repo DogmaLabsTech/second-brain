@@ -155,8 +155,17 @@ class Rules(unittest.TestCase):
                      "can you remember to fix the sink", "what should I fix on my remember list",
                      "fix the thing on my remember list and then start a job on example: the logs",
                      "fix the thing on my remember list tonight. Also open spotify",
-                     "how do I fix the thing on my remember list"):
+                     "how do I fix the thing on my remember list",
+                     # review F1, F3: questions about the list and runs that name no project
+                     "do you have anything on my remember list", "do I need to sort out my taxes from my remember list",
+                     "does anything on my remember list need fixing", "start a run on tuesday",
+                     "start a build for the weekend", "start a run for me"):
             self.assertNotIn(jobs.match_rule(text), jobs.AGENT_JOBS, text)
+
+    def test_agent_jobs_still_fit(self):
+        self.assertEqual(jobs.match_rule("can you fix the thing on my remember list"), "remember-fix")
+        # review F2: start-job's task is free text, so two sentences in it are still one job
+        self.assertEqual(jobs.match_rule("start a job on example: fix the bug. Then add tests"), "start-job")
 
     def test_other_jobs_keep_their_phrases(self):
         self.assertEqual(jobs.match_rule("remember that the dentist is on friday"), "remember")

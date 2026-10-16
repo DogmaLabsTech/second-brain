@@ -2,7 +2,7 @@
   "id": "remember-fix",
   "label": "Start a fix from your remember list",
   "phrases": ["fix the thing on my remember list tonight", "do the thing on my remember list", "sort out the one on my remembered list tonight", "take care of the thing from my remember list"],
-  "match": "^(please |can you |could you |would you )?(fix|do|sort( out)?|handle|tackle|take care of|work on)\\b.{0,40}\\b(on|from|in|off) (my|the) remember(ed)? list\\b",
+  "match": "^(please |can you |could you |would you )?(fix|do(?! (you|i|we|they)\\b)|sort( out)?|handle|tackle|take care of|work on)\\b.{0,40}\\b(on|from|in|off) (my|the) remember(ed)? list\\b",
   "order": 40,
   "needs_confirm": true,
   "args": {"text": "what <user> said, one line", "how": "voice or typed"},

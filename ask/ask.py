@@ -591,7 +591,7 @@ def ask(q, writer="auto", how="typed"):
             label, by = (f"job:{rule}", "rule") if rule else ("question", by)
     elif rule in jobslib.AGENT_JOBS and label != f"job:{rule}":   # tight rules, new to the decider: the rule wins
         label, by = f"job:{rule}", "rule"
-    elif label[4:] in jobslib.AGENT_JOBS and rule != label[4:] and jobslib.two_asks(q):
+    elif label[4:] in jobslib.AGENT_JOBS and rule != label[4:] and jobslib.two_asks(q, label[4:]):
         label, again = "unsure", True   # two asks in one line never hand off to agent-os: say it again
     elif rule in jobslib.DESKTOP_JOBS + jobslib.DAY_JOBS and label in ("question", "chitchat", "job:open-note"):
         label, by = f"job:{rule}", "rule"

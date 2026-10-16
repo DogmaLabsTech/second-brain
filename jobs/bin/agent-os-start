@@ -40,7 +40,7 @@ def say(message, code):
 
 
 def agent_os_bin():
-    return os.environ.get("AGENT_OS_BIN") or shutil.which("agent-os") or DEFAULT_BIN
+    return os.path.abspath(os.environ.get("AGENT_OS_BIN") or shutil.which("agent-os") or DEFAULT_BIN)
 
 
 def dry():
@@ -87,7 +87,11 @@ def start_run(exe, folder, unit):
                                stdin=subprocess.DEVNULL)
             if r.returncode == 0:
                 return True
-        except (OSError, subprocess.TimeoutExpired):
+        except subprocess.TimeoutExpired:
+            # It may have started all the same: never start a second run for the same folder.
+            return subprocess.run(["systemctl", "--user", "is-active", "--quiet", unit],
+                                  stdin=subprocess.DEVNULL, capture_output=True).returncode == 0
+        except OSError:
             pass
     try:
         with open(log, "ab") as f:
