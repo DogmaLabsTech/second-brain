@@ -6,7 +6,7 @@
   "order": 40,
   "needs_confirm": true,
   "args": {"project": "a repo from `pm list` / ~/projects", "name": "its plain name", "text": "what <user> said, one line", "how": "voice or typed"},
-  "command": ["{jobs}/bin/agent-os-start", "--how", "{how}", "--", "{text}"],
-  "message": "Started. It will wait for your go.",
+  "command": ["{jobs}/bin/agent-os-start", "--job", "start-job", "--how", "{how}", "--", "{text}"],
+  "message": "Handed to agent-os. For now it only builds fixes from your remember list, so this one is saved for later.",
   "speak": true
 }

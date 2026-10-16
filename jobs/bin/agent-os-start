@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""agent-os-start --how voice|typed -- "<what <user> said>": hand the words to agent-os.
+"""agent-os-start [--job start-job] --how voice|typed -- "<what <user> said>": hand the words to agent-os.
 
 Run by `brain job run remember-fix|start-job` after <user>'s Yes on the island card.
   1. `agent-os hear --how <how> -- "<text>"` writes a job folder with ask.md and prints `job: <folder>`.
   2. `agent-os run --job <folder>` is started detached (systemd-run --user, its own unit, so it outlives the island;
      setsid when systemd-run is missing or fails). Its output goes to <folder>/run.log.
   3. Prints one JSON line for the island: {"message": "Started. It will wait for your go.", "speak": true}.
+     With --job start-job the line says it is saved for later instead (agent-os only builds remember-list fixes
+     today, so it finishes with "nothing to build" rather than waiting for a go).
 agent-os runs its stages and stops at go.md, a file only <user> writes: nothing is built or pushed without him.
 The text is always one argument after `--` (never through a shell). If hear fails or prints no job folder, it says
 "I couldn't start that job" and starts nothing.
@@ -30,6 +32,7 @@ DEFAULT_BIN = os.path.join(HOME, "projects", "Projects", "agent-os", "bin", "age
 PASS_ENV = ("AGENT_OS_HOME", "AGENT_OS_REMEMBER_LIST")
 SAFE_NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,120}")
 STARTED = "Started. It will wait for your go."
+SAVED = "Handed to agent-os. For now it only builds fixes from your remember list, so this one is saved for later."
 FAILED = "I couldn't start that job."
 HEAR_SECONDS = 15
 
@@ -103,6 +106,9 @@ def start_run(exe, folder, unit):
 
 
 def main(argv):
+    job = "remember-fix"
+    if len(argv) == 6 and argv[0] == "--job" and argv[1] == "start-job":
+        job, argv = "start-job", argv[2:]
     if len(argv) != 4 or argv[0] != "--how" or argv[1] not in ("voice", "typed") or argv[2] != "--":
         return say(FAILED, 2)
     how, text = argv[1], argv[3]
@@ -117,7 +123,7 @@ def main(argv):
         return say(FAILED, 1)
     if not start_run(exe, folder, unit):
         return say(FAILED, 1)
-    return say(STARTED, 0)
+    return say(SAVED if job == "start-job" else STARTED, 0)
 
 
 if __name__ == "__main__":

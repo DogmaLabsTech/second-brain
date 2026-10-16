@@ -95,8 +95,9 @@ nothing. These two only fire when the sentence starts that way: "what's on my re
 ..." and "what should I fix on my remember list?" stay what they were, and a sentence with two asks in it ("fix
 the thing on my remember list and then open Spotify") is asked again. The island can't yet tell spoken from typed
 words, so `ask.md` says `how: typed` for now (`brain ask --how voice` is ready for when it can). For now agent-os
-only builds from the remember list: "start a job on ..." makes the folder, but agent-os stops at "nothing to build"
-until it learns other jobs. Tests: `CRABBOX_LOCAL=1 python3 -I jobs/test_agent_jobs.py` (a fake agent-os; the
+only builds fixes from the remember list, so "start a job on ..." says so plainly: "Handed to agent-os. For now it
+only builds fixes from your remember list, so this one is saved for later." The folder and `ask.md` are made, and
+agent-os stops at "nothing to build" until it learns other jobs. Tests: `CRABBOX_LOCAL=1 python3 -I jobs/test_agent_jobs.py` (a fake agent-os; the
 real one never runs).
 
 **Moving a window.** "Move this window to my other screen", "move Chrome to the left monitor", "open VS Code

@@ -29,6 +29,7 @@ FOLDER_NAME = "20261016-1830-fix-the-thing"
 TEXT = "fix the thing on my remember list tonight"
 FAILED = "I couldn't start that job."
 STARTED = "Started. It will wait for your go."
+SAVED = "Handed to agent-os. For now it only builds fixes from your remember list, so this one is saved for later."
 
 FAKE_AGENT_OS = '''#!%(py)s
 import json, os, sys, time
@@ -187,13 +188,17 @@ class Build(unittest.TestCase):
         self.assertTrue(job["needs_confirm"])
         self.assertEqual(job["label"], "Start a fix from your remember list")
         self.assertEqual(job["args"], {"text": TEXT, "how": "typed"})
+        self.assertIn("wait for your go", out["answer"])   # remember-fix keeps its go-wait lines
 
     def test_how_voice(self):
         self.assertEqual(jobs.build("remember-fix", TEXT, how="voice")["job"]["args"]["how"], "voice")
         self.assertEqual(jobs.build("remember-fix", TEXT, how="bogus")["job"]["args"]["how"], "typed")
 
     def test_start_job_card(self):
-        job = jobs.build("start-job", "start a job on agent-os: make the report shorter")["job"]
+        out = jobs.build("start-job", "start a job on agent-os: make the report shorter")
+        self.assertIn("saved for later", out["answer"])   # no go-wait promise: agent-os can't build it yet
+        self.assertNotIn("your go", out["answer"])
+        job = out["job"]
         self.assertEqual(job["label"], "Start a job on Agent Os")
         self.assertEqual(job["args"]["project"], "agent-os")
         self.assertTrue(job["needs_confirm"])
@@ -279,7 +284,10 @@ class Starting(Fakes):
     def test_start_job_runs_the_same_way(self):
         code, printed, _ = self.run_job("start-job", "start a job on agent-os: make the report shorter")
         self.assertEqual(code, 0)
-        self.assertEqual(self.message(printed), STARTED)
+        self.assertEqual(self.message(printed), SAVED)   # agent-os only builds remember-list fixes today
+        self.assertNotIn("go", self.message(printed).split())
+        hear = self.calls("agent-os")[0]["argv"]
+        self.assertEqual(hear, ["hear", "--how", "typed", "--", "start a job on agent-os: make the report shorter"])
         self.assertEqual(len(self.calls("systemd-run")), 1)
 
     def test_setsid_fallback(self):
@@ -292,6 +300,21 @@ class Starting(Fakes):
         self.assertTrue(self.wait_for(lambda: any(c["argv"][:1] == ["run"] for c in self.calls("agent-os"))))
         self.assertEqual(self.calls("systemd-run"), [])
         self.assertTrue(os.path.exists(os.path.join(folder, "run.log")))
+
+
+class JobArgument(Fakes):
+    def test_only_start_job_is_accepted(self):
+        start = load_start()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = start.main(["--job", "other", "--how", "typed", "--", TEXT])
+        self.assertNotEqual(code, 0)
+        self.assertEqual(self.message(out.getvalue()), FAILED)
+        self.assertEqual(self.calls(), [])
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = start.main(["--how", "typed", "--", TEXT])
+        self.assertEqual((code, self.message(out.getvalue())), (0, STARTED))
 
 
 class UnitName(unittest.TestCase):

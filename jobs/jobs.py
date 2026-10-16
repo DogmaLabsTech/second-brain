@@ -489,9 +489,11 @@ def build(job_id, text, search=None, local_writer=None, how="typed"):
                         f"{pretty(repo)}, then what to do.", "sources": [], "job": None}
             args = {"project": repo, "name": pretty(repo), **args}
             label = f"Start a job on {pretty(repo)}"
+            answer = ("This hands it to agent-os. For now it only builds fixes from your remember list, so this one "
+                      "is saved for later.")
         else:
             label = job["label"]
-        answer = "This hands it to agent-os. It will wait for your go before anything is built."
+            answer = "This hands it to agent-os. It will wait for your go before anything is built."
     elif job_id == "what-changed":
         args = {"when": day_when(text)}
         label = {"today": "What moved today", "yesterday": "What moved yesterday",
