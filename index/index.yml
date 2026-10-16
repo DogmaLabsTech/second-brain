@@ -20,6 +20,10 @@ collections:
     context:
       "/": "Computer notes (OMARCHY-BRAIN): how <user>'s Omarchy Linux desktop is set up, the top bar, services, the test machine test box, Claude Code setup, finance and open items."
       "/paperclip": "Old records from Paperclip, an AI-company experiment removed 2026-09-25. Historical copies; the current business rules live in the business collection."
+      # history/ folders (2026-10-16 tidy): dated logs, backups, audits and finished handoffs. Kept findable, marked old.
+      "/system/history": "History: dated logs, backups and finished handoffs about the computer setup. May be out of date; the current notes are in system/."
+      "/claude-code/history": "History: dated build logs, audits, tests and team reports about Claude Code mods and the second decider/the local decider. May be out of date; the current notes are in claude-code/."
+      "/testbox-handheld/history": "History: old backups of test machine scripts."
   business:
     includeByDefault: false
     path: ~/user-labs-business
