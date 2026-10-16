@@ -6,6 +6,7 @@ Prints {"message": ...} as its last line. Never rewrites earlier lines (append o
 """
 import json
 import os
+import re
 import sys
 import time
 
@@ -17,6 +18,36 @@ each, newest last. Written by `brain job run remember` (second-brain `jobs/bin/r
 the second brain at the next hourly reindex. Fine to tidy by hand.
 
 """
+PROJECTS = os.path.expanduser(os.environ.get("BRAIN_PROJECTS_DIR", "~/projects"))
+# Project folders whose names are ordinary English words or phrases: said in a sentence they usually
+# mean the word ("check the example levels"), so they are never tagged by guessing. A said tag still stays.
+COMMON_WORDS = {"bullpen", "decider", "digest", "expedition", "factory", "example-flights", "example", "example-trader", "example-board",
+                "example-power", "reimagine-it"}
+SAID = re.compile(r"\(\s*repo\s*:\s*([^()]*?)\s*\)", re.I)
+
+
+def said_tag(text):
+    """(text without the first '(repo: x)', x) or (text, None). Any further tags are dropped."""
+    m = SAID.search(text)
+    if not m or not m.group(1).strip():
+        return text, None
+    rest = SAID.sub(" ", text[:m.start()] + " " + text[m.end():])
+    return " ".join(rest.split()), m.group(1).strip().lower()
+
+
+def auto_tag(text):
+    """The longest project folder whose whole name (dashes = spaces or dashes) is in the text, or None."""
+    try:
+        names = [n for n in os.listdir(PROJECTS) if not n.startswith(".") and os.path.isdir(os.path.join(PROJECTS, n))]
+    except OSError:
+        return None
+    for n in sorted(names, key=len, reverse=True):
+        if n.lower() in COMMON_WORDS:
+            continue
+        words = [re.escape(w) for w in re.split(r"[-_]+", n.lower()) if w]
+        if words and re.search(r"(?<![a-z0-9])" + r"[ _-]+".join(words) + r"(?![a-z0-9])", text.lower()):
+            return n
+    return None
 
 
 def main():
@@ -24,7 +55,11 @@ def main():
     if not text:
         print(json.dumps({"message": "There was nothing to remember."}))
         return 1
+    text, tag = said_tag(text)
     text = text[:500]
+    tag = tag or auto_tag(text)
+    if tag:
+        text += f" (repo: {tag})"
     os.makedirs(os.path.dirname(PATH), exist_ok=True)
     new = not os.path.exists(PATH)
     with open(PATH, "a") as f:
