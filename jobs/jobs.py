@@ -233,8 +233,12 @@ def job_project(text):
 
 
 def one_line(text):
-    """The words handed to agent-os: one line, no control characters, 1-500 characters, not starting with '-'."""
-    t = " ".join(re.sub(r"[\x00-\x1f\x7f]", " ", str(text or "")).split())
+    """The words handed to agent-os: one line (a line break is refused, not joined), no control characters, 1-500
+    characters, not starting with '-'. Other runs of spaces are collapsed."""
+    t = str(text or "")
+    if re.search(r"[\x00-\x08\x0a-\x1f\x7f]", t):
+        raise ValueError("the words weren't one plain line")
+    t = " ".join(t.split())
     if not t or len(t) > 500 or t.startswith("-"):
         raise ValueError("the words didn't fit on one short line")
     return t
