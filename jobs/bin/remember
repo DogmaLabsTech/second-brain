@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""remember "<text>": add one dated line to ~/OMARCHY-BRAIN/inbox/remembered.md (made if missing).
+
+The file is in the brain's `computer` collection, so the hourly reindex makes it searchable.
+Prints {"message": ...} as its last line. Never rewrites earlier lines (append only).
+"""
+import json
+import os
+import sys
+import time
+
+PATH = os.path.expanduser(os.environ.get("BRAIN_REMEMBER_FILE", "~/OMARCHY-BRAIN/inbox/remembered.md"))
+HEAD = """# Remembered
+
+Things <user> asked the brain island to remember ("Hey Claude, remember that ..."), one dated line
+each, newest last. Written by `brain job run remember` (second-brain `jobs/bin/remember`); read into
+the second brain at the next hourly reindex. Fine to tidy by hand.
+
+"""
+
+
+def main():
+    text = " ".join(" ".join(sys.argv[1:]).split()).strip()
+    if not text:
+        print(json.dumps({"message": "There was nothing to remember."}))
+        return 1
+    text = text[:500]
+    os.makedirs(os.path.dirname(PATH), exist_ok=True)
+    new = not os.path.exists(PATH)
+    with open(PATH, "a") as f:
+        if new:
+            f.write(HEAD)
+        f.write(f"- {time.strftime('%Y-%m-%d %H:%M')}: {text}\n")
+    print(json.dumps({"message": "Got it. I wrote it in your remembered list."}))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

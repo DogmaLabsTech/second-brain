@@ -1,0 +1,10 @@
+{
+  "id": "open-note",
+  "label": "Open {title}",
+  "phrases": ["open my notes on the bar", "open the note about the test machine", "show me my notes on pricing", "pull up the example-rpg world bible"],
+  "match": "^(please )?(open|show( me)?|pull up|bring up)\\b.*\\b(notes?|file|doc|readme|bible|guide)\\b",
+  "needs_confirm": false,
+  "args": {"path": "the top search hit for the topic", "title": "that note's title"},
+  "command": ["xdg-open", "{path}"],
+  "message": "Opened {title}."
+}

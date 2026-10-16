@@ -1,0 +1,9 @@
+[Unit]
+Description=Second brain: <user>'s remember list at 9:00, 12:00 and 18:00 (jobs/bin/remind-list)
+
+[Timer]
+OnCalendar=*-*-* 09,12,18:00
+Persistent=false
+
+[Install]
+WantedBy=timers.target

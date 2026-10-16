@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+"""desktop app <id> [<screen>] | file <path> | action <id> [<value json>]: the open-app, open-file and desktop jobs.
+
+`app <id> other` opens (or focuses) the app and then moves its window to that screen. `action window-monitor
+'{"to": "other", "app": null}'` moves the window you are looking at (or the named app's window) to a screen.
+Screens are checked against `hyprctl monitors -j` when this runs; the dispatch only ever gets a real
+monitor name and a real window address.
+
+Checks everything again (jobs/desktop.py), starts the command in its own session with its output in a
+temp file (so a long-running app or recorder never holds the island up), and waits up to 15 s for a
+quick command to finish. Last line: {"message": "..."}.
+"""
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import desktop as d  # noqa: E402
+
+
+def say(message, code=0):
+    print(json.dumps({"message": message}))
+    return code
+
+
+def start(argv, wait=15):
+    """Run argv detached; returns (finished, returncode, last output line)."""
+    with tempfile.TemporaryFile(mode="w+") as out:
+        try:
+            p = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT,
+                                 start_new_session=True)
+        except OSError as why:
+            return True, 127, str(why)
+        try:
+            code = p.wait(timeout=wait)
+        except subprocess.TimeoutExpired:
+            return False, 0, ""
+        out.seek(0)
+        lines = [l for l in out.read().splitlines() if l.strip()]
+        return True, code, lines[-1][:160] if lines else ""
+
+
+def hypr_json(*args):
+    try:
+        out = subprocess.run(["hyprctl", *args, "-j"], capture_output=True, text=True, timeout=3).stdout
+        return json.loads(out or "null")
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return None
+
+
+def usable(c):
+    return isinstance(c, dict) and c.get("mapped", True) and not c.get("hidden") and \
+        (c.get("workspace") or {}).get("id", 1) > 0 and re.fullmatch(r"0x[0-9a-f]+", str(c.get("address", "")))
+
+
+def current_window(app_id=None):
+    """The window to move: the app's window (focused most recently), else the one you are on, else the
+    most recently focused real window (when the island has taken the focus there is no active window)."""
+    cl = d.clients()
+    if app_id:
+        wins = [c for c in d.app_windows(app_id, cl) if usable(c)]
+        return wins[0] if wins else None
+    active = hypr_json("activewindow")
+    if usable(active):
+        return next((c for c in cl if c.get("address") == active["address"]), active)
+    live = sorted((c for c in cl if usable(c)), key=lambda c: c.get("focusHistoryID", 99))
+    return live[0] if live else None
+
+
+def window_now(address):
+    return next((c for c in d.clients() if c.get("address") == address), None)
+
+
+def move_window(win, spec, who):
+    """Move one window to the screen the spec names, then check it got there. Returns (message, code)."""
+    mons = d.monitors()
+    mon, why = d.resolve_monitor(spec, mons, win.get("monitor"))
+    if not mon:
+        return why, 1
+    where = d.monitor_say(mon, mons)
+    if win.get("monitor") == mon["id"]:
+        # Moving a window onto the screen it is on would pull it to that screen's other workspace.
+        return f"{who[:1].upper() + who[1:]} is already on {where}.", 0
+    if not re.fullmatch(r"[A-Za-z0-9._:-]+", str(mon["name"])) or not re.fullmatch(r"0x[0-9a-f]+", win["address"]):
+        return "I couldn't tell which window or screen that is.", 1
+    start(["hyprctl", "dispatch",
+           f'hl.dsp.window.move({{ monitor = "{mon["name"]}", window = "address:{win["address"]}" }})'], wait=5)
+    for _ in range(6):
+        time.sleep(0.15)
+        now = window_now(win["address"])
+        if now and now.get("monitor") == mon["id"]:
+            return f"Moved {who} to {where}.", 0
+    return "I tried to move it but it stayed where it was.", 1
+
+
+def window_name(win, app_id=None):
+    if app_id:
+        return d.app_name(app_id)
+    cls = (win.get("class") or "").lower()
+    for a in d.apps().values():
+        if cls and cls in (a["wmclass"].lower(), a["exe"].lower()):
+            return a["name"]
+    return "this window"
+
+
+def open_and_move(app_id, cmd, name, spec):
+    """Open (or focus) the app, catch its window, move it. Only launch-or-focus may hand back a window that was
+    already open; the terminal, browser, files and editor launchers always open a new one, so for those only a
+    window that wasn't there before counts (moving an old terminal would move the wrong one)."""
+    before = d.clients()
+    seen = {c.get("address") for c in before}
+    focuses = cmd[0] == "omarchy-launch-or-focus"
+    existing = [c for c in d.app_windows(app_id, before) if usable(c)] if focuses else []
+    done, code, last = start(cmd, wait=3)
+    if done and code != 0:
+        return f"{name} didn't open: {last or 'it stopped straight away'}.", 1
+    win = None
+    if existing:   # launch-or-focus focused one of them: move the one that is focused now
+        addrs = {c["address"] for c in existing}
+        for _ in range(8):
+            active = hypr_json("activewindow")
+            if isinstance(active, dict) and active.get("address") in addrs:
+                win = active
+                break
+            time.sleep(0.2)
+        # Not seen focused in time: the one launch-or-focus picks is the first that fits in the client list.
+        win = win or next(c for c in before if c.get("address") in addrs)
+    else:
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < 8 and not win:
+            fresh = [c for c in d.clients() if usable(c) and c.get("address") not in seen]
+            matched = [c for c in d.app_windows(app_id, fresh) if usable(c)]
+            if matched:
+                win = matched[0]
+            elif fresh and time.monotonic() - t0 > 3:
+                win = fresh[0]
+            else:
+                time.sleep(0.25)
+        if win:
+            time.sleep(0.4)   # let it settle on its first workspace
+            win = window_now(win["address"]) or win
+    if not win:
+        return f"Opened {name}, but I couldn't catch its window to move it.", 1
+    msg, code = move_window(win, spec, name)
+    if code == 0 and msg.startswith("Moved"):
+        return f"Opened {name} on {msg.split(' to ', 1)[1]}", 0
+    if code == 0:
+        return f"Opened {name}. It's already there.", 0
+    return f"Opened {name}. {msg}", code
+
+
+def nightlight_on():
+    try:
+        out = subprocess.run(["omarchy", "toggle", "nightlight", "--status"], capture_output=True, text=True, timeout=5)
+        return json.loads(out.stdout or "{}").get("enabled")
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return None
+
+
+def main(argv):
+    if len(argv) < 2:
+        return say("The desktop job was missing its details, so I did nothing.", 2)
+    kind, what = argv[0], argv[1]
+    if kind == "app":
+        try:
+            cmd = d.app_command(what)
+        except ValueError as why:
+            return say(f"I didn't do it: {why}.", 2)
+        name = d.SPECIAL[what][0] if what in d.SPECIAL else d.apps()[what]["name"]
+        spec = argv[2] if len(argv) > 2 and argv[2] not in ("", "{monitor}", "None", "null") else None
+        if spec:
+            try:
+                spec = d.check_monitor_spec(spec)
+            except ValueError as why:
+                return say(f"I didn't do it: {why}.", 2)
+            msg, code = open_and_move(what, cmd, name, spec)
+            return say(msg, code)
+        done, code, last = start(cmd, wait=3)
+        if done and code != 0:
+            return say(f"{name} didn't open: {last or 'it stopped straight away'}.", 1)
+        return say(f"Opened {name}.")
+    if kind == "file":
+        path = d.allowed_path(what)
+        if not path:
+            return say("I didn't open it: that isn't a file or folder I'm allowed to open.", 2)
+        done, code, last = start(["xdg-open", path], wait=3)
+        if done and code != 0:
+            return say(f"That didn't open: {last or 'no app for it'}.", 1)
+        return say(f"Opened {os.path.basename(path) or path}.")
+    if kind == "action":
+        value = None
+        if len(argv) > 2 and argv[2] not in ("", "None", "null"):
+            try:
+                value = json.loads(argv[2])
+            except ValueError:
+                value = argv[2]
+        try:
+            action, value = d.check_action(what, value)
+        except ValueError as why:
+            return say(f"I didn't do it: {why}.", 2)
+        if action == "window-monitor":
+            win = current_window(value["app"])
+            if not win:
+                return say("I couldn't tell which window you mean." if not value["app"] else
+                           f"I couldn't find {d.app_name(value['app'])} open.", 1)
+            msg, code = move_window(win, value["to"], window_name(win, value["app"]))
+            return say(msg, code)
+        cmd = d.action_command(action, value)
+        if cmd[0] == "@theme-next":
+            value = d.next_theme()
+            if not value:
+                return say("I couldn't find your themes.", 1)
+            cmd = ["omarchy", "theme", "set", value]
+        elif cmd[0] == "@nightlight":
+            # Omarchy's toggle can take two steps from its in-between 6000 K, so toggle until it's right.
+            want = cmd[1] == "on"
+            for _ in range(3):
+                if nightlight_on() is want:
+                    return say(d.action_label(action, value, done=True))
+                start(["omarchy", "toggle", "nightlight"])
+                time.sleep(0.5)
+            return say("The night light didn't change. Is hyprsunset running?", 1)
+        elif cmd[0] == "@screenshot":
+            time.sleep(1.2)  # let the island fade out of the picture
+            cmd = ["omarchy", "capture", "screenshot", cmd[1], "slurp"]
+        done, code, last = start(cmd, wait=0 if action == "screenshot-area" else 15)
+        if done and code != 0:
+            return say(f"That didn't work: {last or 'it stopped with an error'}.", 1)
+        return say(d.action_label(action, value, done=True))
+    return say("I don't know that kind of desktop job.", 2)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

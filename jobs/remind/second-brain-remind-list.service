@@ -1,0 +1,7 @@
+[Unit]
+Description=Second brain: say the remember list, offer to start an agent on one item
+
+[Service]
+Type=oneshot
+ExecStart=%h/projects/second-brain/jobs/bin/remind-list
+TimeoutStartSec=30min

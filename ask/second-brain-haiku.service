@@ -1,0 +1,12 @@
+[Unit]
+Description=Second brain: one pre-started Haiku for brain ask (saves Claude Code's 1.5-2 s start)
+
+[Service]
+ExecStart=/usr/bin/python3 -I %h/projects/second-brain/ask/haiku_standby.py
+Environment=PATH=%h/.local/bin:%h/.local/share/mise/shims:/usr/local/bin:/usr/bin
+Nice=5
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

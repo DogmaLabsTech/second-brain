@@ -1,0 +1,9 @@
+{
+  "id": "tv",
+  "label": "{action_words}",
+  "phrases": ["turn the tv down", "tv louder", "mute the tv", "turn up the tv volume"],
+  "match": "\\b(tv|television|telly)\\b",
+  "needs_confirm": false,
+  "args": {"action": ["up", "down", "mute"]},
+  "command": ["{jobs}/bin/tv", "{action}"]
+}

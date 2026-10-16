@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# tv <up|down|mute>: volume on the TV the deck's TV remote has picked (Roku or LG), through the bar's own
+# scripts in user.rise/core (roku.sh, lgtv.py). Up and down press the key 3 times. Last line: {"message": "..."}.
+# Volume and mute only: no power, no apps, nothing that changes settings.
+set -uo pipefail
+core="$HOME/.config/omarchy/plugins/user.rise/core"
+tv="$(jq -r '.tv // "roku"' "$HOME/.local/state/bar-status/tv-remote.json" 2>/dev/null || echo roku)"
+case "${1:-}" in
+  up) key=VolumeUp; times=3; msg="Turned the TV up." ;;
+  down) key=VolumeDown; times=3; msg="Turned the TV down." ;;
+  mute) key=VolumeMute; times=1; msg="Muted the TV (say it again to unmute)." ;;
+  *) echo '{"message":"I can only turn the TV up, down, or mute it."}'; exit 2 ;;
+esac
+if [[ "$tv" == lg ]]; then run=(python3 -I "$core/lgtv.py" key "$key"); name="LG TV"
+else run=("$core/roku.sh" key "$key"); name="Roku TV"; fi
+for ((i = 0; i < times; i++)); do
+  if ! timeout 8 "${run[@]}" >/dev/null 2>&1; then
+    printf '{"message":"The %s did not answer. Is it on?"}\n' "$name"; exit 1
+  fi
+done
+printf '{"message":"%s"}\n' "${msg/the TV/the $name}"

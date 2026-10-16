@@ -1,0 +1,10 @@
+{
+  "id": "remember",
+  "label": "Remember this",
+  "phrases": ["remember that the dentist is on friday", "remember the wifi box is in the closet", "make a note that rockceen needs a new map"],
+  "match": "^(please )?(remember|make a note|note down|write down|jot down)\\b",
+  "needs_confirm": true,
+  "args": {"text": "what to remember, one line"},
+  "command": ["{jobs}/bin/remember", "{text}"],
+  "message": "Got it. I wrote it in your remembered list."
+}

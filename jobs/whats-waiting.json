@@ -1,0 +1,10 @@
+{
+  "id": "whats-waiting",
+  "label": "Check what's waiting on you",
+  "phrases": ["what's waiting on me", "does anything need me", "are any claudes waiting", "what needs my attention"],
+  "match": "\\b(what'?s|what is|anything|anyone|who'?s|which claudes?)\\b.*\\b(waiting|need(s|ing)? (me|you)|need my)\\b",
+  "needs_confirm": false,
+  "args": {},
+  "command": ["{jobs}/bin/whats-waiting"],
+  "speak": true
+}

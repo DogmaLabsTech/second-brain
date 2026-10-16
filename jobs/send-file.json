@@ -1,0 +1,10 @@
+{
+  "id": "send-file",
+  "label": "{label}",
+  "phrases": ["send the latest example-game files to the laptop", "put the kingdom map on my phone", "send my last screenshot to the testbox", "send the pricing pdf to my iphone"],
+  "match": "@sendfiles.is_send_request",
+  "order": 5,
+  "needs_confirm": true,
+  "args": {"device": ["laptop", "testbox", "phone"], "paths": "files or folders in your home (no hidden folders, no programs, no keys), at most 10 (laptop) or 5 (test machine, iPhone)", "name": "what to call the folder on the laptop"},
+  "command": ["{jobs}/bin/send", "{device}", "{paths}", "{name}"]
+}

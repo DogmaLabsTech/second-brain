@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# brain: <user>'s second brain from the command line.
+#   brain ask <question> [--json] [--writer auto|local|local:<model>|haiku]
+#                             a short answer from your notes (or a job), with the notes it used
+#   brain search <question>   best 5 notes, as "path — snippet"
+#   brain job list | run <id> --args-json '<job>'   the jobs the island can do (jobs/*.json)
+#   brain rate <id|last> up|down [why]   👍/👎 an answer, for the weekly check-up
+#   brain outcome <id> <what> [detail]   the island notes what happened next (declined, stopped, job-ok, job-failed)
+#   brain log [n]             the last n questions and answers (with 👍/👎)
+#   brain checkup             the weekly check-up: fair test score + this week's 👎 answers
+#   brain reindex             re-read changed notes now (the timer does this every hour)
+set -euo pipefail
+root="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+. "$root/index/env.sh"
+
+usage() { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; }
+
+cmd="${1:-}"; shift || true
+case "$cmd" in
+  search|s)
+    [[ $# -gt 0 ]] || { echo "brain search: say what to look for" >&2; exit 2; }
+    # Keywords + the question (index/structq.py) + the notes' own words for <user>'s words
+    # (ask/synonyms.tsv), no re-ranker, newer notes first on close calls: the same notes `brain ask`
+    # uses (ask/search_cli.py; the warm server second-brain-mcp.service, else qmd itself).
+    exec python3 -I "$root/ask/search_cli.py" "$@"
+    ;;
+  ask|a)
+    [[ $# -gt 0 ]] || { echo "brain ask: say what to ask" >&2; exit 2; }
+    exec python3 -I "$root/ask/ask.py" "$@"
+    ;;
+  job|jobs)
+    exec python3 -I "$root/jobs/jobs.py" "${@:-list}"
+    ;;
+  rate)
+    exec python3 -I "$root/ask/asklog.py" rate "$@"
+    ;;
+  outcome)
+    exec python3 -I "$root/ask/asklog.py" outcome "$@"
+    ;;
+  log)
+    exec python3 -I "$root/ask/asklog.py" log "$@"
+    ;;
+  checkup)
+    exec python3 -I "$root/eval/checkup.py" "$@"
+    ;;
+  reindex)
+    exec "$root/index/reindex.sh"
+    ;;
+  ""|-h|--help|help)
+    usage ;;
+  *)
+    echo "brain: unknown command '$cmd'" >&2; usage >&2; exit 2 ;;
+esac

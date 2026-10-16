@@ -1,0 +1,10 @@
+{
+  "id": "start-claude",
+  "label": "Start a Claude on {name}",
+  "phrases": ["start a claude on example-game", "open the example-rpg PM", "start working on example", "get a claude going for example-board"],
+  "match": "\\b(start|open|launch|get)\\b.*\\b(claude|pm|project manager)\\b|\\bstart (working )?on\\b",
+  "needs_confirm": true,
+  "args": {"project": "a repo from `pm list` / ~/projects, or desk", "name": "its plain name"},
+  "command": ["{home}/projects/project-manager/bin/pm", "open", "{project}", "--launch"],
+  "message": "Opened the {name} PM in agent."
+}

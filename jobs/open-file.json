@@ -1,0 +1,11 @@
+{
+  "id": "open-file",
+  "label": "Open {name}",
+  "phrases": ["open my downloads folder", "open the kingdom map picture", "show me the example-rpg folder", "open the pricing pdf"],
+  "match": "^(please )?(can you )?(open|show( me)?|pull up|bring up|find)\\b.*\\b(folder|directory|file|picture|photo|image|video|pdf|spreadsheet|docx?|png|jpe?g|mp4|downloads?)\\b",
+  "order": 70,
+  "needs_confirm": false,
+  "args": {"path": "a file or folder in your home (no hidden folders, no programs)", "name": "its file name"},
+  "command": ["{jobs}/bin/desktop", "file", "{path}"],
+  "message": "Opened {name}."
+}

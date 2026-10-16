@@ -1,0 +1,106 @@
+# Made by details_test.py make (Haiku said each plain command the messy way), 2026-10-15.
+open-app	yo can you pop open spotify for me	open spotify
+open-app	launch discord would ya	open discord
+open-app	open obsidian real quick	open obsidian
+open-app	get me a terminal up	open a terminal
+open-app	bring up the browser	open the browser
+open-app	hey open up files	open files
+open-app	fire up vs code, visual studio code	open visual studio code
+open-app	open chrome, google chrome	open google chrome
+open-app	slack open	open slack
+open-app	open telegram pls	open telegram
+open-app	open blender	open blender
+open-app	uh open obs studio	open obs studio
+open-app	can you throw spotify up on the left monitor	open spotify on my left screen
+open-app	pull up discord on my other screen	open discord on my other screen
+open-app	obsidian on the right hand screen please	open obsidian on the right screen
+open-app	open zoom	open zoom
+open-file	open my downloads folder	open my downloads folder
+open-file	open up my documents folder	open my documents folder
+open-file	open the example-rpg folder	open the example-rpg folder
+open-file	open the kingdom regional map	open the kingdom regional map
+open-file	hey can you pop open my screenshots folder	open my screenshots folder
+open-file	yo open up the example-game arena how to play thing	open the example-game arena how to play
+open-file	open my vids folder, the videos one	open my videos folder
+open-file	could you open the anime wallpapers folder for me	open the anime wallpapers folder
+open-file	um open the user shorts folder pls	open the user shorts folder
+open-file	open the installers folder, like now	open the installers folder
+open-file	so open the stoic v2 folder would ya	open the stoic v2 folder
+open-file	open the how tests run on another device doc	open how tests run on another device
+send-file	send the newest screenshot over to my lap top	send the latest screenshot to the laptop
+send-file	ok send the latest screenshot to my phone	send the latest screenshot to my phone
+send-file	send the kingdom regional map to my phone real quick	send the kingdom regional map to my phone
+send-file	yeah send the latest example-game files to the laptop	send the latest example-game files to the laptop
+send-file	send that how tests run on another device thing to the laptop	send how tests run on another device to the laptop
+send-file	send the latest screenshot to the rogue	send the latest screenshot to the testbox
+send-file	send the kingdom regional map over to the laptop	send the kingdom regional map to the laptop
+send-file	uh send the latest tavern light files to the laptop	send the latest example-rpg files to the laptop
+send-file	send how tests run on another device to my phone, thanks	send how tests run on another device to my phone
+desktop	next theme, go	next theme
+desktop	take a screenshot for me	take a screenshot
+desktop	turn the night light on please	turn the night light on
+desktop	yo can you kill the night light	turn the night light off
+desktop	lock up the screen real quick	lock the screen
+desktop	hey remind me in like 10 minutes to check the oven	remind me in 10 minutes to check the oven
+desktop	set a reminder for an hour from now, call the bank	remind me in 1 hour to call the bank
+desktop	jump me over to workspace three	go to workspace 3
+desktop	go to workspace seven pls	go to workspace 7
+desktop	don't let the screen go to sleep	keep the screen awake
+desktop	crank the computer volume up a bit	turn the computer volume up
+desktop	ok turn the computer volume down, too loud	turn the computer volume down
+desktop	mute my mic, lap top... I mean mic	mute the mic
+desktop	switch on do not disturb	turn on do not disturb
+desktop	uh pull up my reminders	show my reminders
+desktop	open up the emoji picker	open the emoji picker
+desktop	shut bluetooth off	turn bluetooth off
+desktop	throw this window over to my other screen	move this window to my other screen
+desktop	slide this window to the left screen	move this window to the left screen
+desktop	grab a screenshot of just part of the screen	screenshot part of the screen
+desktop	start recording my screen, rogue... test machine screen I mean, no wait, just the screen	start recording the screen
+desktop	stop recording the screen	stop the screen recording
+desktop	shut the computer down	shut down the computer
+desktop	yo can you pull up my clipboard history	open the clipboard history
+desktop	hey show me my keyboard shortcuts real quick	show my keyboard shortcuts
+start-claude	uh start a claude on the example-game	start a claude on example-game
+start-claude	okay so start a claude on example	start a claude on example
+start-claude	could you fire up a claude on tavern light	start a claude on example-rpg
+start-claude	start me a claude on example-flights pls	start a claude on example-flights
+start-claude	um yeah start a claude on example-scheduler	start a claude on example-scheduler
+start-claude	start a claude on the whole desk, thanks	start a claude on the whole desk
+start-claude	hey can u start a claude on pit wall	start a claude on example-board
+start-claude	start a claude on example-kitchen like now	start a claude on example-kitchen
+start-claude	start a claude over on the second brain	start a claude on the second brain
+start-claude	yo start a claude on example-studio	start a claude on example-studio
+tv	bump the tv up a bit	turn the tv up
+tv	tv down, too loud	turn the tv down
+tv	mute the tv real quick	mute the tv
+music	skip this song, next one	next song
+music	uh pause the music	pause the music
+music	yo play the music again	play the music
+music	go back to the previous song	previous song
+# hand-written, harder (2026-10-15)
+open-app	could you get uh spotify going on the left one	open spotify on my left screen
+open-app	i need the code editor, the microsoft one	open visual studio code
+open-app	get discord up on the other monitor for me	open discord on my other screen
+open-app	the purple elephant app, open it	-
+open-file	show me where the tavern light stuff is, the folder	open the example-rpg folder
+open-file	that folder with all my downloads in it	open my downloads folder
+open-file	open the dinosaur pictures folder	-
+send-file	chuck the kingdom map over to the iphone	send the kingdom regional map to my phone
+send-file	throw my newest screen grab onto the lap top	send the latest screenshot to the laptop
+send-file	could the latest example-game stuff go to the laptop	send the latest example-game files to the laptop
+desktop	make it so the screen doesnt go dark	keep the screen awake
+desktop	remind me in like a quarter hour to flip the laundry	remind me in 15 minutes to flip the laundry
+desktop	flip over to the third desktop	go to workspace 3
+desktop	take me to workspace fourteen	-
+start-claude	get a helper going on the flight thing	start a claude on example-flights
+start-claude	start a claude on the moon base project	-
+# real
+open-file	open my downloads folder	open my downloads folder
+open-app	Open Spotify.	open spotify
+open-app	Can you open up VS Code on my second monitor?	open visual studio code on my other screen
+open-app	Can you open up Chrome?	open google chrome
+send-file	Can you send the latest example-game files to the laptop?	send the latest example-game files to the laptop
+send-file	Send a screenshot to the laptop.	send the latest screenshot to the laptop
+desktop	Can you turn my brightness up to eighty percent?	-
+send-file	I'm gonna send it over to the laptop. I don't want it if the laptop	-

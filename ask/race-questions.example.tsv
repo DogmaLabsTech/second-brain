@@ -1,0 +1,19 @@
+# Example copy (kept in git). The real list is race-questions.tsv, kept out of git because it holds business facts.
+# Copy this to race-questions.tsv to start one.
+# Writer race: question <TAB> facts a right answer must contain (regexes, all must match, case ignored,
+# separated by " && ") or NOTFOUND (the notes don't answer it: the writer must say so) <TAB> where the fact is
+why does the bar get killed	memory|\bram\b|oom	computer/system/memory-crashes.md
+how do I reload the bar after editing	omarchy restart shell	computer/system/top-bar.md
+which ports are served over tailscale	443	computer/system/network.md
+what is the local decider	decid|pick|choos	computer/claude-code/decider.md
+how do tests run on the test machine	crabbox	computer/testbox-handheld/handheld.md
+where is the world lore for the AI game master app	world.?bible	projects/example-rpg/docs/world-bible.md
+what voice does the brain island speak with	kokoro	computer/system/second-brain.md
+which key opens the brain island	super.{0,8}alt.{0,8}\bb\b	computer/system/second-brain.md
+how often does the second brain re-read my notes	hour	computer/system/second-brain.md
+which graphics card does this computer have	1060	computer/system/second-brain.md
+what is the agent prefix key	ctrl.{0,3}space	computer/system/agent-plugins.md
+what local port does the Example Game home server use	4182	computer/system/network.md
+who won the 1998 football world cup	NOTFOUND	-
+what is my passport number	NOTFOUND	-
+what time does my dentist open on saturdays	NOTFOUND	-

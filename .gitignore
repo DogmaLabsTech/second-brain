@@ -1,0 +1,52 @@
+# What stays on this computer and never goes to GitHub. Plain reasons are in README.md,
+# "What's not in this repo". Ignored files are NOT deleted: they stay here and keep working.
+
+# --- Python leftovers and virtual environments ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+*-venv/
+.pytest_cache/
+
+# --- Secrets, just in case (none are kept in this folder) ---
+.env
+.env.*
+.secrets/
+*.pem
+*.key
+id_*
+.claude/settings.local.json
+
+# --- Real names (family, clients) used by the privacy check; the example is kept ---
+deciders/private.json
+
+# --- <user>'s private words: practice data and tests made from his notes and asks ---
+# Sure/not-sure training data quotes his notes (business, clients, leads, prices, family).
+deciders/brain-grounded/*
+!deciders/brain-grounded/task.yaml
+# Intent practice data and tests name family, clients and money.
+deciders/brain-intent/src/
+deciders/brain-intent/examples.jsonl
+deciders/brain-intent/test.jsonl
+deciders/brain-intent/test-real.jsonl
+# Writer race: real answers quoting his notes, and questions with business facts and a home IP.
+ask/race-results*.jsonl
+ask/race-questions.tsv
+# The fair test quotes business facts and family names (heldout.example.jsonl is kept).
+eval/heldout.jsonl
+
+# --- Wake word training audio, recordings and big model files ---
+wake-data/
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.npy
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.gguf
+*.onnx
+!wake/models/hey_claude.onnx

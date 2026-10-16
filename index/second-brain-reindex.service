@@ -1,0 +1,10 @@
+[Unit]
+Description=Second brain: re-index changed notes (qmd update + embed)
+
+[Service]
+Type=oneshot
+ExecStart=%h/projects/second-brain/index/reindex.sh
+Nice=10
+IOSchedulingClass=idle
+CPUSchedulingPolicy=batch
+TimeoutStartSec=45min

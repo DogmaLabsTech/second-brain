@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""remind-list: <user>'s remember list, three times a day (9:00, 12:00, 18:00; second-brain-remind-list.timer).
+
+Reads ~/OMARCHY-BRAIN/inbox/remembered.md (the `remember` job's list). Items that already have an agent on them
+("→ started with <agent> <date>" at the end of the line) are skipped. With anything left:
+  1. a notification lists them, and the island says them out loud unless it is muted;
+  2. click the notification (Omarchy's notifications have no buttons) → pick the item, then the agent, in
+     Omarchy's own menu (omarchy-menu-select);
+  3. the agent opens in a new terminal on that item (in the project's folder when the item names a project,
+     else ~/projects, whose AGENTS.md says where new work goes), and the line gets "→ started with ...".
+Nothing starts without <user>'s taps. "Later" or no answer: nothing happens.
+
+  remind-list            the reminder (the timer runs this)
+  remind-list --list     just print the open items
+  remind-list --dry      the reminder, but print the agent command instead of starting it or marking the line
+"""
+import json
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+PATH = os.path.expanduser(os.environ.get("BRAIN_REMEMBER_FILE", "~/OMARCHY-BRAIN/inbox/remembered.md"))
+ISLAND_SAY = os.path.expanduser("~/.config/omarchy/plugins/user.brain-island/bin/say")
+DEV = os.path.expanduser("~/projects")
+ITEM = re.compile(r"^- (\d{4}-\d{2}-\d{2})(?: \d{2}:\d{2})?: (.+)$")
+STARTED = re.compile(r"\s+→ started with .+$")
+# Agent: (button text, how it starts with a first task). All of them stay open afterwards for <user>.
+AGENTS = {
+    "claude": ("Claude", lambda p: ["claude", p]),
+    "codex": ("Codex", lambda p: ["codex", p]),
+    "gemini": ("Gemini", lambda p: ["gemini", "-i", p]),
+    "opencode": ("opencode", lambda p: ["opencode", "--prompt", p]),
+    "grok": ("Grok", lambda p: ["grok", p]),
+    "copilot": ("Copilot", lambda p: ["copilot", "-i", p]),
+}
+
+
+def items(path=PATH):
+    """[(line number, date, text)] of the open items (no agent on them yet)."""
+    try:
+        lines = open(path).read().splitlines()
+    except OSError:
+        return []
+    out = []
+    for i, l in enumerate(lines):
+        m = ITEM.match(l)
+        if m and not STARTED.search(l):
+            out.append((i, m.group(1), m.group(2).strip()))
+    return out
+
+
+def mark(line_no, agent, path=PATH):
+    lines = open(path).read().splitlines()
+    lines[line_no] += " → started with %s %s" % (AGENTS[agent][0], time.strftime("%Y-%m-%d"))
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def clicked(title, body, timeout_ms=20 * 60 * 1000):
+    """A notification; True when <user> clicks it (its "default" action) within the time."""
+    argv = ["notify-send", "-a", "Second brain", "-i", "brain", "-t", str(timeout_ms), "--wait", "-A", "default=Open"]
+    try:
+        out = subprocess.run(argv + [title, body], capture_output=True, text=True, timeout=timeout_ms / 1000 + 60)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return "default" in out.stdout.split()
+
+
+def menu(prompt, options):
+    """Omarchy's pick-one menu; the chosen option, or None (Esc)."""
+    try:
+        out = subprocess.run(["omarchy-menu-select", prompt, *options], capture_output=True, text=True, timeout=600)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    got = out.stdout.strip()
+    return got if got in options else None
+
+
+def island_muted():
+    try:
+        out = subprocess.run(["omarchy-shell", "brain-island", "state"], capture_output=True, text=True, timeout=5)
+        return bool(json.loads(out.stdout).get("muted"))
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return True   # no island: stay quiet
+
+
+def say(text):
+    if os.access(ISLAND_SAY, os.X_OK) and not island_muted():
+        subprocess.Popen([ISLAND_SAY, text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def folder_for(text):
+    import jobs
+    repo = jobs.find_project(text)
+    d = os.path.join(jobs.PROJECTS, repo) if repo and repo != "desk" else None
+    return d if d and os.path.isdir(d) else DEV
+
+
+def prompt_for(text, date):
+    return ("<user> asked his second brain to remember this on %s: \"%s\". He wants an agent to start on it now. "
+            "Read the AGENTS.md here first (it says where new work goes), work out what he means, make a short plan, "
+            "and ask him only what he truly has to decide." % (date, text))
+
+
+# The timer's service has a short PATH; the agents are mise installs.
+SEARCH = os.pathsep.join([os.environ.get("PATH", ""), os.path.expanduser("~/.local/share/mise/shims"),
+                          os.path.expanduser("~/.local/bin")])
+
+
+def command(agent, text, date):
+    d = folder_for(text)
+    argv = AGENTS[agent][1](prompt_for(text, date))
+    argv[0] = shutil.which(argv[0], path=SEARCH) or argv[0]
+    return d, ["xdg-terminal-exec", "--dir=" + d, "--"] + argv
+
+
+def short(t, n=60):
+    return t if len(t) <= n else t[:n - 1] + "…"
+
+
+def main(argv):
+    open_items = items()
+    if "--list" in argv:
+        for _, d, t in open_items:
+            print(d, t)
+        return 0
+    if not open_items:
+        return 0
+    n = len(open_items)
+    body = "\n".join("• " + short(t, 90) for _, _, t in open_items[:8]) + ("\n…and %d more" % (n - 8) if n > 8 else "")
+    say("You have %d thing%s on your remember list. %s. Want me to start an agent on one?" % (
+        n, "" if n == 1 else "s", ". ".join(short(t, 80) for _, _, t in open_items[:5])))
+    if not clicked("Your remember list (%d)" % n, body + "\nClick to start an agent on one."):
+        return 0
+    labels = ["%d. %s" % (k + 1, short(t, 70)) for k, (_, _, t) in enumerate(open_items[:12])]
+    got = menu("Start an agent on", labels)
+    if got is None:
+        return 0
+    pick = open_items[labels.index(got)]
+    names = {v[0]: k for k, v in AGENTS.items()}
+    got = menu("Which agent?", list(names))
+    if got is None:
+        return 0
+    agent = names[got]
+    folder, argv_ = command(agent, pick[2], pick[1])
+    if "--dry" in argv:
+        print(folder, shlex.join(argv_))
+        return 0
+    subprocess.Popen(argv_, cwd=folder, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    mark(pick[0], agent)
+    subprocess.run(["notify-send", "-a", "Second brain", "-i", "brain", "Started %s" % AGENTS[agent][0], short(pick[2], 90)])
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

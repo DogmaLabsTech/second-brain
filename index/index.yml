@@ -1,0 +1,130 @@
+# qmd config for <user>'s second brain. Installed to ~/.config/qmd/index.yml by index/setup.sh.
+# qmd always skips node_modules, .git, .cache, vendor, dist, build on its own.
+global_context: "<user>'s second brain: notes about his Omarchy Linux computer (desktop), his business the business, his code projects and their project manager (plans, build runs, reports), Claude's saved plans, experiments, his content library, and summaries of his old Claude Code chats."
+# includeByDefault: false on every collection is on purpose. When a search names no collection,
+# qmd then searches all notes as one list. With the default (true) it ran one list per collection
+# and took turns between them, so the 2nd and 3rd results were the best of *other* collections,
+# however poor (found 2026-10-15, docs/checkup.md).
+collections:
+  computer:
+    includeByDefault: false
+    path: ~/OMARCHY-BRAIN
+    pattern: "**/*.md"
+    ignore:
+      - "example/muse-screens/**"
+      # Paperclip's old copies of the business rules outranked the current ones in the search
+      # test; its README and overview stay in.
+      - "paperclip/*/**"
+      - "**/.secrets/**"
+      - "**/.env*"
+    context:
+      "/": "Computer notes (OMARCHY-BRAIN): how <user>'s Omarchy Linux desktop is set up, the top bar, services, the test machine test box, Claude Code setup, finance and open items."
+      "/paperclip": "Old records from Paperclip, an AI-company experiment removed 2026-09-25. Historical copies; the current business rules live in the business collection."
+  business:
+    includeByDefault: false
+    path: ~/user-labs-business
+    pattern: "**/*.md"
+    ignore:
+      - "**/.secrets/**"
+      - "**/.env*"
+      - "**/.venv/**"
+      - ".playwright-mcp/**"
+      - ".gstack/**"
+      # Claude's own skills and hooks for this repo, not business notes.
+      - ".claude/**"
+      # 14 identical copies of the video build guides, one per video folder.
+      - "marketing/video/**/AGENTS.md"
+      - "marketing/video/**/CLAUDE.md"
+    context:
+      "/": "the business business notes: company, clients, leads, outreach, marketing, money, playbooks."
+      "/playbook": "The current sales rules: pricing, offer, who to contact and who to disqualify, call script, cold emails."
+      "/outreach/calls/dossiers": "One research dossier per lead business, for calling them. Not the general rules."
+      "/leads": "One file per lead business found in research. Not the general rules."
+      "/logs": "Day-by-day work logs."
+  projects:
+    includeByDefault: false
+    path: ~/projects
+    # Every top-level guide (README, AGENTS, PRODUCT, DESIGN, ROADMAP, TASKS, DEPLOY, ...) plus docs/.
+    pattern: "*/*.md,*/docs/**/*.md"
+    ignore:
+      # These only say "@AGENTS.md"; the AGENTS.md next to them is indexed.
+      - "bullpen/CLAUDE.md"
+      - "example-classifier/CLAUDE.md"
+      - "user-labs-school/CLAUDE.md"
+      - "example-client/CLAUDE.md"
+      - "example-movies/CLAUDE.md"
+      - "example-board/CLAUDE.md"
+      - "example-power/CLAUDE.md"
+      # A translated copy of the English read-me.
+      - "user-labs-school/README-zh.md"
+      - "**/.claude/**"
+      - "**/.worktrees/**"
+      # The brain's own test reports quote questions and answers; they outranked the real notes.
+      - "second-brain/docs/**"
+      - "**/.venv/**"
+      - "**/.secrets/**"
+      - "**/.env*"
+    context:
+      "/": "Guides and docs for <user>'s own code projects (one folder per app): read-me, CLAUDE.md, AGENTS.md and docs/."
+  chats:
+    includeByDefault: false
+    path: ~/.local/share/second-brain/chats
+    pattern: "**/*.md"
+    context:
+      "/": "Short notes made from <user>'s old Claude Code chats: what he asked and what Claude answered, one note per chat, secrets blanked out."
+    # Tests, scratch runs, automated PM builder runs and near-empty chats (chats/convert.py, low_value).
+    ignore:
+      - "low/**"
+  pm:
+    includeByDefault: false
+    path: ~/projects/project-manager
+    pattern: "**/*.md"
+    ignore:
+      - "**/node_modules/**"
+      - ".claude/**"
+      - "templates/**"
+      # Excalidraw drawings: page after page of shape data, no words.
+      - "**/*.excalidraw.md"
+      - "antigravity/archive/**"
+      - "runs/*/evidence/**"
+      - "runs/*/gstack/**"
+      - "**/.secrets/**"
+      - "**/.env*"
+    context:
+      "/": "<user>'s project manager (PM): one folder per project, plans, decisions, handoffs and the log of what each PM did."
+      "/runs": "One folder per build run a PM handed to a builder team: spec.md (what to build), plan.md, report.md (what was built and checked), summary.md."
+      "/plans": "Plans and specs written with <user> before a run. plans/archive holds older or replaced ones."
+      "/projects": "One page per project: what it is, where it lives, its state and next steps."
+  plans:
+    includeByDefault: false
+    path: ~/.claude/plans
+    pattern: "*.md"
+    context:
+      "/": "Plans Claude wrote in plan mode and <user> approved, one per task. Dated by the file; newer plans may replace older ones."
+  experiments:
+    includeByDefault: false
+    path: ~/projects/experiments
+    pattern: "**/*.md"
+    ignore:
+      - "**/node_modules/**"
+      - "**/.claude/**"
+      - "**/.secrets/**"
+      - "**/.env*"
+    context:
+      "/": "<user>'s code experiments and test builds (Example Game spikes, example-rpg briefs, small tries): briefs, session notes, read-mes."
+  content:
+    includeByDefault: false
+    path: ~/projects/assets/content-library
+    pattern: "**/*.md"
+    context:
+      "/": "<user>'s content library: one numbered folder per content idea, with its read-me and copy (the words used)."
+  hermes:
+    includeByDefault: false
+    path: ~/.hermes
+    pattern: "memories/*.md,SOUL.md"
+    context:
+      "/": "Hermes, an AI agent <user> ran in September 2026: what it remembered about him (USER.md), its notes (MEMORY.md) and its personality (SOUL.md)."
+models:
+  embed: hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf
+  generate: hf:tobil/qmd-query-expansion-1.7B-gguf/qmd-query-expansion-1.7B-q4_k_m.gguf
+  rerank: hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf

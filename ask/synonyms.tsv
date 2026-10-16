@@ -1,0 +1,15 @@
+# <user>'s words -> the words his notes use. One rule per line: a regex (matched on the lowercased
+# question, whole words) <TAB> extra keywords, separated by commas. Each keyword becomes its own
+# word-search line, so a note that uses the notes' word still matches. Keep it short and general.
+\breload(ing|ed)?\b	restart, omarchy restart shell
+\b(killed|dies|died|crash(es|ed)?)\b	out of memory, OOM, memory crash
+\bfroze|freez(e|es|ing)|hang(s|ing)?\b	stuck, unresponsive
+\bnot to call|don'?t call|stop calling|never call|take me off\b	do not contact, suppression, opt-out
+\bunsubscribe|opt out\b	suppression, opt-out
+\blore\b	world bible, canon
+\bgame master\b	GM
+\bfounders'? (shared )?board\b	example-board
+\bthe bar\b	top bar, user.rise
+\bhandheld|the handheld\b	test machine
+\bbrightness\b	backlight, ddcutil
+\bprice|cost|how much\b	pricing
