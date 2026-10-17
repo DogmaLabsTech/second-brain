@@ -1,6 +1,6 @@
 """brain ask: answer a question from <user>'s notes, or turn it into a job.
 
-  python3 -I ask/ask.py "<question>" [--json] [--writer auto|local|local:<model>|haiku]
+  python3 -I ask/ask.py "<question>" [--json] [--writer auto|local|local:<model>|haiku] [--how voice|typed]
 
 Steps (docs and timings: README.md, docs/writer-race.md):
   1. intent (brain-decide intent) and the search run at the same time. The decider gets 2.5 s;
@@ -12,6 +12,9 @@ Steps (docs and timings: README.md, docs/writer-race.md):
   3. job:*: the job object (jobs/jobs.py build). chitchat: a short friendly line, no search.
      A decider that chose `unsure` itself (half-heard, two asks at once, no job for it), or the local decider under that
      answer's sure-bar ("reason": "below-bar"), with no job rule fitting: "Sorry, say that again?", no search.
+     The agent-os jobs (remember-fix, start-job) win by their tight rule over any decider label; without their
+     rule, a decider's agent-os label on a question becomes a question and on two asks "say that again".
+     --how (default typed; the island can't tell yet) is how the words came, passed to agent-os.
 
 Writers: local = Ollama (second-brain-ollama.service) qwen2.5 3B by default; haiku = `claude -p`
 (Claude Haiku, tools and MCP off); auto (default) = local alone for BRAIN_HAIKU_WAIT (2 s), then Haiku
@@ -548,7 +551,7 @@ def answer_question(q, hits, writer, steps):
         return f"I couldn't write an answer just now, but your note {hits[0]['title']} looks like the best match.", "none"
 
 
-def ask(q, writer="auto"):
+def ask(q, writer="auto", how="typed"):
     """Intent and search start together. Unless a job rule fits the words, the answer is written
     straight after the search, without waiting for the decider (it takes 0.2-3 s); if the decider then
     says job or chitchat, that answer is thrown away (and the writer stopped)."""
@@ -586,12 +589,18 @@ def ask(q, writer="auto"):
     if label == "unsure" or not label:
         if not again:
             label, by = (f"job:{rule}", "rule") if rule else ("question", by)
+    elif rule in jobslib.AGENT_JOBS and label != f"job:{rule}":   # tight rules, new to the decider: the rule wins
+        label, by = f"job:{rule}", "rule"
+    elif label[4:] in jobslib.AGENT_JOBS and rule != label[4:] and jobslib.two_asks(q, label[4:]):
+        label, again = "unsure", True   # two asks in one line never hand off to agent-os: say it again
     elif rule in jobslib.DESKTOP_JOBS + jobslib.DAY_JOBS and label in ("question", "chitchat", "job:open-note"):
         label, by = f"job:{rule}", "rule"
     elif jobslib.route_label(rule, label, q) != label:   # "send it to the laptop" is not an open-file
         label, by = jobslib.route_label(rule, label, q), "rule"
     if label[4:] in jobslib.DESKTOP_JOBS and jobslib.is_how_question(q):
         label = "question"
+    if label[4:] in jobslib.AGENT_JOBS and rule != label[4:] and jobslib.is_how_question(q):
+        label = "question"   # "what should I fix on my remember list?" is a question, whatever the decider says
     steps["intent"] = f"{label} ({by})"
     if not label.startswith("job:") and label != "chitchat" and not again:
         FIRST.feed(question=True)
@@ -602,7 +611,7 @@ def ask(q, writer="auto"):
 
         def note_search(topic):
             return public_sources(search(topic))
-        built = jobslib.build_with_details(label[4:], q, search=note_search,
+        built = jobslib.build_with_details(label[4:], q, search=note_search, how=how,
                                            local_writer=lambda p: local_write(p, LOCAL_MODEL, deadline=8, system="Answer with one name only.",
                                                                               max_tokens=12)[0])
         steps["details"] = built.pop("details", "rules")   # router upgrade 3: "local" = the writer's form made the job
@@ -634,6 +643,7 @@ def main(argv):
     writer = "auto"
     source = os.environ.get("BRAIN_FROM", "cli")
     stream = False
+    how = "typed"   # the island can't tell speech from typing yet; `--how voice` once it can
     words = []
     i = 0
     while i < len(argv):
@@ -650,6 +660,9 @@ def main(argv):
             i += 1
         elif a == "--stream":
             stream = True
+        elif a == "--how" and i + 1 < len(argv):
+            how = argv[i + 1] if argv[i + 1] in ("voice", "typed") else "typed"
+            i += 1
         else:
             words.append(a)
         i += 1
@@ -659,7 +672,7 @@ def main(argv):
         return 2
     if stream:
         EMIT.append(lambda ev: print(json.dumps(ev), flush=True))
-    result = ask(q, writer)
+    result = ask(q, writer, how)
     result["id"] = asklog.new_id()
     asklog.log_ask(result["id"], q, result, source)
     if stream:

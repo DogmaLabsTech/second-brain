@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""agent-os-start [--job start-job] --how voice|typed -- "<what <user> said>": hand the words to agent-os.
+
+Run by `brain job run remember-fix|start-job` after <user>'s Yes on the island card.
+  1. `agent-os hear --how <how> -- "<text>"` writes a job folder with ask.md and prints `job: <folder>`.
+  2. `agent-os run --job <folder>` is started detached (systemd-run --user, its own unit, so it outlives the island;
+     setsid when systemd-run is missing or fails). Its output goes to <folder>/run.log.
+  3. Prints one JSON line for the island: {"message": "Started. It will wait for your go.", "speak": true}.
+     With --job start-job the line says it is saved for later instead (agent-os only builds remember-list fixes
+     today, so it finishes with "nothing to build" rather than waiting for a go).
+agent-os runs its stages and stops at go.md, a file only <user> writes: nothing is built or pushed without him.
+The text is always one argument after `--` (never through a shell). If hear fails or prints no job folder, it says
+"I couldn't start that job" and starts nothing.
+
+Environment:
+  AGENT_OS_BIN            which agent-os (default: `agent-os` on PATH, else ~/projects/agent-os/bin/agent-os)
+  AGENT_OS_HOME, AGENT_OS_REMEMBER_LIST
+                          passed on to both agent-os commands (agent-os reads them itself)
+  AGENT_OS_DRY_RUN=1      TEST ONLY: adds --dry-run to both commands. Off unless set to exactly "1"; never set it
+                          in the island or a service.
+  BRAIN_DETACH=setsid     TEST ONLY: skip systemd-run and use setsid.
+"""
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+HOME = os.path.expanduser("~")
+DEFAULT_BIN = os.path.join(HOME, "projects", "Projects", "agent-os", "bin", "agent-os")
+PASS_ENV = ("AGENT_OS_HOME", "AGENT_OS_REMEMBER_LIST")
+SAFE_NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,120}")
+STARTED = "Started. It will wait for your go."
+SAVED = "Handed to agent-os. For now it only builds fixes from your remember list, so this one is saved for later."
+FAILED = "I couldn't start that job."
+HEAR_SECONDS = 15
+
+
+def say(message, code):
+    print(json.dumps({"message": message, "speak": True}))
+    return code
+
+
+def agent_os_bin():
+    return os.path.abspath(os.environ.get("AGENT_OS_BIN") or shutil.which("agent-os") or DEFAULT_BIN)
+
+
+def dry():
+    return ["--dry-run"] if os.environ.get("AGENT_OS_DRY_RUN") == "1" else []
+
+
+def unit_name(folder):
+    """The systemd unit name, built only from a safe job-folder name ([a-z0-9-]); None for anything else."""
+    base = os.path.basename(folder.rstrip("/"))
+    return "agent-os-" + base if SAFE_NAME.fullmatch(base) else None
+
+
+def hear(exe, how, text):
+    """Run `agent-os hear`; return the job folder (it must exist and hold ask.md), or None."""
+    try:
+        out = subprocess.run([exe, "hear", "--how", how, *dry(), "--", text], capture_output=True, text=True,
+                             timeout=HEAR_SECONDS, stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if out.returncode != 0:
+        return None
+    folder = None
+    for line in out.stdout.splitlines():
+        m = re.match(r"^job: (/.+)$", line.strip())
+        if m:
+            folder = m.group(1).strip()
+    if not folder or not os.path.isfile(os.path.join(folder, "ask.md")):
+        return None
+    return os.path.realpath(folder)
+
+
+def start_run(exe, folder, unit):
+    """Start `agent-os run --job <folder>` detached. Returns True when it was started."""
+    argv = [exe, "run", "--job", folder, *dry()]
+    log = os.path.join(folder, "run.log")
+    if os.environ.get("BRAIN_DETACH") != "setsid" and shutil.which("systemd-run"):
+        sd = ["systemd-run", "--user", "--collect", "--quiet", "--unit", unit,
+              "--property", "StandardOutput=append:" + log, "--property", "StandardError=append:" + log]
+        for k in PASS_ENV + ("PATH",):
+            if os.environ.get(k):
+                sd += ["--setenv", f"{k}={os.environ[k]}"]
+        try:
+            r = subprocess.run(sd + ["--", *argv], capture_output=True, text=True, timeout=10,
+                               stdin=subprocess.DEVNULL)
+            if r.returncode == 0:
+                return True
+        except subprocess.TimeoutExpired:
+            # It may have started all the same: never start a second run for the same folder.
+            return subprocess.run(["systemctl", "--user", "is-active", "--quiet", unit],
+                                  stdin=subprocess.DEVNULL, capture_output=True).returncode == 0
+        except OSError:
+            pass
+    try:
+        with open(log, "ab") as f:
+            subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=f, stderr=f, start_new_session=True,
+                             close_fds=True)
+        return True
+    except OSError:
+        return False
+
+
+def main(argv):
+    job = "remember-fix"
+    if len(argv) == 6 and argv[0] == "--job" and argv[1] == "start-job":
+        job, argv = "start-job", argv[2:]
+    if len(argv) != 4 or argv[0] != "--how" or argv[1] not in ("voice", "typed") or argv[2] != "--":
+        return say(FAILED, 2)
+    how, text = argv[1], argv[3]
+    if not text.strip() or "\n" in text or "\r" in text or len(text) > 500 or text.lstrip().startswith("-"):
+        return say(FAILED, 2)
+    exe = agent_os_bin()
+    folder = hear(exe, how, text)
+    if not folder:
+        return say(FAILED, 1)
+    unit = unit_name(folder)
+    if not unit:
+        return say(FAILED, 1)
+    if not start_run(exe, folder, unit):
+        return say(FAILED, 1)
+    return say(SAVED if job == "start-job" else STARTED, 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
