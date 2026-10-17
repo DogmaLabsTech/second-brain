@@ -70,6 +70,19 @@ collections:
       - "**/.env*"
     context:
       "/": "Guides and docs for <user>'s own code projects (one folder per app): read-me, CLAUDE.md, AGENTS.md and docs/."
+  agent-os:
+    includeByDefault: false
+    path: ~/agent-os
+    # <user>'s desk, moved out of Projects/ to ~/agent-os on 2026-10-17. Its guides, stage and desk CONTEXT files, docs.
+    pattern: "*.md,*/CONTEXT.md,*/*/CONTEXT.md,docs/**/*.md"
+    ignore:
+      # These only point at AGENTS.md, which is indexed.
+      - "CLAUDE.md"
+      - "GEMINI.md"
+      - "jobs/**"
+      - "eval/**"
+    context:
+      "/": "agent-os, <user>'s desk: the one folder he opens and starts any AI in. AGENTS.md is the desk guide, desk/ the five moves, 01-hear to 07-report the job conveyor, BUILDING.md the builder rules."
   chats:
     includeByDefault: false
     path: ~/.local/share/second-brain/chats
