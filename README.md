@@ -46,6 +46,7 @@ the answer. If your notes don't say, it answers "I couldn't find that in your no
 
 What happens inside (`ask/ask.py`):
 1. "Is this a question, a job or just chat?" (`brain-decide intent`) and the search run at the same time.
+   Its answer also says `"private": true|false` (family, money, clients…; true whenever something goes wrong).
 2. A question: the top 5 notes, then "do they answer it?" (`brain-decide grounded`), then a writer.
 3. **Who writes (`auto`):** the local writer (qwen2.5 on this computer, through Ollama) starts alone; Haiku
    joins after 2 s (`BRAIN_HAIKU_WAIT`) only if there's no good local answer yet. A good local answer within
@@ -149,6 +150,12 @@ right, with the writer 91. Switch: `jobs/config/details.json` (or `BRAIN_DETAILS
 (Claude, Codex, Gemini, opencode, Grok, Copilot) in Omarchy's menu, and that agent opens in a terminal on the task
 (in the project's folder when the item names one, else `~/projects`). The line is marked "→ started with …"
 so it stops coming back. "What's on my remember list" also works as a question.
+
+**Project tags on the remember list (since 2026-10-16).** Say "(repo: omarchy-setup)" in a remember ask, or
+just name a project ("the example-game boss fight needs a pass"), and the line ends with `(repo: example-game)`.
+Project names that are also everyday words (example, factory, digest, expedition, bullpen, …) are only tagged
+when you say the tag yourself, so "remember to check the example levels" stays untagged. The tag stays when the
+item is marked "→ started with …". Lines without a tag work as before.
 
 `brain job run <id> --args-json '<job>'` runs one (the island does this). It rebuilds the command from the
 job file and checks every argument (a known project, a note inside your brain's folders, an allowed
