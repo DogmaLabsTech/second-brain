@@ -13,7 +13,7 @@ The text is always one argument after `--` (never through a shell). If hear fail
 "I couldn't start that job" and starts nothing.
 
 Environment:
-  AGENT_OS_BIN            which agent-os (default: `agent-os` on PATH, else ~/projects/agent-os/bin/agent-os)
+  AGENT_OS_BIN            which agent-os (default: `agent-os` on PATH, else ~/agent-os/bin/agent-os)
   AGENT_OS_HOME, AGENT_OS_REMEMBER_LIST
                           passed on to both agent-os commands (agent-os reads them itself)
   AGENT_OS_DRY_RUN=1      TEST ONLY: adds --dry-run to both commands. Off unless set to exactly "1"; never set it
@@ -28,7 +28,7 @@ import subprocess
 import sys
 
 HOME = os.path.expanduser("~")
-DEFAULT_BIN = os.path.join(HOME, "projects", "Projects", "agent-os", "bin", "agent-os")
+DEFAULT_BIN = os.path.join(HOME, "agent-os", "bin", "agent-os")
 PASS_ENV = ("AGENT_OS_HOME", "AGENT_OS_REMEMBER_LIST")
 SAFE_NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,120}")
 STARTED = "Started. It will wait for your go."
