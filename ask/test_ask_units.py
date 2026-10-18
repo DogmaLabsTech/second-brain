@@ -23,6 +23,16 @@ class Expand(unittest.TestCase):
         self.assertLessEqual(len(lines), 3)
 
 
+class Collections(unittest.TestCase):
+    def test_every_indexed_collection_has_a_folder(self):
+        """A collection missing here comes back as a qmd:// link, not a note (agent-os and codex, 2026-10-18)."""
+        import yaml
+        with open(os.path.join(os.path.dirname(HERE), "index", "index.yml")) as f:
+            cols = yaml.safe_load(f)["collections"]
+        for name, c in cols.items():
+            self.assertEqual(ask.COLLECTIONS.get(name), c["path"], name)
+
+
 class FirstSentence(unittest.TestCase):
     def setUp(self):
         self.got = []
