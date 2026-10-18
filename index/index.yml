@@ -81,6 +81,10 @@ collections:
       - "GEMINI.md"
       - "jobs/**"
       - "eval/**"
+      # Read-only links to the project manager, the remember list and day pages (already indexed elsewhere), and the
+      # Obsidian app settings (2026-10-18).
+      - "views/**"
+      - ".obsidian/**"
     context:
       "/": "agent-os, <user>'s desk: the one folder he opens and starts any AI in. AGENTS.md is the desk guide, desk/ the five moves, 01-hear to 07-report the job conveyor, BUILDING.md the builder rules."
   chats:
