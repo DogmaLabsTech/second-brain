@@ -14,7 +14,7 @@ PATH = os.path.expanduser(os.environ.get("BRAIN_REMEMBER_FILE", "~/OMARCHY-BRAIN
 HEAD = """# Remembered
 
 Things <user> asked the brain island to remember ("Hey Claude, remember that ..."), one dated line
-each, newest last. Written by `brain job run remember` (second-brain `jobs/bin/remember`); read into
+each, newest last, each with a tick box (Obsidian Tasks; a ticked item is done and no longer offered). Written by `brain job run remember` (second-brain `jobs/bin/remember`); read into
 the second brain at the next hourly reindex. Fine to tidy by hand.
 
 """
@@ -67,7 +67,7 @@ def main():
     with open(PATH, "a") as f:
         if new:
             f.write(HEAD)
-        f.write(f"- {time.strftime('%Y-%m-%d %H:%M')}: {text}\n")
+        f.write(f"- [ ] {time.strftime('%Y-%m-%d %H:%M')}: {text}\n")   # a tick box for Obsidian Tasks (2026-10-18)
     print(json.dumps({"message": "Got it. I wrote it in your remembered list."}))
     return 0
 

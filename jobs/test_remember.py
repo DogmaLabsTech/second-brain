@@ -30,6 +30,11 @@ class Remember(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         return open(self.file).read().splitlines()[-1]
 
+    def test_new_lines_have_a_tick_box(self):
+        line = self.run_it("remember that the island mic sticks")
+        self.assertRegex(line, r"^- \[ \] \d{4}-\d{2}-\d{2} \d{2}:\d{2}: ")
+        self.assertEqual(len(rl.items(self.file)), 1)
+
     def test_said_tag_normalised_at_end(self):
         line = self.run_it("remember that (Repo:Omarchy-Setup) the island mic sticks")
         self.assertTrue(line.endswith("the island mic sticks (repo: omarchy-setup)"), line)
@@ -42,7 +47,7 @@ class Remember(unittest.TestCase):
 
     def test_untagged_old_format(self):
         line = self.run_it("buy milk on the way home")
-        self.assertRegex(line, r"^- \d{4}-\d{2}-\d{2} \d{2}:\d{2}: buy milk on the way home$")
+        self.assertRegex(line, r"^- \[ \] \d{4}-\d{2}-\d{2} \d{2}:\d{2}: buy milk on the way home$")
 
     def test_auto_tag(self):
         self.assertTrue(self.run_it("the example-game boss fight needs a pass").endswith("(repo: example-game)"))

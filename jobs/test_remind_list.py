@@ -27,6 +27,14 @@ class RemindList(unittest.TestCase):
         self.assertEqual([t for _, _, t in got], ["Build a drawing app for Max", "Ask Sam about Friday"])
         self.assertEqual(got[0][1], "2026-10-15")
 
+    def test_tick_boxes(self):
+        open(self.path, "w").write("- [ ] 2026-10-18 10:00: Open item\n- [x] 2026-10-18 10:01: Done item\n"
+                                   "- [X] 2026-10-18: Also done\n- 2026-10-17: Old style\n")
+        self.assertEqual([t for _, _, t in rl.items(self.path)], ["Open item", "Old style"])
+        self.assertEqual(rl.items(self.path)[0][1], "2026-10-18")
+        rl.mark(rl.items(self.path)[0][0], "claude", self.path)
+        self.assertEqual([t for _, _, t in rl.items(self.path)], ["Old style"])
+
     def test_mark(self):
         line = rl.items(self.path)[0][0]
         rl.mark(line, "gemini", self.path)

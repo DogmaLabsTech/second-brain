@@ -28,7 +28,8 @@ sys.path.insert(0, os.path.dirname(HERE))
 PATH = os.path.expanduser(os.environ.get("BRAIN_REMEMBER_FILE", "~/OMARCHY-BRAIN/inbox/remembered.md"))
 ISLAND_SAY = os.path.expanduser("~/.config/omarchy/plugins/user.brain-island/bin/say")
 DEV = os.path.expanduser("~/projects")
-ITEM = re.compile(r"^- (\d{4}-\d{2}-\d{2})(?: \d{2}:\d{2})?: (.+)$")
+# "- [ ] date: text" since 2026-10-18 (Obsidian Tasks tick box); older lines have no box. "[x]" = done, skipped.
+ITEM = re.compile(r"^- (?:\[([ xX])\] )?(\d{4}-\d{2}-\d{2})(?: \d{2}:\d{2})?: (.+)$")
 STARTED = re.compile(r"\s+→ started with .+$")
 # Agent: (button text, how it starts with a first task). All of them stay open afterwards for <user>.
 AGENTS = {
@@ -50,8 +51,8 @@ def items(path=PATH):
     out = []
     for i, l in enumerate(lines):
         m = ITEM.match(l)
-        if m and not STARTED.search(l):
-            out.append((i, m.group(1), m.group(2).strip()))
+        if m and not STARTED.search(l) and (m.group(1) or " ") == " ":
+            out.append((i, m.group(2), m.group(3).strip()))
     return out
 
 
