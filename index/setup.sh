@@ -11,5 +11,9 @@ if [[ -f "$conf" ]] && ! cmp -s "$here/index.yml" "$conf"; then
 fi
 cp "$here/index.yml" "$conf"
 qmd update
-env -u QMD_EMBED_PARALLELISM qmd embed
+# Every collection but codex here; codex's vectors are made on the test machine (index/codex-testbox.sh).
+for c in $(python3 -I -c 'import os, yaml; print(" ".join(k for k in yaml.safe_load(open(os.path.expanduser("~/.config/qmd/index.yml")))["collections"] if k != "codex"))'); do
+  env -u QMD_EMBED_PARALLELISM qmd embed -c "$c"
+done
+"$here/codex-testbox.sh" || echo "codex vectors on the test machine failed; the hourly run tries again" >&2
 qmd status

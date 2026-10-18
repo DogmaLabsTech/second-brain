@@ -93,12 +93,21 @@ collections:
     pattern: "**/*.md"
     context:
       "/": "Short notes made from <user>'s old Claude Code chats: what he asked and what Claude answered, one note per chat, secrets blanked out."
-      "/codex": "Short notes made from <user>'s Codex chats: what he asked and what Codex answered, one note per chat, secrets blanked out."
-    # Tests, scratch runs, automated PM builder runs and near-empty chats (chats/convert.py, low_value), and
-    # Codex helper sessions (chats/codex.py).
+    # Tests, scratch runs, automated PM builder runs and near-empty chats (chats/convert.py, low_value).
+    # codex/ is its own collection (below).
     ignore:
       - "low/**"
-      - "codex/low/**"
+      - "codex/**"
+  codex:
+    includeByDefault: false
+    path: ~/.local/share/second-brain/chats/codex
+    pattern: "**/*.md"
+    context:
+      "/": "Short notes made from <user>'s Codex chats: what he asked and what Codex answered, one note per chat, secrets blanked out."
+    # Codex helper sessions, tests, scratch runs and near-empty chats (chats/codex.py). Their vectors are made on
+    # the test machine (index/codex-testbox.sh); the hourly embed here skips this collection.
+    ignore:
+      - "low/**"
   days:
     includeByDefault: false
     path: ~/.local/share/second-brain/day/pages

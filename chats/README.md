@@ -107,5 +107,11 @@ forgets them too.
   sub-agents another Codex started.
 - First run (2026-10-18): 391 chats, 146 notes kept, 235 set aside, 10 with nothing said. The hourly refresh runs it
   after `convert.py`. Same flags (`--all`, `--dry-run`, `--sample N`, `--quiet`); tests in `test_codex.py`.
+- **Searched as their own collection, `codex`.** Their heavy part runs on the test machine (<user>, 2026-10-18):
+  `index/codex-testbox.sh` copies only the kept, redacted notes (never `low/`, never the raw chats) to the test machine's Linux
+  side, which makes their vectors with the same model on its processor (qmd 2.8.3 in `~/second-brain-testbox/`), and
+  `index/merge_vectors.mjs` adds them to the search here. The hourly embed here skips `codex`. test machine off: the notes
+  keep their keyword search and get their vectors on a later run. First run: 146 notes in about 4.5 minutes.
 
-Undo: `rm -rf ~/.local/share/second-brain/chats/codex` and take the `codex.py` lines out of `index/reindex.sh`.
+Undo: `rm -rf ~/.local/share/second-brain/chats/codex`, take the `codex.py` and `codex-testbox.sh` lines out of
+`index/reindex.sh`, and on the test machine `rm -rf ~/second-brain-testbox`.
