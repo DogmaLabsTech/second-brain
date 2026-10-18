@@ -12,8 +12,8 @@ Environment=OLLAMA_KEEP_ALIVE=5m
 Environment=OLLAMA_MAX_LOADED_MODELS=1
 Environment=OLLAMA_NUM_PARALLEL=1
 # The writer runs on the processor, never the graphics card (<user>, 2026-10-18): the card is for the screen and the
-# brain's search model; the local decider runs on the test machine. CUDA_VISIBLE_DEVICES empty hides the card from Ollama.
-Environment=CUDA_VISIBLE_DEVICES=
+# brain's search model; the local decider runs on the test machine. CUDA_VISIBLE_DEVICES=-1 (an id that does not exist) hides the card; Ollama treats an empty value as unset.
+Environment=CUDA_VISIBLE_DEVICES=-1
 Nice=5
 Restart=on-failure
 RestartSec=3
