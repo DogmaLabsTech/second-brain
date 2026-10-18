@@ -54,6 +54,10 @@ What happens inside (`ask/ask.py`):
    `ask/haiku_standby.py`), so it answers in about 2 s. In a 21-question
    race the local writers were right 43–57% of the time and took 6–8 s; Haiku 76% in 3.6 s; `auto` 76% in
    4.0 s (`docs/writer-race.md`). Haiku sees the question and the top 4 notes; the second decider never does.
+   **Since 2026-10-18 the local writer runs on the processor, not the graphics card** (<user>: the card is for the
+   screen and the search model; the local decider runs on the test machine). Measured: a warm answer 2.3 s (card: 1.3 s); the first one after
+   5 quiet minutes about 23 s (it loads from the HDD), so Haiku writes more of the answers. Back to the card: delete the
+   three `CUDA_VISIBLE_DEVICES` / `OLLAMA_VULKAN` / `GGML_VK_VISIBLE_DEVICES` lines in `ask/second-brain-ollama.service`.
 4. A job (below): it builds the job and the island asks Yes / No if it changes something.
 5. Chat ("thanks"): a short friendly line, no search.
 
