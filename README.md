@@ -11,7 +11,7 @@ notes, your project guides and (soon) your old Claude chats, and finds the right
 | `computer` | `~/OMARCHY-BRAIN` (not `example/muse-screens`, not `.secrets`, not Paperclip's old copies in `paperclip/*/`) |
 | `business` | `~/user-labs-business` (not `.env`, `.secrets`, `node_modules`, `.git`) |
 | `projects` | each project's `README.md`, `CLAUDE.md`, `AGENTS.md` and `docs/` in `~/projects` |
-| `chats` | short notes made from old Claude chats, in `~/.local/share/second-brain/chats/` |
+| `chats` | short notes made from old Claude chats, in `~/.local/share/second-brain/chats/`, and from Codex chats in its `codex/` folder |
 
 Your notes are only read, never changed.
 

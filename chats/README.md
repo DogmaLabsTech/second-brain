@@ -89,3 +89,23 @@ rm -rf ~/.local/share/second-brain/chats
 
 Then, if qmd already indexed them, run the reindex (or remove the `chats` collection) so search
 forgets them too.
+
+## Codex chats (since 2026-10-18)
+
+`codex.py` does the same for your Codex chats.
+
+- **Reads:** `~/.codex/sessions/` (one `.jsonl` file per chat) and the chat names in
+  `~/.codex/session_index.jsonl`. It only reads.
+- **Writes:** `~/.local/share/second-brain/chats/codex/`, named `<date>-codex-<project>-<last 8 letters of the chat id>.md`
+  (Codex ids start with the time, so the first letters repeat). The header says `agent: codex`, and `name:` when the
+  chat has one.
+- **Same rules:** only what you typed and what Codex wrote back, the same redaction and the same set-aside rules
+  (`codex/low/`, not searched). Also left out: the instructions Codex is handed in your turn (its AGENTS.md copy,
+  the environment, plugin and skill lists), its hidden reasoning, and every tool call and result. Your taps on a
+  Codex question card become one plain line ("answered a question … -> Yes, push it").
+- **Also set aside:** helper sessions that are not you talking: Codex's approval reviewers ("guardian") and
+  sub-agents another Codex started.
+- First run (2026-10-18): 391 chats, 146 notes kept, 235 set aside, 10 with nothing said. The hourly refresh runs it
+  after `convert.py`. Same flags (`--all`, `--dry-run`, `--sample N`, `--quiet`); tests in `test_codex.py`.
+
+Undo: `rm -rf ~/.local/share/second-brain/chats/codex` and take the `codex.py` lines out of `index/reindex.sh`.

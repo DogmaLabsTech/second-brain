@@ -93,9 +93,12 @@ collections:
     pattern: "**/*.md"
     context:
       "/": "Short notes made from <user>'s old Claude Code chats: what he asked and what Claude answered, one note per chat, secrets blanked out."
-    # Tests, scratch runs, automated PM builder runs and near-empty chats (chats/convert.py, low_value).
+      "/codex": "Short notes made from <user>'s Codex chats: what he asked and what Codex answered, one note per chat, secrets blanked out."
+    # Tests, scratch runs, automated PM builder runs and near-empty chats (chats/convert.py, low_value), and
+    # Codex helper sessions (chats/codex.py).
     ignore:
       - "low/**"
+      - "codex/low/**"
   days:
     includeByDefault: false
     path: ~/.local/share/second-brain/day/pages

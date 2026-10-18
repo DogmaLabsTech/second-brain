@@ -137,6 +137,9 @@ def redact(text):
     for email in OWN_EMAILS:
         text, k = re.subn(re.escape(email), EMAIL_MARK, text, flags=re.I)
         total += k
+        # Cut short by a column ("agent-os@users.noreply.github.com" in a tailscale status table): still his address.
+        text, k = re.subn(re.escape(email.split("@")[0] + "@") + r"(?![\w.-])", EMAIL_MARK, text, flags=re.I)
+        total += k
 
     text, k = _PRIVATE_KEY.subn(MARK, text)
     total += k

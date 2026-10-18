@@ -95,6 +95,11 @@ class Positive(unittest.TestCase):
         self.assertNotIn("agent-os@users.noreply.github.com", out)
         self.assertEqual(n, 1)
 
+    def test_email_cut_short(self):
+        out, n = redact("203.0.113.10    owners-iphone    agent-os@users.noreply.github.com   iOS")
+        self.assertNotIn("example.com", out)
+        self.assertEqual(n, 1)
+
     def test_private_key_block(self):
         pem = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n-----END OPENSSH PRIVATE KEY-----"
         self.gone("key:\n" + pem, "b3BlbnNzaC1rZXktdjEAAAAA")

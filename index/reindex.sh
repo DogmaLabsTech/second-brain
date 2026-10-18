@@ -12,6 +12,10 @@ start=$(date +%s)
 if [[ -f "$here/../chats/convert.py" ]]; then
   python3 -I "$here/../chats/convert.py" --quiet || echo "chat converter failed; indexing the rest anyway" >&2
 fi
+# The same for Codex chats (chats/codex.py), into chats/codex/.
+if [[ -f "$here/../chats/codex.py" ]]; then
+  python3 -I "$here/../chats/codex.py" --quiet || echo "codex chat converter failed; indexing the rest anyway" >&2
+fi
 qmd update
 env -u QMD_EMBED_PARALLELISM qmd embed
 # Drop vectors of removed or changed notes and compact the index.
