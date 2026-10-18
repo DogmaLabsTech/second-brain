@@ -48,7 +48,7 @@ import jobs as jobslib  # noqa: E402
 import asklog  # noqa: E402
 
 HOME = os.path.expanduser("~")
-BRAIN_URL = os.environ.get("BRAIN_URL", "http://localhost:8181")
+BRAIN_URL = os.environ.get("BRAIN_URL", "http://localhost:8182")   # qmd itself; chats use the go-between on 8181
 OLLAMA = os.environ.get("OLLAMA_HOST_URL", "127.0.0.1:11434")
 DECIDE = os.path.join(ROOT, "bin", "brain-decide")
 LOCAL_MODEL = os.environ.get("BRAIN_LOCAL_MODEL", "qwen2.5:3b")

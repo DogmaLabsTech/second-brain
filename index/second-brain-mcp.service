@@ -1,5 +1,5 @@
 [Unit]
-Description=Second brain: one shared qmd search server for every Claude chat (MCP over HTTP, localhost:8181)
+Description=Second brain: one shared qmd search server (MCP over HTTP, localhost:8182; chats reach it through second-brain-chat-search on 8181)
 
 [Service]
 # One server keeps the search models loaded once, instead of a copy per Claude chat.
@@ -7,7 +7,7 @@ Description=Second brain: one shared qmd search server for every Claude chat (MC
 # "Object is disposed") whenever the computer was busy. Models are freed after 5 idle minutes.
 Environment=QMD_LLAMA_GPU=vulkan
 Environment=QMD_EMBED_PARALLELISM=1
-ExecStart=%h/.local/share/mise/shims/qmd mcp --http --port 8181
+ExecStart=%h/.local/share/mise/shims/qmd mcp --http --port 8182
 Nice=10
 Restart=on-failure
 RestartSec=10

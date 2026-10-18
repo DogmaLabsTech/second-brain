@@ -1,0 +1,15 @@
+[Unit]
+Description=Second brain: the island's search mix for every chat (localhost:8181, in front of qmd on 8182)
+Wants=second-brain-mcp.service
+After=second-brain-mcp.service
+
+[Service]
+# Claude, Codex and Gemini chats use http://localhost:8181/mcp. This adds the island's words and newer-first
+# to their `query` calls and passes everything else to qmd untouched (ask/chat_proxy.py). Python only, no models.
+ExecStart=/usr/bin/python3 -I %h/projects/second-brain/ask/chat_proxy.py --port 8181 --upstream http://localhost:8182
+Nice=10
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

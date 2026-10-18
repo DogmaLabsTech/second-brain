@@ -208,15 +208,23 @@ stalled when the computer was busy). It lets go of the card's memory after 5 qui
 One small server (`second-brain-mcp.service`) answers every Claude chat and `brain search`, so the
 models are loaded once, not once per chat.
 
+**Chats search like the island (since 2026-10-18).** Claude, Codex and Gemini chats used to search with only
+their own words. A tiny go-between (`second-brain-chat-search.service`, `ask/chat_proxy.py`) now sits where they
+connect: it adds your words from `ask/synonyms.tsv` and lets newer notes win close calls, exactly as `brain ask`
+does, and passes everything else through untouched. On the fair test a chat-style search went from 17/34 to 18/34
+(the island's own score that day); a plain-question search from 40–70 s to 0.1 s
+(`eval/chat_search_test.py`). It uses no AI model and nothing leaves this computer.
+
 | Thing | Where |
 |---|---|
 | qmd program | global npm package (`npm ls -g @tobilu/qmd`) |
 | Settings (which folders) | `~/.config/qmd/index.yml`, copied from `index/index.yml` here |
 | The index and models | `~/.cache/qmd/` |
 | Hourly update | `~/.config/systemd/user/second-brain-reindex.timer` |
-| Search server | `~/.config/systemd/user/second-brain-mcp.service` (http://localhost:8181, this computer only) |
+| Search server | `~/.config/systemd/user/second-brain-mcp.service` (qmd, http://localhost:8182, this computer only) |
+| Chats' door to it | `~/.config/systemd/user/second-brain-chat-search.service` → `ask/chat_proxy.py` (http://localhost:8181) |
 | `brain` command | `~/.local/bin/brain` → `bin/brain` here |
-| Claude's tool | `brain` MCP server in `~/.claude.json` (points at the search server) |
+| Claude's tool | `brain` MCP server in `~/.claude.json` (and Codex, Gemini: points at the chats' door, 8181) |
 | Local writer | `~/.config/systemd/user/second-brain-ollama.service` → `ask/` here (Ollama as you, models in `~/.ollama`, port 11434) |
 | Haiku | `claude -p --model claude-haiku-5-5`, no tools, no MCP, no settings, nothing saved |
 | Warm speech to text | `~/.config/systemd/user/second-brain-stt.service` → `stt/` here, venv `~/.local/share/second-brain/stt-venv` |
@@ -227,8 +235,8 @@ Numbers from the first build: `docs/index-report.md`.
 ## How to undo
 
 ```
-systemctl --user disable --now second-brain-day.timer second-brain-reindex.timer second-brain-mcp.service second-brain-ollama.service second-brain-stt.service
-rm ~/.config/systemd/user/second-brain-{day,reindex}.{timer,service} ~/.config/systemd/user/second-brain-{mcp,ollama,stt}.service
+systemctl --user disable --now second-brain-day.timer second-brain-reindex.timer second-brain-chat-search.service second-brain-mcp.service second-brain-ollama.service second-brain-stt.service
+rm ~/.config/systemd/user/second-brain-{day,reindex}.{timer,service} ~/.config/systemd/user/second-brain-{chat-search,mcp,ollama,stt}.service
 claude mcp remove --scope user brain
 rm ~/.local/bin/brain
 npm uninstall -g @tobilu/qmd
