@@ -247,5 +247,24 @@ class TeamScreen(unittest.TestCase):
     def test_its_rule_beats_a_question_label(self):
         self.assertIn("team-screen", jobs.DESKTOP_JOBS)
 
+    def test_an_open_terminal_is_not_the_team_screen(self):
+        """It runs in kitty: the pattern matched the Desk's kitty window and focused it (<user>, 2026-10-19)."""
+        import re
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, "applications"))
+            entries = {"agent-os-team": "Name=Team screen\nExec=kitty --class agent-os-team -e agent-os screen\n"
+                                        "StartupWMClass=agent-os-team\n",
+                       "kitty": "Name=kitty\nExec=kitty\n"}
+            for app_id, body in entries.items():
+                with open(os.path.join(tmp, "applications", app_id + ".desktop"), "w") as f:
+                    f.write("[Desktop Entry]\nType=Application\n" + body)
+            with mock.patch.dict(os.environ, {"XDG_DATA_HOME": tmp, "XDG_DATA_DIRS": ""}):
+                team = desktop.app_command("agent-os-team")[1]
+                term = desktop.app_command("kitty")[1]
+        for cls, title in (("kitty", "Desk (talk to me)"), ("kitty", "Claude Code")):
+            self.assertFalse(re.search(r"\b" + team + r"\b", cls, re.I) or re.search(r"\b" + team + r"\b", title, re.I))
+        self.assertTrue(re.search(r"\b" + team + r"\b", "agent-os-team", re.I))
+        self.assertTrue(re.search(r"\b" + term + r"\b", "kitty", re.I))
+
 if __name__ == "__main__":
     unittest.main()

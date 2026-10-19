@@ -26,6 +26,10 @@ FILE_ROOTS = [HOME, "/mnt/backup/home"]
 SKIP_DIRS = ["node_modules", ".git", "__pycache__", ".venv", "venv", "dist", "build", "target", ".cache"]
 BAD_EXT = {".desktop", ".sh", ".appimage", ".exe", ".run", ".bin", ".bat", ".cmd", ".ps1", ".jar", ".deb"}
 SAFE_ID = re.compile(r"^[A-Za-z0-9._@+-]+$")
+# An app that runs inside a terminal (Exec=kitty ... -e ...) is not the terminal: every terminal window has that
+# class, so the program name would match (and focus) any open terminal instead (the Team screen, 2026-10-19).
+TERMINALS = {"kitty", "alacritty", "ghostty", "foot", "wezterm", "xterm", "konsole", "gnome-terminal",
+             "xdg-terminal-exec"}
 
 # ---------- apps ----------
 
@@ -69,6 +73,8 @@ def apps():
                 found[app_id] = None  # a hidden copy hides the system one too
                 continue
             exe = os.path.basename((e.get("Exec") or "").split(" ")[0]) if e.get("Exec") else ""
+            if exe in TERMINALS and app_id not in TERMINALS and e.get("StartupWMClass", "").lower() not in TERMINALS:
+                exe = ""
             words = [e.get("Name"), e.get("GenericName", ""), exe, app_id.split(".")[-1]]
             words += [k for k in e.get("Keywords", "").split(";") if k]
             found[app_id] = {"name": re.sub(r"\s*\(.*?\)\s*", " ", e.get("Name")).strip() or e.get("Name"),
