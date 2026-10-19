@@ -1,0 +1,11 @@
+{
+  "id": "team-screen",
+  "label": "Show the team screen",
+  "phrases": ["show me the team", "open the team screen", "show me my team", "bring up the team screen", "show the team"],
+  "match": "^(please )?((can|could|would|will) you (please )?)?(show|open|bring up|pull up|put up|launch)( me)? (the |my )?team( screen| view)?( please)?$",
+  "order": 20,
+  "needs_confirm": false,
+  "args": {},
+  "command": ["{jobs}/bin/desktop", "app", "agent-os-team"],
+  "message": "Opening the team screen."
+}

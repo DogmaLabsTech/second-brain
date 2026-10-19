@@ -223,5 +223,29 @@ class Routing(unittest.TestCase):
         self.assertIn("didn't do it", buf.getvalue())
 
 
+
+
+class TeamScreen(unittest.TestCase):
+    """"Show me the team" opens agent-os's Team screen app (<user>, 2026-10-19: the island answered it as a question)."""
+
+    def test_words_pick_the_team_screen(self):
+        for text in ("Show me the team.", "hey claude, show me the team", "open the team screen", "show me my team",
+                     "can you bring up the team screen please"):
+            self.assertEqual(jobs.match_rule(text), "team-screen", text)
+        for text in ("show my keyboard shortcuts", "who is on the team for example-game", "open spotify",
+                     "show me the team's report from last night"):
+            self.assertNotEqual(jobs.match_rule(text), "team-screen", text)
+
+    def test_the_job_opens_the_team_screen_app(self):
+        job = jobs.load()["team-screen"]
+        self.assertEqual(job["command"][1:], ["app", "agent-os-team"])
+        self.assertFalse(job["needs_confirm"])
+        built = jobs.build("team-screen", "show me the team")
+        self.assertEqual(built["kind"], "job")
+        self.assertEqual(built["answer"], "Opening the team screen.")
+
+    def test_its_rule_beats_a_question_label(self):
+        self.assertIn("team-screen", jobs.DESKTOP_JOBS)
+
 if __name__ == "__main__":
     unittest.main()

@@ -53,7 +53,7 @@ def clean_text(text):
 NOT_DESKTOP = re.compile(r"\b(tv|television|telly|songs?|tracks?|music|spotify)\b", re.I)
 # Jobs whose own rule beats the decider's "question" or "unsure" (their rules are tight commands, and a
 # decider trained before they existed doesn't know their labels).
-DESKTOP_JOBS = ("desktop", "open-app", "open-file", "send-file")
+DESKTOP_JOBS = ("desktop", "open-app", "open-file", "send-file", "team-screen")   # team-screen: agent-os, 2026-10-19
 # Jobs that sound like questions ("what moved today?"): their rule beats the decider's "question" too, and a
 # how-question doesn't undo them (they are new to the decider; add them to the next the local decider round).
 DAY_JOBS = ("what-changed", "goodnight")
@@ -502,6 +502,9 @@ def build(job_id, text, search=None, local_writer=None, how="typed"):
     elif job_id == "goodnight":
         label = job["label"]
         answer = "I'll sum up the day, clear what's done and ask what may run tonight."
+    elif job_id == "team-screen":
+        label = job["label"]
+        answer = "Opening the team screen."
     else:  # whats-waiting
         label = job["label"]
         answer = "Checking who needs you."

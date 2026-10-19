@@ -69,6 +69,7 @@ One small file per job in `jobs/` (what to say, whether it asks first, the comma
 |---|---|---|---|
 | `open-note` | "open my notes on the bar" | no | opens the best matching note (`xdg-open`) |
 | `whats-waiting` | "what's waiting on me?" | no | reads the bar's Claude list, agent helpers and PM runs, says who needs you |
+| `team-screen` | "show me the team" | no | opens agent-os's Team screen app (`agent-os-team`, look only: every agent at work side by side); since 2026-10-19 |
 | `what-changed` | "what moved today?", "what about yesterday?", "what happened overnight?" | no | `brain day … --say`: two spoken sentences from the day page (below) |
 | `goodnight` | "end of day", "goodnight", "I'm going to bed", "close out the day" | yes | `brain eod` (below; `/eod` in the desk is the same) |
 | `start-claude` | "start a Claude on Example Game" | yes | `pm open <project> --launch` (that project's PM in agent) |
