@@ -1,34 +1,12 @@
 {
   "id": "start-claude",
   "label": "Start a Claude on {name}",
-  "team_label": "Start a team on {name}",
-  "phrases": [
-    "start a claude on example-game",
-    "open the example-rpg PM",
-    "start working on example",
-    "get a claude going for example-board"
-  ],
+  "phrases": ["start a claude on example-game", "open the example-rpg PM", "start working on example", "get a claude going for example-board"],
   "match": "\\b(start|open|launch|get)\\b.*\\b(claude|pm|project manager)\\b|\\bstart (working )?on\\b",
   "needs_confirm": true,
-  "args": {
-    "project": "a repo from `pm list` / ~/projects, or desk",
-    "name": "its plain name",
-    "text": "only for a team job: the task after the project name, one line",
-    "how": "voice or typed (team job only)"
-  },
-  "command": [
-    "{home}/projects/project-manager/bin/pm",
-    "open",
-    "{project}",
-    "--launch"
-  ],
+  "args": {"project": "a repo from `pm list` / ~/projects, or desk", "name": "its plain name", "text": "team job only: the task after the project name, one line"},
+  "command": ["{home}/projects/project-manager/bin/pm", "open", "{project}", "--launch"],
+  "team_command": ["{jobs}/bin/agent-os-boss", "--repo", "{project}", "--", "{text}"],
   "message": "Opened the {name} PM in agent.",
-  "team_command": [
-    "{jobs}/bin/agent-os-boss",
-    "--repo",
-    "{project}",
-    "--",
-    "{text}"
-  ],
   "team_message": "Prepared the {name} team job. It waits for your go."
 }

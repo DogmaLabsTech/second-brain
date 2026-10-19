@@ -114,7 +114,7 @@ agent-os stops at "nothing to build" until it learns other jobs. Tests: `CRABBOX
 real one never runs).
 
 **Start a team (since 2026-10-19).** "Start a claude on example: tidy the logs" (the task comes after a colon, a
-comma or dash, or "to" / "and" / "then" / "so" / "that") shows "Start a team on Example?". Yes runs
+comma, a dash or an em dash, or "to" / "and" / "then") shows "Start a team on Example?". Yes runs
 `agent-os boss prepare --repo example -- "tidy the logs"` (`jobs/bin/agent-os-boss`): it writes the boss's and the
 worker's job folders, both `go: waiting`, and says "Prepared the Example team job. It waits for your go." (spoken).
 **It never starts the boss and never writes a go:** the desk shows you the plan and only your yes goes in both
@@ -122,8 +122,13 @@ worker's job folders, both `go: waiting`, and says "Prepared the Example team jo
 or `desk` is refused before agent-os is called, and a failing or slow (over 30 seconds) agent-os says
 "I couldn't prepare that job." No on the card does nothing. Words with no task after the project ("start a claude
 on example-game", "open the example-rpg PM", "start working on example") and "start a claude on the desk" still open
-the PM chat, as before; so does a task the rules can't find (a missed task is safe, a guessed one is not). "Start a
+the PM chat, as before; so do "so I can watch it", "that's all" and a second project name ("... on example and
+example-rpg"), which are not tasks (a missed task is safe, a guessed one is not). "... on example to check in" is a
+task on purpose: the card shows the task before you press Yes, and Yes only prepares. "Start a claude on the desk:
+tidy the board" opens the desk PM and the card says the task was not used. "Start a
 job on ..." is its own job and still wins for those words. Two Yes presses make two team jobs (nothing runs; delete one).
+**Known gap:** spoken or typed is not passed on. `agent-os boss prepare` has no `--how` flag and always writes
+`how: typed` in the job's `ask.md`, so a spoken ask says "typed" there. Fixing it is a change in agent-os.
 Plan: `~/agent-os/jobs/2026-10-18-orchestration-design/start-claude-plan.md`.
 
 **Moving a window.** "Move this window to my other screen", "move Chrome to the left monitor", "open VS Code

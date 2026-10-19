@@ -242,30 +242,57 @@ def _lead_project(words):
 
 
 TEAM_LEAD = re.compile(r"\b(on|for)\b\s*", re.I)
-TEAM_CONNECT = re.compile(r"^(?:[,;\-\u2013\u2014]+\s*|(?:and|then|so|to|that)\b[,\s]*)+", re.I)
-TEAM_TRAIL = re.compile(r"(?:[\s,;\-]+(?:please|pls|thanks|thank you|now|like now|right now))+$", re.I)
+TEAM_SPLIT = re.compile(r"\s*[,;\u2013\u2014]+\s*|\s+-+\s+")   # a comma, dash or em dash right after the name
+TEAM_CONNECT = re.compile(r"^(?:[,;\-\u2013\u2014]+\s*|(?:and|then|to)\b[,\s]*)+", re.I)
+TEAM_TRAIL = re.compile(r"(?:^|[\s,;\-]+)(?:please|pls|thanks|thank you|now|like now|right now)(?:[\s,;\-]+"
+                        r"(?:please|pls|thanks|thank you|now|like now|right now))*$", re.I)
+TEAM_DESK = re.compile(r"^(?:the )?(?:whole )?desk\b\s*", re.I)
 
 
 def team_task(text):
-    """"start a claude on <project>: <task>" -> (project, task); (None, "") when the words hold no task. A task is
-    what follows the project name after a colon, a comma or dash, or "to" / "and" / "then" / "so" / "that". Plain
-    words after the name ("example's logs", "example-board like now") are not a task: a missed task only gives the old PM
-    chat, a guessed one would prepare a job <user> never asked for. The whole desk never has a task here."""
+    """"start a claude on <project>: <task>" -> (project, task); (None, "") when the words hold no task. The project
+    can be "desk" (its task is then not used: the whole desk has no team job). A task is what follows the project
+    name after a colon, a comma, a dash or an em dash, or "to" / "and" / "then" ("on example to tidy the logs").
+    Plain words after the name ("example's logs", "example-board like now", "so I can watch it", "that's all") are not a
+    task, nor is a second project name ("example and example-rpg"): a missed task only gives the old PM chat, a
+    guessed one would prepare a job <user> never asked for. "to check in" is a task on purpose: "to" is how people
+    say it, and the card shows the task before Yes, which only prepares."""
     t = clean_text(text)
     m = TEAM_LEAD.search(t)
     if not m:
         return None, ""
     rest = t[m.end():]
+    desk = TEAM_DESK.match(rest)
     if ":" in rest:
         head, tail = rest.split(":", 1)
         repo = find_project(head)
+    elif desk:
+        repo, tail = "desk", rest[desk.end():]
+        tail = TEAM_CONNECT.sub("", tail.strip(), count=1)
     else:
+        # The comma or dash sticks to the project word _lead_project takes, so split at it first.
         repo, tail = _lead_project(rest.split())
-        tail = TEAM_CONNECT.sub("", tail, count=1) if tail and TEAM_CONNECT.match(tail) else ""
+        sep = TEAM_SPLIT.search(rest)
+        head_repo, head_left = _lead_project(rest[:sep.start()].split()) if sep else (None, "")
+        if head_repo and not head_left:
+            repo, tail = head_repo, rest[sep.end():]
+        elif repo and TEAM_CONNECT.match(tail):
+            pass
+        else:
+            repo = None   # words after the name with no joining word: not a task
+        tail = TEAM_CONNECT.sub("", tail.strip(), count=1) if repo else ""
     task = TEAM_TRAIL.sub("", tail.strip()).strip(" ,;")
-    if not repo or repo == "desk" or not task:
+    if not repo or not task or task[0] in "'\"\u2019" or not _is_task(task):
         return None, ""
     return repo, task
+
+
+def _is_task(task):
+    """Not just a project name ("example-rpg", "the desk"): that is a second project, not something to do."""
+    if TEAM_DESK.fullmatch(task):
+        return False
+    repo, left = _lead_project(task.split())
+    return not (repo and not left)
 
 
 def one_line(text):
@@ -478,7 +505,7 @@ def build(job_id, text, search=None, local_writer=None, how="typed"):
         sources = hits[:3]
         answer = f"Opening your note {top['title']}."
         label = f"Open {top['title']}"
-    elif job_id == "start-claude" and all(team_task(text)):
+    elif job_id == "start-claude" and team_task(text)[0] not in (None, "desk"):
         repo, task = team_task(text)
         try:
             task = one_line(task)
@@ -487,7 +514,7 @@ def build(job_id, text, search=None, local_writer=None, how="typed"):
                     "sources": [], "job": None}
         args = {"project": repo, "name": pretty(repo), "text": task, "how": how if how in HOWS else "typed"}
         label = f"Start a team on {pretty(repo)}"
-        answer = (f"This prepares a team job on {pretty(repo)}. Nothing starts until you say go at the desk.")
+        answer = (f"This prepares a team job on {pretty(repo)}: {task}. Nothing starts until you say go at the desk.")
     elif job_id == "start-claude":
         repo = find_project(text, local_writer)
         if not repo:
@@ -499,6 +526,8 @@ def build(job_id, text, search=None, local_writer=None, how="typed"):
         else:
             label = f"Start a Claude on {pretty(repo)}"
         answer = f"This opens the {pretty(repo)} PM in agent."
+        if team_task(text)[0] == "desk":
+            answer = "The whole desk has no team job, so this opens the desk PM; your task was not used."
     elif job_id == "music":
         args = {"action": music_action(text)}
         label = {"Next": "Next song", "Previous": "Previous song", "Pause": "Pause the music",

@@ -150,10 +150,21 @@ TEAM_CARDS = [
     ("Hey Claude, start a claude on example-rpg to fix the map loading", "example-rpg", "fix the map loading"),
     ("start a claude on example-game and tidy the saves, please", "example-game", "tidy the saves"),
     ("start a claude on example: fix the example-board links", "example", "fix the example-board links"),
+    ("start a claude on example, tidy the logs", "example", "tidy the logs"),
+    ("start a claude on example - tidy the logs", "example", "tidy the logs"),
+    ("start a claude on example \u2014 tidy the logs", "example", "tidy the logs"),
+    ("start a claude on example \u2013 tidy the logs", "example", "tidy the logs"),
+    ("start a claude on example-game, fix the saves, please", "example-game", "fix the saves"),
+    # "to check in" is a task on purpose: "to" is how people say it, and the card shows the task before Yes.
+    ("start a claude on example to check in", "example", "check in"),
 ]
 TEAM_PHRASES = [t for t, _, _ in TEAM_CARDS]
 NO_TASK = ["start a claude on example-game", "open the example-rpg PM", "start working on example",
-           "get a claude going for example-board", "start a claude on example like now", "start a claude on example, thanks"]
+           "get a claude going for example-board", "start a claude on example like now", "start a claude on example, thanks",
+           "start a claude on example, then", "start a claude on example so I can watch it",
+           "start a claude on example that's all", "start a claude on example and example-rpg",
+           "start a claude on example, example-rpg",
+           "start a claude on example: example-rpg", "start a claude on example: 's all", "start a claude on example's logs"]
 
 
 class Rules(unittest.TestCase):
@@ -263,11 +274,38 @@ class Build(unittest.TestCase):
                 self.assertIn("project-manager/bin/pm open", job["command"])
                 self.assertNotIn("agent-os-boss", job["command"])
 
+    def test_no_task_cards_keep_the_old_answer(self):
+        for text in NO_TASK:
+            out = jobs.build("start-claude", text)
+            self.assertNotIn("team job", out["answer"], text)
+            self.assertIn("PM in agent", out["answer"], text)
+
+    def test_two_projects_are_never_a_team_job(self):
+        # find_project picks the desk here (as it always did): the old whole-desk card, and no team card
+        out = jobs.build("start-claude", "start a claude on example and the desk")
+        self.assertNotIn("text", out["job"]["args"])
+        self.assertFalse(out["job"]["label"].startswith("Start a team"))
+
+    def test_team_card_shows_the_task(self):
+        out = jobs.build("start-claude", "start a claude on example to check in")
+        self.assertIn("check in", out["answer"])
+
     def test_whole_desk_stays_the_desk_pm(self):
         for text in ("start a claude on the desk", "start a claude on the whole desk: tidy the notes"):
             job = jobs.build("start-claude", text)["job"]
             self.assertEqual((job["label"], job["args"]["project"]), ("Start the whole-desk PM", "desk"), text)
             self.assertNotIn("text", job["args"])
+
+    def test_desk_with_a_task_says_the_task_is_not_used(self):
+        for text in ("start a claude on the desk: tidy the board", "start a claude on the whole desk to tidy the board",
+                     "start a claude on the desk, tidy the board"):
+            out = jobs.build("start-claude", text)
+            self.assertEqual(out["job"]["label"], "Start the whole-desk PM", text)
+            self.assertNotIn("text", out["job"]["args"])
+            self.assertIn("The whole desk has no team job", out["answer"], text)
+            self.assertIn("your task was not used", out["answer"], text)
+        plain = jobs.build("start-claude", "start a claude on the desk")["answer"]
+        self.assertNotIn("not used", plain)
 
     def test_dash_task_is_an_answer(self):
         out = jobs.build("start-claude", "start a claude on example: -rf everything")
