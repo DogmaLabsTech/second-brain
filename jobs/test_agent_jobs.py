@@ -298,9 +298,9 @@ class Build(unittest.TestCase):
         """"Start an agent on Example. Tidy the logs." is a task after a pause; chat after a pause is not."""
         for text in SENTENCE_NO_TASK:
             with self.subTest(text=text):
-                job = jobs.build("start-claude", text, how="voice")["job"]
-                self.assertNotIn("text", job["args"], text)
-                self.assertTrue(job["label"].startswith("Start a Claude on"), job["label"])
+                out = jobs.build("start-claude", text, how="voice")
+                self.assertIsNone(out["job"], text)                       # no team card, and no PM chat either
+                self.assertIn("What should the team do on", out["answer"])
 
     def test_team_card(self):
         for text, project, task in TEAM_CARDS:
@@ -315,20 +315,17 @@ class Build(unittest.TestCase):
                 self.assertIn("agent-os-boss --repo " + project + " --how voice -- " + task, job["command"])
                 self.assertIn("Nothing starts until you say go", out["answer"])
 
-    def test_no_task_keeps_the_pm_chat_card(self):
+    def test_no_task_asks_for_the_task_and_never_opens_a_project_pm(self):
         for text in NO_TASK:
             with self.subTest(text=text):
-                job = jobs.build("start-claude", text)["job"]
-                self.assertTrue(job["label"].startswith("Start a Claude on "), job["label"])
-                self.assertNotIn("text", job["args"])
-                self.assertIn("project-manager/bin/pm open", job["command"])
-                self.assertNotIn("agent-os-boss", job["command"])
+                out = jobs.build("start-claude", text)
+                self.assertIsNone(out["job"], text)
+                self.assertIn("What should the team do on", out["answer"], text)
+                self.assertIn("start a claude on", out["answer"], text)
 
-    def test_no_task_cards_keep_the_old_answer(self):
-        for text in NO_TASK:
-            out = jobs.build("start-claude", text)
-            self.assertNotIn("team job", out["answer"], text)
-            self.assertIn("PM in agent", out["answer"], text)
+    def test_the_question_names_the_project(self):
+        out = jobs.build("start-claude", "start a claude on example-game")
+        self.assertIn("Example Game", out["answer"])
 
     def test_two_projects_are_never_a_team_job(self):
         # find_project picks the desk here (as it always did): the old whole-desk card, and no team card
@@ -548,10 +545,10 @@ class TeamJob(Fakes):
         with mock.patch.object(jobs.subprocess, "run") as run:
             run.return_value = subprocess.CompletedProcess([], 0, "", "")
             with contextlib.redirect_stdout(io.StringIO()):
-                jobs.run("start-claude", jobs.build("start-claude", "start a claude on example")["job"])
+                jobs.run("start-claude", jobs.build("start-claude", "start a claude on the desk")["job"])
         argv = run.call_args[0][0]
         self.assertTrue(argv[0].endswith("project-manager/bin/pm"), argv)
-        self.assertEqual(argv[1:], ["open", "example", "--launch"])
+        self.assertEqual(argv[1:], ["open", "--desk", "--launch"])
         self.assertEqual(self.calls(), [])
 
 
@@ -673,9 +670,12 @@ class Routing(unittest.TestCase):
         self.assertEqual(out["job"]["label"], "Start a team on Example")
         self.assertEqual(out["job"]["args"]["text"], "tidy the logs")
 
-    def test_start_claude_unchanged(self):
+    def test_start_claude_with_no_task_asks_for_one(self):
         out = self.run_ask("start a claude on example-game", "job:start-claude")
-        self.assertEqual(self.job_id(out), "start-claude")
+        self.assertIsNone(self.job_id(out))                       # no PM chat is opened any more
+        self.assertIn("What should the team do on Example Game", out["answer"])
+        desk = self.run_ask("start a claude on the desk", "job:start-claude")
+        self.assertEqual(self.job_id(desk), "start-claude")       # the whole-desk PM still opens
 
     def test_remember_unchanged(self):
         out = self.run_ask("remember that the dentist is friday", "job:remember")

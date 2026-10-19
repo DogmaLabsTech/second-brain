@@ -72,7 +72,7 @@ One small file per job in `jobs/` (what to say, whether it asks first, the comma
 | `team-screen` | "show me the team" | no | opens agent-os's Team screen app (`agent-os-team`, look only: every agent at work side by side); since 2026-10-19 |
 | `what-changed` | "what moved today?", "what about yesterday?", "what happened overnight?" | no | `brain day … --say`: two spoken sentences from the day page (below) |
 | `goodnight` | "end of day", "goodnight", "I'm going to bed", "close out the day" | yes | `brain eod` (below; `/eod` in the desk is the same) |
-| `start-claude` | "start a Claude on Example Game"; with a task, "start a claude on example: tidy the logs" | yes ("Start a Claude on Example Game?"; with a task "Start a team on Example?") | no task: `pm open <project> --launch` (that project's PM in agent). With a task: `jobs/bin/agent-os-boss`, which prepares a team job (below) |
+| `start-claude` | "start a Claude on Example Game"; with a task, "start a claude on example: tidy the logs" | yes ("Start a Claude on Example Game?"; with a task "Start a team on Example?") | no task: asks "What should the team do on <project>?" (per-project PM chats were retired 2026-10-19; only "the desk" still opens the whole-desk PM). With a task: `jobs/bin/agent-os-boss`, which prepares a team job (below) |
 | `remember-fix` | "fix the thing on my remember list tonight" | yes ("Start a fix from your remember list?") | hands your words to agent-os (below) |
 | `start-job` | "start a job on agent-os: make the report shorter" | yes ("Start a job on Agent Os?") | hands your words to agent-os (below) |
 | `music` | "pause", "next song" | no | the music app (MPRIS over D-Bus) |
@@ -121,9 +121,10 @@ worker's job folders, both `go: waiting`, and says "Prepared the Example team jo
 `go.md`. The words are one line of up to 500 characters, never through a shell; bad input, an unknown project
 or `desk` is refused before agent-os is called, and a failing or slow (over 30 seconds) agent-os says
 "I couldn't prepare that job." No on the card does nothing. Words with no task after the project ("start a claude
-on example-game", "open the example-rpg PM", "start working on example") and "start a claude on the desk" still open
-the PM chat, as before; so do "so I can watch it", "that's all" and a second project name ("... on example and
-example-rpg"), which are not tasks (a missed task is safe, a guessed one is not). "... on example to check in" is a
+on example-game", "open the example-rpg PM", "start working on example") get the question "What should the team do on
+Example?" and open nothing (the per-project PM chats were retired 2026-10-19); "start a claude on the desk" still opens
+the whole-desk PM. "so I can watch it", "that's all" and a second project name ("... on example and
+example-rpg") are not tasks either and get the same question (a missed task is safe, a guessed one is not). "... on example to check in" is a
 task on purpose: the card shows the task before you press Yes, and Yes only prepares. After a comma or dash the task
 needs two or more words and may not start with so / I / you / we / it or filler ("example, ok", "example - quick",
 "example, example-rpg too" are not tasks); after a colon or "to" / "and" / "then" one word is enough. "Start a claude on the desk:

@@ -545,11 +545,12 @@ def build(job_id, text, search=None, local_writer=None, how="typed"):
         if not repo:
             return {"kind": "answer", "answer": "Which project? I didn't catch a project name I know.",
                     "sources": [], "job": None}
+        if repo != "desk":      # per-project PM chats were retired 2026-10-19: a project gets a team job, with a task
+            return {"kind": "answer", "sources": [], "job": None,
+                    "answer": (f"What should the team do on {pretty(repo)}? Say it with the task, like: "
+                               f"start a claude on {pretty(repo)}, tidy the logs.")}
         args = {"project": repo, "name": pretty(repo)}
-        if repo == "desk":
-            label = "Start the whole-desk PM"
-        else:
-            label = f"Start a Claude on {pretty(repo)}"
+        label = "Start the whole-desk PM"
         answer = f"This opens the {pretty(repo)} PM in agent."
         if team_task(text)[0] == "desk":
             answer = "The whole desk has no team job, so this opens the desk PM; your task was not used."
