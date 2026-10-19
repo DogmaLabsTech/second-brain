@@ -6,7 +6,7 @@
   "needs_confirm": true,
   "args": {"project": "a repo from `pm list` / ~/projects, or desk", "name": "its plain name", "text": "team job only: the task after the project name, one line"},
   "command": ["{home}/projects/project-manager/bin/pm", "open", "{project}", "--launch"],
-  "team_command": ["{jobs}/bin/agent-os-boss", "--repo", "{project}", "--", "{text}"],
+  "team_command": ["{jobs}/bin/agent-os-boss", "--repo", "{project}", "--how", "{how}", "--", "{text}"],
   "message": "Opened the {name} PM in agent.",
   "team_message": "Prepared the {name} team job. It waits for your go."
 }

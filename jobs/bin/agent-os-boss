@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""agent-os-boss --repo <project> -- "<the task>": prepare a team job with agent-os.
+"""agent-os-boss --repo <project> --how voice|typed -- "<the task>": prepare a team job with agent-os.
 
 Run by `brain job run start-claude` after <user>'s Yes on the "Start a team on <project>?" card.
-  `agent-os boss prepare --repo <project> -- "<task>"` writes two job folders (the boss's and its worker's), both
+  `agent-os boss prepare --repo <project> --how <how> -- "<task>"` writes two job folders (the boss's and its worker's), both
   `go: waiting`, and prints a line for the island: {"message": "Prepared the Example team job. ...", "speak": true}.
 It never calls `boss start` and never writes a go: only <user>'s yes does that, later, at the desk.
 The task is always one argument after `--` (never through a shell). Refused before agent-os is called: no task, more
@@ -51,14 +51,14 @@ def pretty(repo):
 
 
 def main(argv):
-    if len(argv) != 4 or argv[0] != "--repo" or argv[2] != "--":
+    if len(argv) != 6 or argv[0] != "--repo" or argv[2] != "--how" or argv[4] != "--" or argv[3] not in ("voice", "typed"):
         return say(FAILED, 2)
-    repo, text = argv[1], argv[3]
+    repo, how, text = argv[1], argv[3], argv[5]
     if not text.strip() or re.search(r"[\x00-\x08\x0a-\x1f\x7f]", text) or len(text) > 500 \
             or text.lstrip().startswith("-") or not known(repo):
         return say(FAILED, 2)
     try:
-        out = subprocess.run([agent_os_bin(), "boss", "prepare", "--repo", repo, "--", text], capture_output=True,
+        out = subprocess.run([agent_os_bin(), "boss", "prepare", "--repo", repo, "--how", how, "--", text], capture_output=True,
                              text=True, timeout=PREPARE_SECONDS, stdin=subprocess.DEVNULL)
     except (OSError, subprocess.TimeoutExpired):
         return say(FAILED, 1)
