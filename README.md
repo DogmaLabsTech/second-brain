@@ -93,7 +93,8 @@ emoji and clipboard pickers, Bluetooth on / off, lock, log out, restart, shut do
 restart (one missed while the computer was off goes off when it is back). When one is due, every screen dims and a
 big card shows the words with a Done button; a chime repeats until Done (the voice island's card,
 `AlarmWindow.qml` in omarchy-setup). A bare hour from 1 to 6 means the afternoon ("at 2" is 2 pm); a time that
-has gone by today is tomorrow. `alarm list`, `alarm cancel <id|all>`. Tests: `python3 -I jobs/test_alarm.py`.
+has gone by today is tomorrow. `brain alarm list`, `brain alarm cancel <id|all>`, and `brain alarm history`: the
+last ones that went off and when Done was pressed (button, key or shell). Tests: `python3 -I jobs/test_alarm.py`.
 A how/why question ("how do I turn on the night light") is answered from the notes, not run.
 Tests: `python3 jobs/test_desktop_jobs.py` and `python3 jobs/test_send_move.py`.
 

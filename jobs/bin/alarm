@@ -5,18 +5,22 @@
   alarm list [--json]                   the alarms still to come
   alarm cancel <id|all>                 take one (or all) away
   alarm fire <id>                       (the timer runs this) show the card, then forget the alarm
+  alarm done <id> [button|key|shell]    (the card runs this) when <user> pressed Done, and how
+  alarm history [n] [--json]            the last n reminders that went off, with when he pressed Done
 
 Each alarm is a pair of unit files in ~/.config/systemd/user (brain-alarm-<id>.timer / .service, OnCalendar with
 Persistent=true, so a reminder missed while the computer was off goes off once it is back) and a small json in
 ~/.local/share/second-brain/alarms/. The card is the voice island's (`omarchy-shell brain-island alarm <json>`,
 user.brain-island/AlarmWindow.qml): it stays until <user> presses Done and the chime repeats until then. If the
-island isn't there, an urgent notice and one chime instead. Fired alarms are logged in fired.jsonl.
+island isn't there, an urgent notice and one chime instead. fired.jsonl logs each one that went off
+({"id", "message", "at", "fired", "how"}) and, when he presses Done, a second line {"id", "done", "by"}.
 Last line of every command: {"message": "..."}.
 Test without timers or a desktop: BRAIN_ALARM_DIR=<tmp> BRAIN_ALARM_UNITS=<tmp> BRAIN_ALARM_DRY=1.
 """
 import datetime as dt
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -167,7 +171,7 @@ def show(alarm):
     """The island's card (stays until Done, chime repeats); else an urgent notice and one chime. Returns how."""
     if DRY:
         return "dry"
-    card = json.dumps({"text": alarm["message"], "time": clock(alarm["at"])})
+    card = json.dumps({"id": alarm["id"], "text": alarm["message"], "time": clock(alarm["at"])})
     deadline = time.time() + SHELL_WAIT
     while True:
         if island_up():
@@ -202,8 +206,69 @@ def cmd_fire(args):
     return say(f"Reminded you: {alarm['message']}.")
 
 
+def fired_log():
+    out = []
+    try:
+        with open(os.path.join(DIR, "fired.jsonl")) as f:
+            for line in f:
+                try:
+                    out.append(json.loads(line))
+                except ValueError:
+                    pass
+    except OSError:
+        pass
+    return out
+
+
+def cmd_done(args):
+    if not args or not re.fullmatch(r"[0-9]{8}-[0-9]{4}-[0-9a-f]{4}", args[0]):
+        return say("Which reminder?", 2)
+    by = args[1] if len(args) > 1 and args[1] in ("button", "key", "shell") else "button"
+    if not any(r.get("id") == args[0] and "fired" in r for r in fired_log()):
+        return say("That reminder hasn't gone off.", 1)
+    os.makedirs(DIR, exist_ok=True)
+    with open(os.path.join(DIR, "fired.jsonl"), "a") as f:
+        f.write(json.dumps({"id": args[0], "done": int(time.time()), "by": by}) + "\n")
+    return say("Noted.")
+
+
+def history(n=10):
+    """The last n reminders that went off: message, when, and when Done was pressed (None if not yet)."""
+    rows, done = [], {}
+    for r in fired_log():
+        if "done" in r:
+            done.setdefault(r["id"], r)
+        elif "fired" in r:
+            rows.append(r)
+    return [{"id": r["id"], "message": r["message"], "fired": r["fired"], "how": r.get("how"),
+             "done": done.get(r["id"], {}).get("done"), "by": done.get(r["id"], {}).get("by")} for r in rows[-n:]]
+
+
+def cmd_history(args):
+    n = next((int(a) for a in args if a.isdigit()), 10)
+    rows = history(n)
+    if "--json" in args:
+        print(json.dumps(rows))
+        return 0
+    if not rows:
+        return say("No reminders have gone off yet.")
+    lines = []
+    for r in rows:
+        went = time.strftime("%a %-I:%M %p", time.localtime(r["fired"]))
+        if r["done"]:
+            wait = r["done"] - r["fired"]
+            after = f"{wait} s" if wait < 60 else f"{wait // 60} min"
+            lines.append(f"{went}: {r['message']} (Done {time.strftime('%-I:%M %p', time.localtime(r['done']))}, after {after})")
+        else:
+            lines.append(f"{went}: {r['message']} (Done not pressed)")
+    print("\n".join(lines))
+    last = rows[-1]
+    return say(f"Last one: {last['message']}" + (", Done pressed." if last["done"] else ", Done not pressed yet."))
+
+
 def main(argv):
-    cmds = {"set": cmd_set, "list": cmd_list, "show": cmd_list, "cancel": cmd_cancel, "fire": cmd_fire}
+    cmds = {"set": cmd_set, "list": cmd_list, "show": cmd_list, "cancel": cmd_cancel, "fire": cmd_fire,
+            "done": cmd_done, "history": cmd_history}
     if not argv or argv[0] not in cmds:
         print(__doc__)
         return 0 if argv[:1] in ([], ["-h"], ["--help"]) else 2

@@ -13,11 +13,12 @@
 #   brain changed <kind> "<what>"   log a change by hand (moves, renames), so the day page shows it
 #   brain eod (or goodnight)  end of day: summary, clear ticked items and finished jobs, pick what runs overnight
 #   brain standup [--print]   the morning standup (the 9:00 reminder does this by itself)
+#   brain alarm list|history|cancel <id|all>   your reminders (set them by asking: "remind me at 2pm to …")
 set -euo pipefail
 root="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 . "$root/index/env.sh"
 
-usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; }
 
 cmd="${1:-}"; shift || true
 case "$cmd" in
@@ -53,6 +54,9 @@ case "$cmd" in
   day|changed|eod|goodnight|standup)
     if [[ $cmd == day ]]; then exec python3 -I "$root/day/day.py" day "$@"; fi
     exec python3 -I "$root/day/day.py" "$cmd" "$@"
+    ;;
+  alarm|alarms)
+    exec python3 -I "$root/jobs/bin/alarm" "${@:-list}"
     ;;
   ""|-h|--help|help)
     usage ;;

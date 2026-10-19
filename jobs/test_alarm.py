@@ -43,6 +43,18 @@ class Alarm(unittest.TestCase):
         fired = [json.loads(l) for l in open(os.path.join(self.tmp.name, "a", "fired.jsonl"))]
         self.assertEqual((fired[0]["message"], fired[0]["how"]), ("Go outside with Ollie", "dry"))
         self.assertEqual(self.run_alarm("list")[1]["message"], "You have no reminders coming up.")
+        self.assertIn("Done not pressed yet", self.run_alarm("history")[1]["message"])
+        self.assertEqual(self.run_alarm("done", aid, "key"), (0, {"message": "Noted."}))
+        out = subprocess.run([sys.executable, "-I", ALARM, "history", "--json"], capture_output=True, text=True,
+                             env=self.env)
+        row = json.loads(out.stdout)[0]
+        self.assertEqual((row["message"], row["by"]), ("Go outside with Ollie", "key"))
+        self.assertGreaterEqual(row["done"], row["fired"])
+        self.assertIn("Done pressed", self.run_alarm("history")[1]["message"])
+
+    def test_done_needs_a_real_fired_alarm(self):
+        self.assertEqual(self.run_alarm("done", "20261018-1400-abcd")[0], 1)       # never went off
+        self.assertEqual(self.run_alarm("done", "../../etc")[0], 2)                # not an alarm id
 
     def test_refuses_the_past_and_far_ahead(self):
         self.assertEqual(self.run_alarm("set", str(int(time.time()) - 10), "x")[0], 2)
