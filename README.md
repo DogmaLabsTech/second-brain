@@ -72,7 +72,7 @@ One small file per job in `jobs/` (what to say, whether it asks first, the comma
 | `team-screen` | "show me the team" | no | opens agent-os's Team screen app (`agent-os-team`, look only: every agent at work side by side); since 2026-10-19 |
 | `what-changed` | "what moved today?", "what about yesterday?", "what happened overnight?" | no | `brain day … --say`: two spoken sentences from the day page (below) |
 | `goodnight` | "end of day", "goodnight", "I'm going to bed", "close out the day" | yes | `brain eod` (below; `/eod` in the desk is the same) |
-| `start-claude` | "start a Claude on Example Game" | yes | `pm open <project> --launch` (that project's PM in agent) |
+| `start-claude` | "start a Claude on Example Game"; with a task, "start a claude on example: tidy the logs" | yes ("Start a Claude on Example Game?"; with a task "Start a team on Example?") | no task: `pm open <project> --launch` (that project's PM in agent). With a task: `jobs/bin/agent-os-boss`, which prepares a team job (below) |
 | `remember-fix` | "fix the thing on my remember list tonight" | yes ("Start a fix from your remember list?") | hands your words to agent-os (below) |
 | `start-job` | "start a job on agent-os: make the report shorter" | yes ("Start a job on Agent Os?") | hands your words to agent-os (below) |
 | `music` | "pause", "next song" | no | the music app (MPRIS over D-Bus) |
@@ -112,6 +112,26 @@ only builds fixes from the remember list, so "start a job on ..." says so plainl
 only builds fixes from your remember list, so this one is saved for later." The folder and `ask.md` are made, and
 agent-os stops at "nothing to build" until it learns other jobs. Tests: `CRABBOX_LOCAL=1 python3 -I jobs/test_agent_jobs.py` (a fake agent-os; the
 real one never runs).
+
+**Start a team (since 2026-10-19).** "Start a claude on example: tidy the logs" (the task comes after a colon, a
+comma, a dash or an em dash, or "to" / "and" / "then") shows "Start a team on Example?". Yes runs
+`agent-os boss prepare --repo example -- "tidy the logs"` (`jobs/bin/agent-os-boss`): it writes the boss's and the
+worker's job folders, both `go: waiting`, and says "Prepared the Example team job. It waits for your go." (spoken).
+**It never starts the boss and never writes a go:** the desk shows you the plan and only your yes goes in both
+`go.md`. The words are one line of up to 500 characters, never through a shell; bad input, an unknown project
+or `desk` is refused before agent-os is called, and a failing or slow (over 30 seconds) agent-os says
+"I couldn't prepare that job." No on the card does nothing. Words with no task after the project ("start a claude
+on example-game", "open the example-rpg PM", "start working on example") and "start a claude on the desk" still open
+the PM chat, as before; so do "so I can watch it", "that's all" and a second project name ("... on example and
+example-rpg"), which are not tasks (a missed task is safe, a guessed one is not). "... on example to check in" is a
+task on purpose: the card shows the task before you press Yes, and Yes only prepares. After a comma or dash the task
+needs two or more words and may not start with so / I / you / we / it or filler ("example, ok", "example - quick",
+"example, example-rpg too" are not tasks); after a colon or "to" / "and" / "then" one word is enough. "Start a claude on the desk:
+tidy the board" opens the desk PM and the card says the task was not used. "Start a
+job on ..." is its own job and still wins for those words. Two Yes presses make two team jobs (nothing runs; delete one).
+**Known gap:** spoken or typed is not passed on. `agent-os boss prepare` has no `--how` flag and always writes
+`how: typed` in the job's `ask.md`, so a spoken ask says "typed" there. Fixing it is a change in agent-os.
+Plan: `~/agent-os/jobs/2026-10-18-orchestration-design/start-claude-plan.md`.
 
 **Moving a window.** "Move this window to my other screen", "move Chrome to the left monitor", "open VS Code
 on my second monitor". A screen is said as other / second (the next one, left to right, wrapping), left, right,
