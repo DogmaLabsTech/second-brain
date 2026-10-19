@@ -43,6 +43,29 @@ class Actions(unittest.TestCase):
         self.assertEqual(desktop.parse_reminder("set a timer for 5 minutes"), (5, "Reminder"))
         self.assertEqual(desktop.parse_reminder("remind me about the oven"), (None, None))
 
+    def test_clock_reminders(self):
+        import datetime as dt
+        now = dt.datetime(2026, 10, 18, 12, 47).timestamp()     # a Sunday
+
+        def at(text):
+            when, msg = desktop.parse_clock(text, now)
+            return (dt.datetime.fromtimestamp(when).strftime("%a %H:%M"), msg) if when else (None, msg)
+        self.assertEqual(at("remind me at 2pm to go outside with Ollie"), ("Sun 14:00", "Go outside with Ollie"))
+        self.assertEqual(at("remind me at 2 to go outside"), ("Sun 14:00", "Go outside"))
+        self.assertEqual(at("remind me tomorrow at 8am to call the vet"), ("Mon 08:00", "Call the vet"))
+        self.assertEqual(at("remind me at 9:30 to stretch"), ("Sun 21:30", "Stretch"))
+        self.assertEqual(at("remind me at 11 am to stretch"), ("Mon 11:00", "Stretch"))     # gone by today
+        self.assertEqual(at("remind me to take the bins out at 7 tonight"), ("Sun 19:00", "Take the bins out"))
+        self.assertEqual(at("remind me at 7 on friday to pay rent")[0], "Fri 07:00")
+        self.assertEqual(at("remind me at 3 on friday to pay rent")[0], "Fri 15:00")
+        self.assertEqual(at("remind me at 10 in the morning to email")[0], "Mon 10:00")
+        self.assertEqual(at("remind me at noon to eat")[0], "Mon 12:00")
+        self.assertEqual(at("remind me at 14:30 to leave")[0], "Sun 14:30")
+        self.assertEqual(at("remind me in 10 minutes to check the oven"), (None, None))
+        self.assertEqual(at("remind me at 25 to x"), (None, None))
+        action, value = desktop.find_action("remind me at 2pm to go outside with Ollie")
+        self.assertEqual((action, value["message"]), ("reminder", "Go outside with Ollie"))
+
     def test_workspace_words(self):
         self.assertEqual(desktop.find_action("go to workspace three"), ("workspace", 3))
         self.assertEqual(desktop.find_action("switch to workspace 7"), ("workspace", 7))
@@ -63,6 +86,13 @@ class Actions(unittest.TestCase):
                 desktop.check_action(action, value)
         self.assertEqual(desktop.check_action("reminder", {"minutes": "5", "message": "  tea\n now "}),
                          ("reminder", {"minutes": 5, "message": "tea now"}))
+        import time
+        soon = int(time.time()) + 3600
+        self.assertEqual(desktop.check_action("reminder", {"at": soon, "message": "Tea"}),
+                         ("reminder", {"at": soon, "message": "Tea"}))
+        for bad in (int(time.time()) - 60, int(time.time()) + 8 * 24 * 3600, "2pm"):
+            with self.assertRaises(ValueError, msg=bad):
+                desktop.check_action("reminder", {"at": bad, "message": "Tea"})
 
     def test_only_power_actions_ask_first(self):
         asks = {a for a, v in desktop.ACTIONS.items() if v[3]}
@@ -71,8 +101,12 @@ class Actions(unittest.TestCase):
     def test_commands_fill_values(self):
         self.assertEqual(desktop.action_command("workspace", 3),
                          ["hyprctl", "dispatch", 'hl.dsp.focus({ workspace = "3" })'])
-        self.assertEqual(desktop.action_command("reminder", {"minutes": 5, "message": "Tea"}),
-                         ["omarchy", "reminder", "5", "Tea"])
+        self.assertEqual(desktop.action_command("reminder", {"at": 1792432800, "message": "Tea"}),
+                         ["@alarm", "set", "1792432800", "Tea"])
+        import time
+        cmd = desktop.action_command("reminder", {"minutes": 5, "message": "Tea"})
+        self.assertEqual((cmd[:2], cmd[3]), (["@alarm", "set"], "Tea"))
+        self.assertAlmostEqual(int(cmd[2]), time.time() + 300, delta=5)
 
 
 class Apps(unittest.TestCase):

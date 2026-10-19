@@ -224,6 +224,13 @@ def main(argv):
                 start(["omarchy", "toggle", "nightlight"])
                 time.sleep(0.5)
             return say("The night light didn't change. Is hyprsunset running?", 1)
+        elif cmd[0] == "@alarm":
+            # the brain's own alarm (jobs/bin/alarm): its last line is the sentence to say
+            done, code, last = start([os.path.join(os.path.dirname(os.path.abspath(__file__)), "alarm"), *cmd[1:]])
+            try:
+                return say(json.loads(last)["message"], code)
+            except (ValueError, KeyError, TypeError):
+                return say("The reminder didn't set." if action == "reminder" else "I couldn't read your reminders.", 1)
         elif cmd[0] == "@screenshot":
             time.sleep(1.2)  # let the island fade out of the picture
             cmd = ["omarchy", "capture", "screenshot", cmd[1], "slurp"]

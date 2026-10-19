@@ -11,7 +11,7 @@
 #   brain reindex             re-read changed notes now (the timer does this every hour)
 #   brain day [today|yesterday|overnight|DATE] [--say]   what moved (a day runs 5 am to 5 am, or to goodnight)
 #   brain changed <kind> "<what>"   log a change by hand (moves, renames), so the day page shows it
-#   brain goodnight           close the day: tick what runs overnight, lock, screen off
+#   brain eod (or goodnight)  end of day: summary, clear ticked items and finished jobs, pick what runs overnight
 #   brain standup [--print]   the morning standup (the 9:00 reminder does this by itself)
 set -euo pipefail
 root="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
@@ -50,7 +50,7 @@ case "$cmd" in
   reindex)
     exec "$root/index/reindex.sh"
     ;;
-  day|changed|goodnight|standup)
+  day|changed|eod|goodnight|standup)
     if [[ $cmd == day ]]; then exec python3 -I "$root/day/day.py" day "$@"; fi
     exec python3 -I "$root/day/day.py" "$cmd" "$@"
     ;;

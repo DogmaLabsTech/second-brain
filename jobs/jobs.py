@@ -417,7 +417,7 @@ def build(job_id, text, search=None, local_writer=None, how="typed"):
             return {"kind": "answer", "answer": "I don't know how to do that on the desktop yet.",
                     "sources": [], "job": None}
         if action == "reminder" and not value:
-            return {"kind": "answer", "answer": "How long from now? Say, remind me in 10 minutes to stretch.",
+            return {"kind": "answer", "answer": "When? Say, remind me at 2pm to stretch, or in 10 minutes.",
                     "sources": [], "job": None}
         if action == "workspace" and not value:
             return {"kind": "answer", "answer": "Which workspace, 1 to 10?", "sources": [], "job": None}
@@ -501,7 +501,7 @@ def build(job_id, text, search=None, local_writer=None, how="typed"):
         answer = "Checking."
     elif job_id == "goodnight":
         label = job["label"]
-        answer = "I'll ask what may run tonight, then lock the screen and turn it off."
+        answer = "I'll sum up the day, clear what's done and ask what may run tonight."
     else:  # whats-waiting
         label = job["label"]
         answer = "Checking who needs you."

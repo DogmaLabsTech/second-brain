@@ -5,9 +5,10 @@
     "what moved today",
     "what changed yesterday",
     "what happened overnight",
-    "what got done today"
+    "what got done today",
+    "what about yesterday"
   ],
-  "match": "\\bwhat\\b.*\\b(moved|changed|happened|got done|did (i|we) (do|get done))\\b.*\\b(today|yesterday|overnight|last night|this morning|so far|while i (slept|was asleep))\\b|\\bwhat moved\\b|\\b(day|daily) (summary|recap)\\b",
+  "match": "\\bwhat\\b.*\\b(moved|changed|happened|got done|did (i|we) (do|get done))\\b.*\\b(today|yesterday|overnight|last night|this morning|so far|while i (slept|was asleep))\\b|\\bwhat moved\\b|\\b(day|daily) (summary|recap)\\b|\\b(what|how) about (yesterday|today)\\b|\\bhow was (yesterday|today)\\b|\\b(tell me about|recap( of)?) (yesterday|today)\\b|\\b(yesterday|today)'?s (recap|summary)\\b",
   "order": 20,
   "needs_confirm": false,
   "args": {

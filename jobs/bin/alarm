@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+"""alarm: the brain's reminders. A real alarm that still goes off after a restart, then a big card with a chime.
+
+  alarm set <epoch seconds> <message>   save it and start a systemd user timer for that minute
+  alarm list [--json]                   the alarms still to come
+  alarm cancel <id|all>                 take one (or all) away
+  alarm fire <id>                       (the timer runs this) show the card, then forget the alarm
+
+Each alarm is a pair of unit files in ~/.config/systemd/user (brain-alarm-<id>.timer / .service, OnCalendar with
+Persistent=true, so a reminder missed while the computer was off goes off once it is back) and a small json in
+~/.local/share/second-brain/alarms/. The card is the voice island's (`omarchy-shell brain-island alarm <json>`,
+user.brain-island/AlarmWindow.qml): it stays until <user> presses Done and the chime repeats until then. If the
+island isn't there, an urgent notice and one chime instead. Fired alarms are logged in fired.jsonl.
+Last line of every command: {"message": "..."}.
+Test without timers or a desktop: BRAIN_ALARM_DIR=<tmp> BRAIN_ALARM_UNITS=<tmp> BRAIN_ALARM_DRY=1.
+"""
+import datetime as dt
+import json
+import os
+import secrets
+import shutil
+import subprocess
+import sys
+import time
+
+HOME = os.path.expanduser("~")
+DIR = os.environ.get("BRAIN_ALARM_DIR") or os.path.join(HOME, ".local/share/second-brain/alarms")
+UNITS = os.environ.get("BRAIN_ALARM_UNITS") or os.path.join(HOME, ".config/systemd/user")
+DRY = os.environ.get("BRAIN_ALARM_DRY") == "1"     # no systemctl, no card, no sound (tests)
+SOUND = "/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga"
+MAX_AHEAD = 7 * 24 * 3600
+SHELL_WAIT = 180    # after a restart the timer can fire before the desktop is up: wait this long for the island
+
+
+def say(message, code=0, **extra):
+    print(json.dumps({"message": message, **extra}))
+    return code
+
+
+def clock(ts):
+    """'2 pm', '2:30 pm', and the day when it isn't today ('tomorrow 9 am', 'Tuesday 9 am')."""
+    t = dt.datetime.fromtimestamp(ts)
+    words = t.strftime("%-I:%M %p").lower().replace(":00 ", " ")
+    days = (t.date() - dt.date.today()).days
+    if days == 1:
+        return "tomorrow " + words
+    if days > 1:
+        return t.strftime("%A ") + words
+    return words
+
+
+def systemctl(*args):
+    if DRY:
+        return True
+    try:
+        return subprocess.run(["systemctl", "--user", *args], capture_output=True, timeout=20).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def unit_files(aid):
+    return os.path.join(UNITS, f"brain-alarm-{aid}.timer"), os.path.join(UNITS, f"brain-alarm-{aid}.service")
+
+
+def load(aid):
+    try:
+        with open(os.path.join(DIR, aid + ".json")) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def all_alarms():
+    out = []
+    try:
+        names = os.listdir(DIR)
+    except OSError:
+        return []
+    for n in names:
+        if n.endswith(".json") and n != "fired.jsonl":
+            a = load(n[:-5])
+            if a:
+                out.append(a)
+    return sorted(out, key=lambda a: a["at"])
+
+
+def cmd_set(args):
+    if len(args) < 1:
+        return say("I didn't catch when to remind you.", 2)
+    try:
+        at = int(float(args[0]))
+    except ValueError:
+        return say("I didn't catch when to remind you.", 2)
+    message = " ".join(" ".join(args[1:]).split())[:200] or "Reminder"
+    now = time.time()
+    if at < now + 30:
+        return say("That time has already gone by.", 2)
+    if at > now + MAX_AHEAD:
+        return say("I can only set reminders up to a week ahead.", 2)
+    aid = time.strftime("%Y%m%d-%H%M", time.localtime(at)) + "-" + secrets.token_hex(2)
+    os.makedirs(DIR, exist_ok=True)
+    os.makedirs(UNITS, exist_ok=True)
+    alarm = {"id": aid, "at": at, "message": message, "set": int(now)}
+    with open(os.path.join(DIR, aid + ".json"), "w") as f:
+        json.dump(alarm, f)
+    timer, service = unit_files(aid)
+    when = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(at))
+    with open(timer, "w") as f:
+        f.write(f"[Unit]\nDescription=Brain reminder: {message[:60]}\n\n[Timer]\nOnCalendar={when}\nPersistent=true\n"
+                f"AccuracySec=1s\nUnit=brain-alarm-{aid}.service\n\n[Install]\nWantedBy=timers.target\n")
+    with open(service, "w") as f:
+        f.write(f"[Unit]\nDescription=Brain reminder: {message[:60]}\n\n[Service]\nType=oneshot\n"
+                f"ExecStart={sys.executable} -I {os.path.abspath(__file__)} fire {aid}\n")
+    if not (systemctl("daemon-reload") and systemctl("enable", "--now", f"brain-alarm-{aid}.timer")):
+        drop(aid)
+        return say("The reminder didn't set: the timer wouldn't start.", 1)
+    return say(f"I'll remind you at {clock(at)}: {message}.", id=aid)
+
+
+def drop(aid):
+    """Forget an alarm: stop and remove its timer, its unit files and its json."""
+    systemctl("disable", "--now", f"brain-alarm-{aid}.timer")
+    for p in (*unit_files(aid), os.path.join(DIR, aid + ".json")):
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+    systemctl("daemon-reload")
+
+
+def cmd_list(args):
+    alarms = [a for a in all_alarms() if a["at"] > time.time() - 60]
+    if "--json" in args:
+        print(json.dumps(alarms))
+        return 0
+    if not alarms:
+        return say("You have no reminders coming up.")
+    parts = [f"{clock(a['at'])}, {a['message']}" for a in alarms[:5]]
+    more = f", and {len(alarms) - 5} more" if len(alarms) > 5 else ""
+    n = len(alarms)
+    return say(f"{n} reminder{'s' if n != 1 else ''}: " + "; ".join(parts) + more + ".")
+
+
+def cmd_cancel(args):
+    if not args:
+        return say("Which reminder?", 2)
+    ids = [a["id"] for a in all_alarms()] if args[0] == "all" else [args[0]]
+    gone = [aid for aid in ids if load(aid)]
+    for aid in gone:
+        drop(aid)
+    if not gone:
+        return say("There was no reminder like that.", 1)
+    return say(f"Took away {len(gone)} reminder{'s' if len(gone) != 1 else ''}.")
+
+
+def island_up():
+    if DRY:
+        return False
+    try:
+        out = subprocess.run(["omarchy-shell", "brain-island", "state"], capture_output=True, text=True, timeout=10)
+        return out.returncode == 0 and out.stdout.strip().startswith("{")
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def show(alarm):
+    """The island's card (stays until Done, chime repeats); else an urgent notice and one chime. Returns how."""
+    if DRY:
+        return "dry"
+    card = json.dumps({"text": alarm["message"], "time": clock(alarm["at"])})
+    deadline = time.time() + SHELL_WAIT
+    while True:
+        if island_up():
+            try:
+                out = subprocess.run(["omarchy-shell", "brain-island", "alarm", card], capture_output=True,
+                                     text=True, timeout=10)
+                if out.returncode == 0 and "showing" in out.stdout:
+                    return "card"
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        if time.time() > deadline:
+            break
+        time.sleep(5)
+    try:
+        subprocess.Popen(["notify-send", "-a", "Second brain", "-u", "critical", "-i", "alarm-symbolic",
+                          "Reminder", alarm["message"]], start_new_session=True)
+        if shutil.which("pw-play") and os.path.exists(SOUND):
+            subprocess.Popen(["pw-play", SOUND], start_new_session=True)
+    except OSError:
+        pass
+    return "notice"
+
+
+def cmd_fire(args):
+    alarm = load(args[0]) if args else None
+    if not alarm:
+        return say("No reminder like that.", 1)
+    how = show(alarm)
+    with open(os.path.join(DIR, "fired.jsonl"), "a") as f:
+        f.write(json.dumps({**alarm, "fired": int(time.time()), "how": how}) + "\n")
+    drop(alarm["id"])
+    return say(f"Reminded you: {alarm['message']}.")
+
+
+def main(argv):
+    cmds = {"set": cmd_set, "list": cmd_list, "show": cmd_list, "cancel": cmd_cancel, "fire": cmd_fire}
+    if not argv or argv[0] not in cmds:
+        print(__doc__)
+        return 0 if argv[:1] in ([], ["-h"], ["--help"]) else 2
+    return cmds[argv[0]](argv[1:])
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -69,8 +69,8 @@ One small file per job in `jobs/` (what to say, whether it asks first, the comma
 |---|---|---|---|
 | `open-note` | "open my notes on the bar" | no | opens the best matching note (`xdg-open`) |
 | `whats-waiting` | "what's waiting on me?" | no | reads the bar's Claude list, agent helpers and PM runs, says who needs you |
-| `what-changed` | "what moved today?", "what happened overnight?" | no | `brain day … --say`: two spoken sentences from the day page (below) |
-| `goodnight` | "goodnight", "I'm going to bed", "close out the day" | yes | `brain goodnight` (below) |
+| `what-changed` | "what moved today?", "what about yesterday?", "what happened overnight?" | no | `brain day … --say`: two spoken sentences from the day page (below) |
+| `goodnight` | "end of day", "goodnight", "I'm going to bed", "close out the day" | yes | `brain eod` (below; `/eod` in the desk is the same) |
 | `start-claude` | "start a Claude on Example Game" | yes | `pm open <project> --launch` (that project's PM in agent) |
 | `remember-fix` | "fix the thing on my remember list tonight" | yes ("Start a fix from your remember list?") | hands your words to agent-os (below) |
 | `start-job` | "start a job on agent-os: make the report shorter" | yes ("Start a job on Agent Os?") | hands your words to agent-os (below) |
@@ -79,15 +79,21 @@ One small file per job in `jobs/` (what to say, whether it asks first, the comma
 | `remember` | "remember that …" | yes | adds a dated line to `~/OMARCHY-BRAIN/inbox/remembered.md` |
 | `open-app` | "open Spotify", "launch Discord", "open a terminal", "open VS Code on my second monitor" | no | an installed app's `.desktop` entry; focuses it if it's already open (`omarchy-launch-or-focus`); with a screen, waits for its window and moves it there (`jobs/bin/desktop app <id> <screen>`) |
 | `open-file` | "open my downloads folder", "open the kingdom map picture" | no | a file or folder in your home (`xdg-open`); no hidden folders, no programs |
-| `desktop` | "next theme", "take a screenshot", "remind me in 10 minutes to …", "lock the screen", "move this window to my other screen" | only log out, restart, shut down | one action from `ACTIONS` in `jobs/desktop.py` (Omarchy commands) |
+| `desktop` | "next theme", "take a screenshot", "remind me at 2pm to …", "remind me in 10 minutes to …", "lock the screen", "move this window to my other screen" | only log out, restart, shut down | one action from `ACTIONS` in `jobs/desktop.py` (Omarchy commands) |
 | `send-file` | "send the latest Example Game files to the laptop", "put the pdf on my phone" | yes (the card names every file and the device) | `jobs/bin/send`: the laptop through `~/.local/bin/send-to-laptop` (lands in Downloads, in the From desktop folder), the test machine with `scp`, the iPhone with Taildrop |
 
 "Open X" tries an app, a file or folder, then a note, in the order your words suggest ("folder",
 "picture" or "pdf" means file first; "notes" or "guide" means note first). The desktop actions: theme
 (next, by name, picker), wallpaper (next, picker), night light (on, off, toggle), screenshot (whole
 screen or a part), screen recording (start, stop), computer volume and mute, mic mute, do not disturb,
-stay awake, reminders (1 minute to 24 hours, and show them), go to workspace 1-10, keyboard shortcuts,
+stay awake, reminders (at a time up to a week ahead, "at 2pm", "tomorrow at 8am", "at 7 on friday", or in 1 minute
+to 24 hours; and say them), go to workspace 1-10, keyboard shortcuts,
 emoji and clipboard pickers, Bluetooth on / off, lock, log out, restart, shut down, move a window to a screen.
+**Reminders are real alarms** (`jobs/bin/alarm`, since 2026-10-18): a systemd user timer each, so they survive a
+restart (one missed while the computer was off goes off when it is back). When one is due, every screen dims and a
+big card shows the words with a Done button; a chime repeats until Done (the voice island's card,
+`AlarmWindow.qml` in omarchy-setup). A bare hour from 1 to 6 means the afternoon ("at 2" is 2 pm); a time that
+has gone by today is tomorrow. `alarm list`, `alarm cancel <id|all>`. Tests: `python3 -I jobs/test_alarm.py`.
 A how/why question ("how do I turn on the night light") is answered from the notes, not run.
 Tests: `python3 jobs/test_desktop_jobs.py` and `python3 jobs/test_send_move.py`.
 
@@ -167,9 +173,10 @@ action), so a changed job object can't run anything else. No job deletes, sends 
 To add a job: a new file in `jobs/`, its `build` and `_check` lines in `jobs/jobs.py`, and examples for the
 intent decider (`deciders/README.md`).
 
-## Your day: what moved, goodnight and the morning standup
+## Your day: what moved, end of day and the morning standup
 
-A day runs from **5 in the morning to 5 the next morning**, or until you say goodnight.
+A day runs from **5 in the morning until end of day** (`/eod` in the desk, or "end of day" / "goodnight" to the
+island). Without one it ends at 5 the next morning. "Yesterday" always means the day before, cut this way.
 
 - **What moved?** `brain day` (or `yesterday`, `overnight`, a date like `2026-10-15`) shows about 20 lines:
   saved changes in every project (local and pushed branches, so helpers' worktrees count; not stashes or backup copies), grouped per project with the
@@ -177,11 +184,14 @@ A day runs from **5 in the morning to 5 the next morning**, or until you say goo
   A script makes it in under a second, with no AI. Ask the island "what moved today?" and it says it.
   Each day's page is kept in `~/.local/share/second-brain/day/pages/` and is searchable (collection `days`).
 - **Log a change by hand:** `brain changed move "~/old -> ~/new"`. `move-to-hdd.sh` does this by itself.
-- **Goodnight:** say "goodnight" (or type `brain goodnight`). It shows your remember list; tick what may run
-  tonight, one at a time, then Done. Ticked items run one by one through the morning build (Claude in its
-  safe sandbox, never pushes; each gets a PM run folder). Helpers already working keep going; nothing else
-  starts. Then the island says goodnight, the screen locks and goes dark, and the computer won't sleep
-  until the work is done (until 7 am if helpers were busy).
+- **End of day:** type `/eod` in the desk, say "end of day" or "goodnight" (or type `brain eod`; `brain goodnight`
+  is the same). The island says the day's summary. Items you ticked on the remember list move to
+  `~/OMARCHY-BRAIN/inbox/done.md`, and finished desk jobs (a report, nothing changed for an hour) move to
+  `~/agent-os/jobs/done/`. Then it shows the open items; tick what may run tonight, one at a time, then Done.
+  Ticked items run one by one through the morning build (Claude in its safe sandbox, never pushes; each gets a PM
+  run folder). The rest stay queued. Helpers already working keep going; nothing else starts. The day is marked
+  closed. The screen is not locked (since 2026-10-18); the computer won't sleep until the night's work is done
+  (until 7 am if helpers were busy).
 - **Morning standup:** at 9:00, before the remember list, the island says yesterday in short, how the
   overnight work went and who waits on you, and a notification opens the full page
   (`pages/standup-<date>.md`). Once a day; `brain standup --print` shows it any time.

@@ -12,12 +12,14 @@ value is checked (a theme that exists, 1 to 1440 minutes, a workspace 1 to 10). 
 shut down ask first. Nothing deletes, sends or spends.
 """
 import configparser
+import datetime as dt
 import difflib
 import glob
 import json
 import os
 import re
 import subprocess
+import time
 
 HOME = os.path.expanduser("~")
 FILE_ROOTS = [HOME, "/mnt/backup/home"]
@@ -547,8 +549,8 @@ ACTIONS = {
     "dnd": ("Toggle do not disturb", "Toggled do not disturb.", ["omarchy", "toggle", "notification", "silencing"], False),
     "stay-awake": ("Keep the screen awake", "The screen will stay awake.", ["omarchy", "toggle", "idle", "stay-awake"], False),
     "allow-sleep": ("Let the screen sleep again", "The screen can sleep again.", ["omarchy", "toggle", "idle", "allow-idle"], False),
-    "reminder": ("Remind you in {v}", "I'll remind you in {v}.", ["omarchy", "reminder", "{minutes}", "{message}"], False),
-    "reminders-show": ("Show your reminders", "Here are your reminders.", ["omarchy", "reminder", "show"], False),
+    "reminder": ("Remind you {v}", "I'll remind you {v}.", ["@alarm", "set", "{at}", "{message}"], False),
+    "reminders-show": ("Say your reminders", "Here are your reminders.", ["@alarm", "list"], False),
     "workspace": ("Go to workspace {v}", "Went to workspace {v}.", ["hyprctl", "dispatch", 'hl.dsp.focus({{ workspace = "{v}" }})'], False),
     "window-monitor": ("Move {v}", "Moved {v}.", ["@window-monitor"], False),
     "keybindings": ("Show your keyboard shortcuts", "Here are your keyboard shortcuts.", ["omarchy", "menu", "keybindings"], False),
@@ -646,6 +648,62 @@ def parse_reminder(text):
     return minutes, (msg[:1].upper() + msg[1:]) if msg else "Reminder"
 
 
+HOUR_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
+              "ten": 10, "eleven": 11, "twelve": 12}
+WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+CLOCK = re.compile(
+    r"\b(?:(?P<day1>today|tonight|tomorrow|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\s+)?"
+    r"at\s+(?:(?P<noon>noon|midday|midnight)|(?P<h>\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+    r"(?:[:.](?P<m>\d{2}))?(?:\s*(?P<ampm>a\.?m\.?|p\.?m\.?)|\s+o'?clock)?"
+    r"(?:\s+in the (?P<part>morning|afternoon|evening)|\s+at night)?)"
+    r"(?:\s+(?P<day2>today|tonight|tomorrow|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))?(?=\W|$)", re.I)
+
+
+def parse_clock(text, now=None):
+    """(epoch, message) from "remind me at 2pm to go outside with Ollie" ("at 9:30", "tomorrow at 8am", "at 7 on
+    friday", "at noon"), or (None, None). A bare hour ("at 2") is the next 2:00 or 14:00 to come; a time that has
+    gone by today is tomorrow."""
+    now = dt.datetime.fromtimestamp(now or time.time())
+    m = CLOCK.search(text)
+    if not m:
+        return None, None
+    day = (m.group("day1") or m.group("day2") or "").lower()
+    ampm = (m.group("ampm") or "").replace(".", "").lower()
+    part = (m.group("part") or "").lower()
+    if m.group("noon"):
+        hour, minute, fixed = (0 if m.group("noon").lower() == "midnight" else 12), 0, True
+    else:
+        h = m.group("h").lower()
+        hour = int(h) if h.isdigit() else HOUR_WORDS[h]
+        minute = int(m.group("m") or 0)
+        if hour > 23 or minute > 59 or (ampm and not 1 <= hour <= 12):
+            return None, None
+        fixed = bool(ampm or part or hour == 0 or hour > 12 or "at night" in m.group(0).lower())
+        if ampm == "pm" or part in ("afternoon", "evening") or "at night" in m.group(0).lower() or day == "tonight":
+            hour = hour % 12 + 12
+            fixed = True
+        elif ampm == "am" or part == "morning":
+            hour = hour % 12
+    base = now.date()
+    if day == "tomorrow":
+        base += dt.timedelta(days=1)
+    elif day.startswith("on "):
+        ahead = (WEEKDAYS.index(day[3:]) - base.weekday()) % 7
+        base += dt.timedelta(days=ahead)
+    when = dt.datetime.combine(base, dt.time(hour, minute))
+    if not fixed and 1 <= hour <= 6:
+        when += dt.timedelta(hours=12)          # "at 7 on friday" may be morning, but "at 3" is the afternoon
+    elif not fixed and when <= now and hour < 12 and when + dt.timedelta(hours=12) > now:
+        when += dt.timedelta(hours=12)          # "at 2" said at 12:47 is 2 pm
+    if when <= now:
+        when += dt.timedelta(days=7 if day.startswith("on ") else 1)
+    msg = text[:m.start()] + " " + text[m.end():]
+    msg = re.sub(r"\b(please|hey claude|remind me|set (a |an )?(reminder|alarm)( for)?|to|that|about)\b", " ", msg,
+                 flags=re.I)
+    msg = " ".join(msg.split()).strip(" ,.?!")
+    return int(when.timestamp()), (msg[:1].upper() + msg[1:]) if msg else "Reminder"
+
+
 def word_number(s):
     return int(s) if s.isdigit() else NUMBERS.get(s)
 
@@ -667,6 +725,9 @@ def find_action(text):
                 return "theme-set", name
             return ("theme-next", None) if action == "theme-next" else ("theme-picker", None)
         if action == "reminder":
+            at, msg = parse_clock(text)
+            if at:
+                return "reminder", {"at": at, "message": msg}
             minutes, msg = parse_reminder(text)
             return ("reminder", {"minutes": minutes, "message": msg}) if minutes else ("reminder", None)
         if action == "workspace":
@@ -682,6 +743,14 @@ def describe(minutes):
     return f"{minutes} minute" + ("s" if minutes != 1 else "")
 
 
+def clock_words(ts):
+    """'2 pm', 'tomorrow 9:30 am', 'Friday 7 pm'."""
+    t = dt.datetime.fromtimestamp(ts)
+    words = t.strftime("%-I:%M %p").lower().replace(":00 ", " ")
+    days = (t.date() - dt.date.today()).days
+    return ("tomorrow " if days == 1 else t.strftime("%A ") if days > 1 else "") + words
+
+
 def check_action(action, value):
     """Rebuild a checked (action, value); raises ValueError with a plain reason."""
     if action not in ACTIONS:
@@ -692,13 +761,21 @@ def check_action(action, value):
         return action, str(value)
     if action == "reminder":
         v = value if isinstance(value, dict) else {}
+        message = " ".join(str(v.get("message") or "Reminder").split())[:120]
+        if v.get("at") not in (None, ""):
+            try:
+                at = int(v.get("at"))
+            except (TypeError, ValueError):
+                raise ValueError("I didn't catch when") from None
+            if not time.time() + 30 <= at <= time.time() + 7 * 24 * 3600:
+                raise ValueError("reminders can be from now to a week ahead")
+            return action, {"at": at, "message": message}
         try:
             minutes = int(v.get("minutes"))
         except (TypeError, ValueError):
             raise ValueError("I didn't catch how long to wait") from None
         if not 1 <= minutes <= 1440:
             raise ValueError("reminders can be 1 minute to 24 hours")
-        message = " ".join(str(v.get("message") or "Reminder").split())[:120]
         return action, {"minutes": minutes, "message": message}
     if action == "window-monitor":
         v = value if isinstance(value, dict) else {}
@@ -739,7 +816,8 @@ def action_command(action, value):
     argv = ACTIONS[action][2]
     subs = {"v": str(value)}
     if action == "reminder":
-        subs = {"minutes": str(value["minutes"]), "message": value["message"]}
+        at = value.get("at") or int(time.time()) + 60 * value["minutes"]
+        subs = {"at": str(at), "message": value["message"]}
     return [re.sub(r"\{(\w+)\}", lambda m: subs.get(m.group(1), m.group(0)), a).replace("{{", "{").replace("}}", "}")
             for a in argv]
 

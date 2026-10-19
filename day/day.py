@@ -1,19 +1,21 @@
-"""day: what moved today, goodnight and the morning standup, from scripts (no model, few words).
+"""day: what moved today, end of day and the morning standup, from scripts (no model, few words).
 
-A day runs 5:00 to 5:00. Saying goodnight ends it early: work after that is "overnight" and goes to the
-next morning's standup. Plan: docs/plan-day-journal.md.
+A day runs 5:00 to 5:00. End of day (`/eod` in the desk, "end of day" or "goodnight" to the island) ends it
+early: work after that is "overnight" and goes to the next morning's standup. Plan: docs/plan-day-journal.md.
 
   day.py day [today|yesterday|overnight|YYYY-MM-DD] [--say|--json]
                          the day page (about 20 lines, grouped per project); --say: two spoken sentences
                          as {"message", "speak"}; also saves it in pages/ (searchable, collection "days")
   day.py changed <kind> <what>   one line in the change log (moves, renames, setup changes, by hand or script)
-  day.py goodnight       close the day: tick what may run overnight, lock, dark screen, run the ticks
+  day.py eod             end of day: say the day's summary, clear ticked items and finished jobs, tick what
+                         may run overnight, close the day, run the ticks (no lock). `goodnight` is the same.
   day.py standup [--once]   the morning standup: spoken + a page; --once: only before 11:00, once a day
   day.py nightly         5:00 (timer): save the folder list and the page of the day that just ended
 
 Data: ~/.local/share/second-brain/day/ (changes.jsonl, closeouts.jsonl, overnight.jsonl, snapshots/, pages/).
-Safe test run of goodnight (nothing locked, said or built for real): BRAIN_DAY_DIR=<tmp> BRAIN_REMEMBER_FILE=<tmp list>
-BRAIN_MORNING_BUILD=<fake> BRAIN_MORNING_BUILD_STATE=<tmp> BRAIN_DAY_NO_LOCK=1 BRAIN_DAY_QUIET=1 BRAIN_DAY_TEST_PICKS="1. ,Done".
+Safe test run of eod (nothing said, moved or built for real): BRAIN_DAY_DIR=<tmp> BRAIN_REMEMBER_FILE=<tmp list>
+BRAIN_DONE_FILE=<tmp> BRAIN_JOBS_DIR=<tmp> BRAIN_MORNING_BUILD=<fake> BRAIN_MORNING_BUILD_STATE=<tmp>
+BRAIN_DAY_QUIET=1 BRAIN_DAY_TEST_PICKS="1. ,Done".
 Sources, read only: git history of <user>'s repos (all branches, so worktrees count), the change log, the folders.
 """
 import concurrent.futures as cf
@@ -44,8 +46,11 @@ MORNING_BUILD = os.environ.get("BRAIN_MORNING_BUILD") or os.path.join(HOME, ".lo
 MB_STATE = os.environ.get("BRAIN_MORNING_BUILD_STATE") or os.path.join(HOME, ".local/state/morning-build")
 MB_HANDLED = os.path.join(MB_STATE, "handled.tsv")
 MB_LOCK = os.path.join(MB_STATE, ".lock")
-# For a safe test run of goodnight: no lock / dark screen, no voice, picks made for you ("1. …,Done").
-TEST_NO_LOCK = os.environ.get("BRAIN_DAY_NO_LOCK") == "1"
+# End of day moves ticked remember-list items here, and finished desk jobs (a report.md, quiet for an hour) to done/.
+DONE_FILE = os.environ.get("BRAIN_DONE_FILE") or os.path.join(HOME, "OMARCHY-BRAIN/inbox/done.md")
+JOBS_DIR = os.environ.get("BRAIN_JOBS_DIR") or os.path.join(HOME, "agent-os/jobs")
+JOB_QUIET = 3600
+# For a safe test run of eod: no voice, picks made for you ("1. …,Done").
 TEST_QUIET = os.environ.get("BRAIN_DAY_QUIET") == "1"
 TEST_PICKS = [p for p in os.environ.get("BRAIN_DAY_TEST_PICKS", "").split(",") if p]
 PM = os.path.join(HOME, "projects/project-manager/bin/pm")
@@ -403,7 +408,7 @@ def waiting_line():
         return ""
 
 
-# ---------- goodnight ----------
+# ---------- end of day ----------
 
 def pick_overnight(mod, menu=None):
     """<user> ticks remember-list items that may run tonight, one at a time. Returns [(line, date, text)]."""
@@ -434,15 +439,49 @@ def mark_overnight(line_no, path):
         f.write("\n".join(lines) + "\n")
 
 
-def lock_and_dark():
-    """Omarchy's lock: it locks, then its lock screen turns the screens (and keyboard light) off after 5 quiet
-    seconds (shell plugins/lock, blankProcess). `hyprctl dispatch dpms off` is not valid in the Lua config."""
-    if TEST_NO_LOCK:
-        return
+TICKED = re.compile(r"^- \[[xX]\] (?:\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?: )?(.+)$")
+
+
+def clear_ticked(path, done_path, d):
+    """Ticked remember-list lines (`- [x] …`) leave the list for the done list. Returns their texts."""
     try:
-        subprocess.run(["omarchy", "system", "lock"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
-    except (OSError, subprocess.TimeoutExpired):
-        pass
+        lines = open(path).read().splitlines()
+    except OSError:
+        return []
+    keep, done = [], []
+    for l in lines:
+        m = TICKED.match(l)
+        (done if m else keep).append(m.group(1).strip() if m else l)
+    if done:
+        if not os.path.exists(done_path):
+            write(done_path, "# Done\n\nRemember-list items <user> ticked, moved here at end of day (brain eod).\n\n")
+        with open(done_path, "a") as f:
+            f.writelines(f"- [x] {d.isoformat()}: {t}\n" for t in done)
+        write(path, "\n".join(keep) + "\n")
+    return done
+
+
+def file_finished_jobs(jobs_dir, now=None):
+    """Desk jobs with a report.md and nothing changed for an hour move to jobs_dir/done/. Returns their names."""
+    now = now or time.time()
+    filed = []
+    try:
+        names = sorted(os.listdir(jobs_dir))
+    except OSError:
+        return []
+    for name in names:
+        src = os.path.join(jobs_dir, name)
+        if name == "done" or not os.path.isfile(os.path.join(src, "report.md")):
+            continue
+        newest = max((os.path.getmtime(os.path.join(r, f)) for r, _, fs in os.walk(src) for f in fs), default=0)
+        if now - newest < JOB_QUIET:
+            continue
+        os.makedirs(os.path.join(jobs_dir, "done"), exist_ok=True)
+        dst = os.path.join(jobs_dir, "done", name)
+        if not os.path.exists(dst):
+            shutil.move(src, dst)
+            filed.append(name)
+    return filed
 
 
 def handled_since(text, since):
@@ -498,11 +537,11 @@ def run_one(text, day):
     append_jsonl(OVERNIGHT, {"t": int(time.time()), "day": day, "text": text, "result": got[0], "where": got[1]})
 
 
-def cmd_goodnight(args):
+def cmd_eod(args):
     if "--run" not in args:
         # The island's job runner gives a job 60 s, and the menu waits on <user>: go on in our own unit.
-        argv = [sys.executable, "-I", os.path.abspath(__file__), "goodnight", "--run"]
-        unit = ["systemd-run", "--user", "--collect", "--quiet", f"--unit=second-brain-goodnight-{int(time.time())}"]
+        argv = [sys.executable, "-I", os.path.abspath(__file__), "eod", "--run"]
+        unit = ["systemd-run", "--user", "--collect", "--quiet", f"--unit=second-brain-eod-{int(time.time())}"]
         unit += [f"--setenv={k}" for k in sorted(os.environ) if k.startswith("BRAIN_")]   # the unit starts clean
         try:
             subprocess.run(unit + argv, check=True, timeout=15, capture_output=True)
@@ -513,20 +552,31 @@ def cmd_goodnight(args):
     now = time.time()
     d = day_of(now)
     save_snapshot(d)
+    start, _, _ = window(d, now)
+    g = gather(start, now, d, live=True)
+    summary = say_line("today", g)
     mod = remind_list()
+    cleared = clear_ticked(mod.PATH, DONE_FILE, d)
+    filed = file_finished_jobs(JOBS_DIR, now)
+    tidy = []
+    if cleared:
+        tidy.append(f"{len(cleared)} ticked item{'s' if len(cleared) != 1 else ''} cleared")
+    if filed:
+        tidy.append(f"{len(filed)} finished job{'s' if len(filed) != 1 else ''} filed away")
+    say(summary + (" " + " and ".join(tidy) + "." if tidy else ""), wait=True)
     picked = pick_overnight(mod)
     for line_no, _, _ in picked:
         mark_overnight(line_no, mod.PATH)
     running = busy()
     append_jsonl(CLOSEOUTS, {"t": int(now), "day": d.isoformat(), "picked": [t for _, _, t in picked],
-                             "running": running})
-    start, end, _ = window(d, now)
-    g = gather(start, end, d, live=True)
-    write(os.path.join(PAGES, d.isoformat() + ".md"), page(f"{day_name(d)} ({clock(start)} to {clock(end)}, closed out)", g))
+                             "running": running, "cleared": cleared, "filed": filed})
+    extra = ([""] if cleared or filed else []) + ([f"- Cleared from the remember list: {', '.join(cut(t, 60) for t in cleared)}"] if cleared else []) + \
+        ([f"- Jobs filed away: {', '.join(filed)}"] if filed else [])
+    write(os.path.join(PAGES, d.isoformat() + ".md"),
+          page(f"{day_name(d)} ({clock(start)} to {clock(now)}, closed out)", g, extra))
     n = len(picked)
-    say(("Goodnight. " + (f"{n} thing{'s' if n != 1 else ''} will run tonight. " if n else "Nothing new runs tonight. ")
-         + "I'll tell you how it went at the standup."), wait=True)
-    lock_and_dark()
+    say("The day is closed. " + (f"{n} thing{'s' if n != 1 else ''} will run tonight. " if n else
+                                 "Nothing new runs tonight. ") + "I'll tell you how it went at the standup.", wait=True)
     if not picked and not running:
         return 0
     # Keep the computer from sleeping while the ticks run; with helpers already busy, until 7:00 at least.
@@ -537,6 +587,9 @@ def cmd_goodnight(args):
         return subprocess.run(argv).returncode
     except OSError:
         return cmd_overnight_run([d.isoformat(), str(int(hold_until))])
+
+
+cmd_goodnight = cmd_eod   # "goodnight" is the same command
 
 
 def cmd_overnight_run(args):
@@ -646,7 +699,7 @@ def main(argv):
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__)
         return 0
-    cmds = {"day": cmd_day, "changed": cmd_changed, "goodnight": cmd_goodnight, "standup": cmd_standup,
+    cmds = {"day": cmd_day, "changed": cmd_changed, "eod": cmd_eod, "goodnight": cmd_eod, "standup": cmd_standup,
             "nightly": cmd_nightly, "overnight-run": cmd_overnight_run}
     if argv[0] not in cmds:
         print(f"day: unknown command {argv[0]!r}", file=sys.stderr)

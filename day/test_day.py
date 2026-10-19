@@ -24,10 +24,11 @@ class Base(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         d = self.tmp.name
         self.old = {k: getattr(day, k) for k in ("DATA", "CHANGES", "CLOSEOUTS", "OVERNIGHT", "SNAPS", "PAGES",
-                                                   "MB_HANDLED", "HOME")}
+                                                   "MB_HANDLED", "HOME", "DONE_FILE", "JOBS_DIR")}
         day.DATA, day.CHANGES, day.CLOSEOUTS = d, os.path.join(d, "c.jsonl"), os.path.join(d, "co.jsonl")
         day.OVERNIGHT, day.SNAPS, day.PAGES = os.path.join(d, "o.jsonl"), os.path.join(d, "s"), os.path.join(d, "p")
         day.MB_HANDLED = os.path.join(d, "handled.tsv")
+        day.DONE_FILE, day.JOBS_DIR = os.path.join(d, "done.md"), os.path.join(d, "jobs")
 
     def tearDown(self):
         for k, v in self.old.items():
@@ -169,32 +170,62 @@ class Goodnight(Base):
         sys.path.insert(0, os.path.join(os.path.dirname(HERE), "jobs"))
         self.assertEqual(day.remind_list().items(path), [])
 
-    def test_goodnight_run_end_to_end(self):
+    def test_eod_run_end_to_end(self):
         path = os.path.join(self.tmp.name, "remembered.md")
-        day.write(path, "- 2026-10-15: build the thing\n- 2026-10-15: dentist friday\n")
+        day.write(path, "- [ ] 2026-10-15: build the thing\n- [x] 2026-10-15 09:00: dentist friday\n"
+                        "- [ ] 2026-10-15: research x\n")
+        old_job = os.path.join(day.JOBS_DIR, "2026-10-15-old")
+        day.write(os.path.join(old_job, "report.md"), "done\n")
+        os.utime(os.path.join(old_job, "report.md"), (time.time() - 7200, time.time() - 7200))
+        day.write(os.path.join(day.JOBS_DIR, "2026-10-18-busy", "brief.md"), "working\n")
         real = day.remind_list()
         real.PATH = path
         real.items = lambda p=path, f=real.items: f(p)
         real.menu = lambda prompt, options: "1. build the thing" if "1. build the thing" in options else options[0]
         calls = []
-        saved = (day.remind_list, day.say, day.lock_and_dark, day.busy, day.save_snapshot, day.all_commits,
-                 day.subprocess.run)
+        saved = (day.remind_list, day.say, day.busy, day.save_snapshot, day.all_commits, day.subprocess.run)
         day.remind_list, day.say = (lambda: real), (lambda text, wait=True: calls.append(("say", text)))
-        day.lock_and_dark, day.busy = (lambda: calls.append(("lock",))), (lambda: ["example-game"])
+        day.busy = lambda: ["example-game"]
         day.save_snapshot, day.all_commits = (lambda d, overwrite=True: None), (lambda s, e: {})
         day.subprocess.run = lambda argv, **k: calls.append(("run", argv[:2])) or subprocess.CompletedProcess(argv, 0)
         try:
-            self.assertEqual(day.cmd_goodnight(["--run"]), 0)
+            self.assertEqual(day.cmd_eod(["--run"]), 0)
         finally:
-            (day.remind_list, day.say, day.lock_and_dark, day.busy, day.save_snapshot, day.all_commits,
-             day.subprocess.run) = saved
+            (day.remind_list, day.say, day.busy, day.save_snapshot, day.all_commits, day.subprocess.run) = saved
         c = day.read_jsonl(day.CLOSEOUTS)[-1]
         self.assertEqual((c["picked"], c["running"]), (["build the thing"], ["example-game"]))
-        self.assertIn("1 thing will run tonight", calls[0][1])
-        self.assertEqual(calls[1], ("lock",))
+        self.assertEqual((c["cleared"], c["filed"]), (["dentist friday"], ["2026-10-15-old"]))
+        # the summary first, with what was tidied, then the close; no lock
+        self.assertTrue(calls[0][1].startswith(("Nothing moved today.", "Today:")), calls[0][1])
+        self.assertIn("1 ticked item cleared and 1 finished job filed away.", calls[0][1])
+        self.assertIn("The day is closed. 1 thing will run tonight", calls[1][1])
         self.assertEqual(calls[2], ("run", ["systemd-inhibit", "--what=sleep:idle"]))
-        self.assertIn("→ started with Claude overnight", open(path).read().splitlines()[0])
+        self.assertNotIn(("lock",), calls)
+        lines = open(path).read().splitlines()
+        self.assertEqual(len(lines), 2)                       # the ticked line left; open ones stay queued
+        self.assertIn("→ started with Claude overnight", lines[0])
+        self.assertEqual(lines[1], "- [ ] 2026-10-15: research x")
+        self.assertIn("dentist friday", open(day.DONE_FILE).read())
+        self.assertTrue(os.path.isdir(os.path.join(day.JOBS_DIR, "done", "2026-10-15-old")))
+        self.assertTrue(os.path.isdir(os.path.join(day.JOBS_DIR, "2026-10-18-busy")))
         self.assertEqual(len(os.listdir(day.PAGES)), 1)
+        self.assertIn("Cleared from the remember list: dentist friday", open(
+            os.path.join(day.PAGES, os.listdir(day.PAGES)[0])).read())
+
+    def test_goodnight_is_eod(self):
+        self.assertIs(day.cmd_goodnight, day.cmd_eod)
+
+    def test_recent_job_with_report_stays(self):
+        day.write(os.path.join(day.JOBS_DIR, "j", "report.md"), "x\n")
+        self.assertEqual(day.file_finished_jobs(day.JOBS_DIR), [])
+
+    def test_clear_ticked_without_ticks_leaves_the_file(self):
+        path = os.path.join(self.tmp.name, "r.md")
+        day.write(path, "# list\n- [ ] 2026-10-15: a\n")
+        before = os.path.getmtime(path)
+        self.assertEqual(day.clear_ticked(path, day.DONE_FILE, dt.date(2026, 10, 15)), [])
+        self.assertEqual(os.path.getmtime(path), before)
+        self.assertFalse(os.path.exists(day.DONE_FILE))
 
     def test_result_read_back_from_morning_build(self):
         day.write(day.MB_HANDLED, "# note id\tverdict\thandled at\twhere / why\tnote\n"
@@ -247,10 +278,17 @@ class Jobs(unittest.TestCase):
         self.assertIsNone(jobs.match_rule("what changed in the bar config"))
 
     def test_goodnight_asks_first(self):
-        for t in ("goodnight", "ok I'm going to bed", "close out the day", "bedtime"):
+        for t in ("goodnight", "ok I'm going to bed", "close out the day", "bedtime", "end of day", "EOD",
+                  "okay end of the day"):
             j = self.job(t)
             self.assertEqual((j["id"], j["needs_confirm"]), ("goodnight", True), t)
+            self.assertIn("day eod", j["command"])
         self.assertNotEqual(jobs.match_rule("good night light on"), "goodnight")
+        self.assertNotEqual(jobs.match_rule("remind me at the end of the day to call mom"), "goodnight")
+
+    def test_yesterday_asks(self):
+        for t in ("what about yesterday?", "how was yesterday", "what did we do yesterday", "tell me about yesterday"):
+            self.assertEqual(self.job(t)["args"], {"when": "yesterday"}, t)
 
     def test_run_checks_when(self):
         with self.assertRaises(ValueError):

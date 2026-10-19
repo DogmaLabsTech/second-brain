@@ -1,11 +1,20 @@
 {
   "id": "goodnight",
-  "label": "Close out the day",
-  "phrases": ["goodnight", "I'm going to bed", "close out the day", "wrap up the day"],
-  "match": "^(ok(ay)? |alright |well )?(good ?night\\b(?! ?light)|night night\\b|i'?m (going|off|heading) to (bed|sleep)|(close|wrap) (out|up) (the|my|for the) day|closing out\\b|close ?out\\b|bed ?time\\b)",
+  "label": "End of day",
+  "phrases": [
+    "end of day",
+    "goodnight",
+    "I'm going to bed",
+    "close out the day",
+    "wrap up the day"
+  ],
+  "match": "^(ok(ay)? |alright |well )?(good ?night\\b(?! ?light)|night night\\b|i'?m (going|off|heading) to (bed|sleep)|(close|wrap) (out|up) (the|my|for the) day|closing out\\b|close ?out\\b|bed ?time\\b|end (of )?(the |my )?day\\b|eod\\b)",
   "order": 20,
   "needs_confirm": true,
   "args": {},
-  "command": ["{jobs}/bin/day", "goodnight"],
+  "command": [
+    "{jobs}/bin/day",
+    "eod"
+  ],
   "message": "Closing out the day."
 }
