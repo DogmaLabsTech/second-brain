@@ -163,7 +163,25 @@ TEAM_CARDS = [
     ("start a claude on example-rpg, fix the login page", "example-rpg", "fix the login page"),
     ("start a claude for example-rpg - fix logins too", "example-rpg", "fix logins"),
 ]
-TEAM_PHRASES = [t for t, _, _ in TEAM_CARDS]
+# Spoken with a pause the engine writes a full stop between the words (<user>'s real try, 2026-10-19).
+TEAM_CARDS += [
+    ("Start a claude on Example. Tidy the logs.", "example", "Tidy the logs"),
+    ("Start an agent on Example. Tidy the logs.", "example", "Tidy the logs"),
+    ("start a claude on example-rpg! fix the login page", "example-rpg", "fix the login page"),
+    ("Start a claude on Example. Look at the example-board links.", "example", "Look at the example-board links"),
+    ("Start an agent on example-rpg. Take care of the map loading.", "example-rpg", "Take care of the map loading"),
+]
+# The speech engine often hears "Claude" as one of these (<user>'s real tries, 2026-10-19); "agent" is what the decider took.
+MISHEARD_CLAUDE = ["Start a clot on Example. Tidy the logs.", "start a cloud on example: tidy the logs",
+                   "Start an agent on Example. Tidy the logs.", "get a clod on example-rpg, fix the login page"]
+SENTENCE_NO_TASK = ["Start a claude on example. What time is it?", "start a claude on example. Open spotify.",
+                    "start a claude on example. Remember the dentist.", "start a claude on example. That's all.",
+                    "start a claude on example. Sounds good.", "start a claude on example. No rush.",
+                    "start a claude on example. See you later.", "start a claude on example. The usual.",
+"Start a claude on Example. I need the logs.", "start a claude on example. Thanks.",
+                    "start a claude on example. Okay.", "Start a claude on Example. Quick one.",
+                    "start a claude on example-rpg. example-rpg."]
+TEAM_PHRASES = [t for t, _, _ in TEAM_CARDS if " agent " not in t]
 NO_TASK = ["start a claude on example-game", "open the example-rpg PM", "start working on example",
            "get a claude going for example-board", "start a claude on example like now", "start a claude on example, thanks",
            "start a claude on example, then", "start a claude on example so I can watch it",
@@ -263,6 +281,26 @@ class Build(unittest.TestCase):
     def test_team_phrases_are_start_claude(self):
         for text in TEAM_PHRASES:
             self.assertEqual(jobs.match_rule(text), "start-claude", text)
+
+    def test_misheard_claude_still_starts_a_team(self):
+        for text in MISHEARD_CLAUDE:
+            with self.subTest(text=text):
+                self.assertEqual(jobs.match_rule(text), "start-claude", text)
+                job = jobs.build("start-claude", text, how="voice")["job"]
+                self.assertTrue(job["label"].startswith("Start a team on"), job["label"])
+        for text in ("open the cloud app", "start a clot of paint"):   # not ours
+            self.assertNotEqual(jobs.match_rule(text), "start-claude", text)
+        out = jobs.build("start-claude", "start a cloud on aws", how="voice")     # no such project: asks, starts nothing
+        self.assertIsNone(out.get("job"))
+        self.assertIn("Which project", out["answer"])
+
+    def test_a_spoken_pause_between_project_and_task(self):
+        """"Start an agent on Example. Tidy the logs." is a task after a pause; chat after a pause is not."""
+        for text in SENTENCE_NO_TASK:
+            with self.subTest(text=text):
+                job = jobs.build("start-claude", text, how="voice")["job"]
+                self.assertNotIn("text", job["args"], text)
+                self.assertTrue(job["label"].startswith("Start a Claude on"), job["label"])
 
     def test_team_card(self):
         for text, project, task in TEAM_CARDS:
