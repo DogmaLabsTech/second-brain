@@ -743,12 +743,12 @@ def describe(minutes):
     return f"{minutes} minute" + ("s" if minutes != 1 else "")
 
 
-def clock_words(ts):
-    """'2 pm', 'tomorrow 9:30 am', 'Friday 7 pm'."""
+def clock_when(ts):
+    """'at 2 pm', 'tomorrow at 9:30 am', 'on Friday at 7 pm'."""
     t = dt.datetime.fromtimestamp(ts)
-    words = t.strftime("%-I:%M %p").lower().replace(":00 ", " ")
+    words = "at " + t.strftime("%-I:%M %p").lower().replace(":00 ", " ")
     days = (t.date() - dt.date.today()).days
-    return ("tomorrow " if days == 1 else t.strftime("%A ") if days > 1 else "") + words
+    return ("tomorrow " if days == 1 else t.strftime("on %A ") if days > 1 else "") + words
 
 
 def check_action(action, value):
@@ -802,8 +802,8 @@ def action_label(action, value, done=False):
     """What the job card says (or, with done, what to say after it ran)."""
     text = ACTIONS[action][1 if done else 0]
     if action == "reminder":
-        return text.format(v=describe(value["minutes"])) if done else \
-            f"Remind you in {describe(value['minutes'])}: {value['message']}"
+        when = clock_when(value["at"]) if value.get("at") else f"in {describe(value['minutes'])}"
+        return text.format(v=when) if done else f"Remind you {when}: {value['message']}"
     if action == "window-monitor":
         who = app_name(value["app"]) if value.get("app") else "this window"
         return text.format(v=f"{who} to {spec_say(value['to'])}")

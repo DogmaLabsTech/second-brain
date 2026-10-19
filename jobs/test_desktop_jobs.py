@@ -66,6 +66,18 @@ class Actions(unittest.TestCase):
         action, value = desktop.find_action("remind me at 2pm to go outside with Ollie")
         self.assertEqual((action, value["message"]), ("reminder", "Go outside with Ollie"))
 
+    def test_clock_reminder_job_card(self):
+        """The whole way, as the island builds it: the card says when, the command sets the alarm."""
+        import time
+        j = jobs.build("desktop", "remind me tomorrow at 8am to test the alarm")["job"]
+        self.assertEqual(j["label"], "Remind you tomorrow at 8 am: Test the alarm")
+        self.assertIn("reminder", j["command"])
+        soon = int(time.time()) + 7200
+        self.assertTrue(desktop.action_label("reminder", {"at": soon, "message": "x"}, done=True).startswith(
+            "I'll remind you at "))
+        self.assertEqual(jobs.build("desktop", "remind me in 10 minutes to stretch")["job"]["label"],
+                         "Remind you in 10 minutes: Stretch")
+
     def test_workspace_words(self):
         self.assertEqual(desktop.find_action("go to workspace three"), ("workspace", 3))
         self.assertEqual(desktop.find_action("switch to workspace 7"), ("workspace", 7))

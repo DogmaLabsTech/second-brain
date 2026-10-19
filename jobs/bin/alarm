@@ -38,14 +38,14 @@ def say(message, code=0, **extra):
 
 
 def clock(ts):
-    """'2 pm', '2:30 pm', and the day when it isn't today ('tomorrow 9 am', 'Tuesday 9 am')."""
+    """'2 pm', '2:30 pm', and the day when it isn't today ('tomorrow at 9 am', 'Tuesday at 9 am')."""
     t = dt.datetime.fromtimestamp(ts)
     words = t.strftime("%-I:%M %p").lower().replace(":00 ", " ")
     days = (t.date() - dt.date.today()).days
     if days == 1:
-        return "tomorrow " + words
+        return "tomorrow at " + words
     if days > 1:
-        return t.strftime("%A ") + words
+        return t.strftime("%A at ") + words
     return words
 
 
@@ -114,7 +114,7 @@ def cmd_set(args):
     if not (systemctl("daemon-reload") and systemctl("enable", "--now", f"brain-alarm-{aid}.timer")):
         drop(aid)
         return say("The reminder didn't set: the timer wouldn't start.", 1)
-    return say(f"I'll remind you at {clock(at)}: {message}.", id=aid)
+    return say(f"I'll remind you {'' if ' at ' in clock(at) else 'at '}{clock(at)}: {message}.", id=aid)
 
 
 def drop(aid):
