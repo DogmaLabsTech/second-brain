@@ -25,6 +25,7 @@ import jobs  # noqa: E402
 import ask  # noqa: E402
 
 START = os.path.join(HERE, "bin", "agent-os-start")
+BOSS = os.path.join(HERE, "bin", "agent-os-boss")
 FOLDER_NAME = "20261016-1830-fix-the-thing"
 TEXT = "fix the thing on my remember list tonight"
 FAILED = "I couldn't start that job."
@@ -37,6 +38,15 @@ argv = sys.argv[1:]
 with open(os.environ["FAKE_CALLS"], "a") as f:
     f.write(json.dumps({"tool": "agent-os", "argv": argv}) + "\\n")
 mode = os.environ.get("FAKE_HEAR_MODE", "ok")
+if argv[:2] == ["boss", "prepare"]:
+    boss_mode = os.environ.get("FAKE_BOSS_MODE", "ok")
+    if boss_mode == "fail":
+        print("agent-os: no repo called " + argv[argv.index("--repo") + 1], file=sys.stderr)
+        sys.exit(5)
+    if boss_mode == "slow":
+        time.sleep(30)
+    print("boss job: /fake/boss")
+    sys.exit(0)
 if argv and argv[0] == "hear":
     if mode == "fail":
         sys.exit(1)
@@ -65,9 +75,9 @@ sys.exit(0)
 '''
 
 
-def load_start():
-    loader = importlib.machinery.SourceFileLoader("agent_os_start", START)
-    spec = importlib.util.spec_from_loader("agent_os_start", loader)
+def load_start(path=START, name="agent_os_start"):
+    loader = importlib.machinery.SourceFileLoader(name, path)
+    spec = importlib.util.spec_from_loader(name, loader)
     mod = importlib.util.module_from_spec(spec)
     loader.exec_module(mod)
     return mod
@@ -99,7 +109,7 @@ class Fakes(unittest.TestCase):
         patcher = mock.patch.dict(os.environ, env)
         patcher.start()
         self.addCleanup(patcher.stop)
-        for k in ("AGENT_OS_DRY_RUN", "BRAIN_DETACH", "FAKE_HEAR_MODE", "FAKE_FOLDER_NAME"):
+        for k in ("AGENT_OS_DRY_RUN", "BRAIN_DETACH", "FAKE_HEAR_MODE", "FAKE_FOLDER_NAME", "FAKE_BOSS_MODE"):
             os.environ.pop(k, None)
 
     def tearDown(self):
@@ -133,6 +143,17 @@ class Fakes(unittest.TestCase):
 
     def message(self, printed):
         return json.loads(printed.strip().splitlines()[-1])["message"]
+
+
+TEAM_CARDS = [
+    ("start a claude on example: tidy the logs", "example", "tidy the logs"),
+    ("Hey Claude, start a claude on example-rpg to fix the map loading", "example-rpg", "fix the map loading"),
+    ("start a claude on example-game and tidy the saves, please", "example-game", "tidy the saves"),
+    ("start a claude on example: fix the example-board links", "example", "fix the example-board links"),
+]
+TEAM_PHRASES = [t for t, _, _ in TEAM_CARDS]
+NO_TASK = ["start a claude on example-game", "open the example-rpg PM", "start working on example",
+           "get a claude going for example-board", "start a claude on example like now", "start a claude on example, thanks"]
 
 
 class Rules(unittest.TestCase):
@@ -214,6 +235,48 @@ class Build(unittest.TestCase):
         out = jobs.build("start-job", "start a job on zzzqqq: do it")
         self.assertEqual((out["kind"], out["job"]), ("answer", None))
 
+    # ---- start-claude with a task: a team job ----
+
+    def test_team_phrases_are_start_claude(self):
+        for text in TEAM_PHRASES:
+            self.assertEqual(jobs.match_rule(text), "start-claude", text)
+
+    def test_team_card(self):
+        for text, project, task in TEAM_CARDS:
+            with self.subTest(text=text):
+                out = jobs.build("start-claude", text, how="voice")
+                job = out["job"]
+                self.assertEqual(job["label"], "Start a team on " + jobs.pretty(project))
+                self.assertTrue(job["needs_confirm"])
+                self.assertTrue(job["speak"])
+                self.assertEqual(job["args"], {"project": project, "name": jobs.pretty(project), "text": task,
+                                               "how": "voice"})
+                self.assertIn("agent-os-boss --repo " + project + " -- " + task, job["command"])
+                self.assertIn("Nothing starts until you say go", out["answer"])
+
+    def test_no_task_keeps_the_pm_chat_card(self):
+        for text in NO_TASK:
+            with self.subTest(text=text):
+                job = jobs.build("start-claude", text)["job"]
+                self.assertTrue(job["label"].startswith("Start a Claude on "), job["label"])
+                self.assertNotIn("text", job["args"])
+                self.assertIn("project-manager/bin/pm open", job["command"])
+                self.assertNotIn("agent-os-boss", job["command"])
+
+    def test_whole_desk_stays_the_desk_pm(self):
+        for text in ("start a claude on the desk", "start a claude on the whole desk: tidy the notes"):
+            job = jobs.build("start-claude", text)["job"]
+            self.assertEqual((job["label"], job["args"]["project"]), ("Start the whole-desk PM", "desk"), text)
+            self.assertNotIn("text", job["args"])
+
+    def test_dash_task_is_an_answer(self):
+        out = jobs.build("start-claude", "start a claude on example: -rf everything")
+        self.assertEqual((out["kind"], out["job"]), ("answer", None))
+
+    def test_start_job_still_wins(self):
+        for text in ("start a job on example: tidy the logs", "kick off a job for example: tidy the logs"):
+            self.assertEqual(jobs.match_rule(text), "start-job", text)
+
 
 class Refuses(Fakes):
     def setUp(self):
@@ -237,6 +300,19 @@ class Refuses(Fakes):
     def test_start_job_bad_project(self):
         for project in ("nonesuch", "desk", "", None):
             self.refused("start-job", {"project": project, "text": "do it", "how": "typed"})
+
+    def test_team_job_bad_input_never_reaches_agent_os(self):
+        bad = ({"project": "example", "text": "two\nlines"}, {"project": "example", "text": "   "},
+               {"project": "example", "text": "x" * 501}, {"project": "example", "text": "-rf everything"},
+               {"project": "nonesuch", "text": "do it"}, {"project": "desk", "text": "do it"},
+               {"project": "", "text": "do it"})
+        for args in bad:
+            with self.subTest(args=args):
+                self.refused("start-claude", dict(args, how="typed"))
+
+    def test_team_check_normalises_how(self):
+        got = jobs._check("start-claude", {"project": "example", "text": "a  b", "how": "shout"})
+        self.assertEqual(got, {"project": "example", "name": "Example", "text": "a b", "how": "typed"})
 
     def test_check_normalises_how(self):
         got = jobs._check("remember-fix", {"text": "a  b", "how": "shout"})
@@ -300,6 +376,93 @@ class Starting(Fakes):
         self.assertTrue(self.wait_for(lambda: any(c["argv"][:1] == ["run"] for c in self.calls("agent-os"))))
         self.assertEqual(self.calls("systemd-run"), [])
         self.assertTrue(os.path.exists(os.path.join(folder, "run.log")))
+
+
+class TeamJob(Fakes):
+    """Yes on the team card: exactly `agent-os boss prepare --repo <project> -- "<words>"`, nothing else."""
+
+    def setUp(self):
+        super().setUp()
+        p = mock.patch.object(jobs, "project_names", return_value=known_projects())
+        p.start()
+        self.addCleanup(p.stop)
+
+    def run_boss(self, *argv):
+        out = subprocess.run([sys.executable, "-I", BOSS, *argv], capture_output=True, text=True, timeout=60,
+                             stdin=subprocess.DEVNULL)
+        return out.returncode, out.stdout
+
+    def test_yes_runs_exactly_boss_prepare(self):
+        code, printed, _ = self.run_job("start-claude", "start a claude on example: tidy the logs", how="voice")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.calls(), [{"tool": "agent-os",
+                                         "argv": ["boss", "prepare", "--repo", "example", "--", "tidy the logs"]}])
+        self.assertEqual(json.loads(printed.strip().splitlines()[-1]),
+                         {"message": "Prepared the Example team job. It waits for your go.", "speak": True})
+
+    def test_never_starts_anything(self):
+        self.run_job("start-claude", "start a claude on example: tidy the logs")
+        for call in self.calls():
+            self.assertNotIn(call["argv"][0], ("hear", "run", "do", "hire"))
+            self.assertNotEqual(call["argv"][:2], ["boss", "start"])
+        self.assertEqual(self.calls("systemd-run"), [])
+
+    def test_no_card_starts_nothing(self):
+        # No is the island not calling `brain job run` at all; building the card must not call agent-os.
+        jobs.build("start-claude", "start a claude on example: tidy the logs")
+        self.assertEqual(self.calls(), [])
+
+    def test_text_is_one_literal_argument(self):
+        marker = os.path.join(self.tmp, "pwned")
+        code, _, _ = self.run_job("start-claude", "start a claude on example: tidy $(touch " + marker + ") 'logs'; rm -rf ~")
+        self.assertEqual(code, 0)
+        argv = self.calls("agent-os")[0]["argv"]
+        self.assertEqual(argv[:5], ["boss", "prepare", "--repo", "example", "--"])
+        self.assertEqual(len(argv), 6)
+        self.assertFalse(os.path.exists(marker))
+
+    def test_failing_agent_os_is_spoken(self):
+        os.environ["FAKE_BOSS_MODE"] = "fail"
+        code, printed, _ = self.run_job("start-claude", "start a claude on example: tidy the logs")
+        self.assertNotEqual(code, 0)
+        self.assertEqual(json.loads(printed.strip().splitlines()[-1]),
+                         {"message": "I couldn't prepare that job.", "speak": True})
+
+    def test_slow_agent_os_gives_up(self):
+        os.environ["FAKE_BOSS_MODE"] = "slow"
+        boss = load_start(BOSS, "agent_os_boss")
+        out = io.StringIO()
+        with mock.patch.object(boss, "PREPARE_SECONDS", 1), contextlib.redirect_stdout(out):
+            code = boss.main(["--repo", "example", "--", "tidy the logs"])
+        self.assertEqual((code, self.message(out.getvalue())), (1, "I couldn't prepare that job."))
+
+    def test_script_refuses_bad_input_before_agent_os(self):
+        for argv in ([], ["--repo", "example"], ["--repo", "example", "--", ""], ["--repo", "example", "--", "   "],
+                     ["--repo", "example", "--", "two\nlines"], ["--repo", "example", "--", "x" * 501],
+                     ["--repo", "example", "--", "-rf everything"], ["--repo", "example", "--", " -x"],
+                     ["--repo", "nonesuch", "--", "do it"], ["--repo", "desk", "--", "do it"],
+                     ["--repo", "../etc", "--", "do it"], ["--repo", "example", "--", "a", "b"],
+                     ["--repo", "example", "tidy the logs"]):
+            with self.subTest(argv=argv):
+                code, printed = self.run_boss(*argv)
+                self.assertNotEqual(code, 0)
+                self.assertEqual(self.message(printed), "I couldn't prepare that job.")
+                self.assertEqual(self.calls(), [])
+
+    def test_script_accepts_500_characters(self):
+        code, printed = self.run_boss("--repo", "example", "--", "x" * 500)
+        self.assertEqual(code, 0, printed)
+        self.assertEqual(self.calls("agent-os")[0]["argv"][-1], "x" * 500)
+
+    def test_pm_chat_card_still_runs_pm(self):
+        with mock.patch.object(jobs.subprocess, "run") as run:
+            run.return_value = subprocess.CompletedProcess([], 0, "", "")
+            with contextlib.redirect_stdout(io.StringIO()):
+                jobs.run("start-claude", jobs.build("start-claude", "start a claude on example")["job"])
+        argv = run.call_args[0][0]
+        self.assertTrue(argv[0].endswith("project-manager/bin/pm"), argv)
+        self.assertEqual(argv[1:], ["open", "example", "--launch"])
+        self.assertEqual(self.calls(), [])
 
 
 class JobArgument(Fakes):
@@ -413,6 +576,12 @@ class Routing(unittest.TestCase):
     def test_start_job_wins_over_start_claude_label(self):
         out = self.run_ask("start a job on agent-os: make the report shorter", "job:start-claude")
         self.assertEqual(self.job_id(out), "start-job")
+
+    def test_start_claude_with_a_task_is_a_team_card(self):
+        out = self.run_ask("start a claude on example: tidy the logs", "job:start-claude")
+        self.assertEqual(self.job_id(out), "start-claude")
+        self.assertEqual(out["job"]["label"], "Start a team on Example")
+        self.assertEqual(out["job"]["args"]["text"], "tidy the logs")
 
     def test_start_claude_unchanged(self):
         out = self.run_ask("start a claude on example-game", "job:start-claude")

@@ -223,7 +223,12 @@ def job_project(text):
         head, what = rest.split(":", 1)
         repo = find_project(head)
         return (repo, what.strip()) if repo and repo != "desk" else (None, "")
-    words = rest.split()
+    repo, tail = _lead_project(rest.split())
+    return (repo, tail.strip(" ,-")) if repo else (None, "")
+
+
+def _lead_project(words):
+    """The 1-4 words at the start that best fit a known project: (project, the words after them) or (None, "")."""
     best, best_k, best_score = None, 0, 0.0
     for k in range(1, min(4, len(words)) + 1):
         cand = " ".join(words[:k])
@@ -233,7 +238,34 @@ def job_project(text):
         score = difflib.SequenceMatcher(None, _norm(repo), _norm(cand)).ratio()
         if score >= 0.82 and score >= best_score:
             best, best_k, best_score = repo, k, score
-    return (best, " ".join(words[best_k:]).strip(" ,-")) if best else (None, "")
+    return (best, " ".join(words[best_k:])) if best else (None, "")
+
+
+TEAM_LEAD = re.compile(r"\b(on|for)\b\s*", re.I)
+TEAM_CONNECT = re.compile(r"^(?:[,;\-\u2013\u2014]+\s*|(?:and|then|so|to|that)\b[,\s]*)+", re.I)
+TEAM_TRAIL = re.compile(r"(?:[\s,;\-]+(?:please|pls|thanks|thank you|now|like now|right now))+$", re.I)
+
+
+def team_task(text):
+    """"start a claude on <project>: <task>" -> (project, task); (None, "") when the words hold no task. A task is
+    what follows the project name after a colon, a comma or dash, or "to" / "and" / "then" / "so" / "that". Plain
+    words after the name ("example's logs", "example-board like now") are not a task: a missed task only gives the old PM
+    chat, a guessed one would prepare a job <user> never asked for. The whole desk never has a task here."""
+    t = clean_text(text)
+    m = TEAM_LEAD.search(t)
+    if not m:
+        return None, ""
+    rest = t[m.end():]
+    if ":" in rest:
+        head, tail = rest.split(":", 1)
+        repo = find_project(head)
+    else:
+        repo, tail = _lead_project(rest.split())
+        tail = TEAM_CONNECT.sub("", tail, count=1) if tail and TEAM_CONNECT.match(tail) else ""
+    task = TEAM_TRAIL.sub("", tail.strip()).strip(" ,;")
+    if not repo or repo == "desk" or not task:
+        return None, ""
+    return repo, task
 
 
 def one_line(text):
@@ -305,8 +337,13 @@ def resolve_open(job_id, text, search=None):
 
 # ---------- building the job object ----------
 
+def _command(job, args):
+    """A job's command; start-claude with a task (args.text) prepares a team job instead of opening the PM chat."""
+    return job["team_command"] if job.get("team_command") and args.get("text") else job["command"]
+
+
 def _cmd_string(job, args):
-    return " ".join(_fill(job["command"], {"monitor": "", **args}))
+    return " ".join(_fill(_command(job, args), {"monitor": "", **args}))
 
 
 def _fill(argv, args):
@@ -441,6 +478,16 @@ def build(job_id, text, search=None, local_writer=None, how="typed"):
         sources = hits[:3]
         answer = f"Opening your note {top['title']}."
         label = f"Open {top['title']}"
+    elif job_id == "start-claude" and all(team_task(text)):
+        repo, task = team_task(text)
+        try:
+            task = one_line(task)
+        except ValueError:
+            return {"kind": "answer", "answer": "That was too long for one job. Say it in one short sentence.",
+                    "sources": [], "job": None}
+        args = {"project": repo, "name": pretty(repo), "text": task, "how": how if how in HOWS else "typed"}
+        label = f"Start a team on {pretty(repo)}"
+        answer = (f"This prepares a team job on {pretty(repo)}. Nothing starts until you say go at the desk.")
     elif job_id == "start-claude":
         repo = find_project(text, local_writer)
         if not repo:
@@ -510,7 +557,7 @@ def build(job_id, text, search=None, local_writer=None, how="typed"):
         answer = "Checking who needs you."
     obj = {"id": job_id, "label": label, "needs_confirm": bool(job.get("needs_confirm")),
            "command": _cmd_string(job, args), "args": args}
-    if job.get("speak"):
+    if job.get("speak") or "text" in args and job_id == "start-claude":
         obj["speak"] = True
     return {"kind": "job", "answer": answer, "sources": sources, "job": obj}
 
@@ -529,6 +576,11 @@ def _check(job_id, args):
         repo = str(a.get("project", ""))
         if repo != "desk" and repo not in project_names():
             raise ValueError(f"I don't know a project called {repo or 'that'}")
+        if a.get("text") not in (None, ""):   # a team job: the whole desk has none
+            if repo == "desk":
+                raise ValueError("the whole desk has no team job")
+            return {"project": repo, "name": pretty(repo), "text": one_line(a.get("text")),
+                    "how": a.get("how") if a.get("how") in HOWS else "typed"}
         return {"project": repo, "name": pretty(repo)}
     if job_id == "open-app":
         app_id = str(a.get("app", ""))
@@ -585,7 +637,7 @@ def run(job_id, job_obj):
     except ValueError as why:
         print(json.dumps({"message": f"I didn't do it: {why}."}))
         return 2
-    argv = _fill(job["command"], args)
+    argv = _fill(_command(job, args), args)
     if job_id == "start-claude" and args["project"] == "desk":
         argv = [argv[0], "open", "--desk", "--launch"]
     if job_id == "open-note":   # don't wait for the viewer app
@@ -608,7 +660,8 @@ def run(job_id, job_obj):
             break
     if message is None:
         if out.returncode == 0:
-            message = job.get("message", "Done.").format(**args)
+            message = (job["team_message"] if _command(job, args) is job.get("team_command")
+                       else job.get("message", "Done.")).format(**args)
         else:
             err = (out.stderr or out.stdout).strip().splitlines()
             message = "That didn't work" + (f": {err[-1][:160]}" if err else ".")

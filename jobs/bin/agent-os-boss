@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""agent-os-boss --repo <project> -- "<the task>": prepare a team job with agent-os.
+
+Run by `brain job run start-claude` after <user>'s Yes on the "Start a team on <project>?" card.
+  `agent-os boss prepare --repo <project> -- "<task>"` writes two job folders (the boss's and its worker's), both
+  `go: waiting`, and prints a line for the island: {"message": "Prepared the Example team job. ...", "speak": true}.
+It never calls `boss start` and never writes a go: only <user>'s yes does that, later, at the desk.
+The task is always one argument after `--` (never through a shell). Refused before agent-os is called: no task, more
+than one line, over 500 characters, a leading dash, an unknown project, `desk`. If agent-os fails or takes longer than
+30 seconds it says "I couldn't prepare that job." (spoken).
+
+Environment:
+  AGENT_OS_BIN            which agent-os (default: `agent-os` on PATH, else ~/agent-os/bin/agent-os)
+  AGENT_OS_HOME           passed on to agent-os (it reads it itself)
+"""
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+HOME = os.path.expanduser("~")
+DEFAULT_BIN = os.path.join(HOME, "agent-os", "bin", "agent-os")
+PROJECT_DIRS = (os.path.join(HOME, "projects", "Projects"), os.path.join(HOME, "projects", "experiments"),
+                os.path.join(HOME, "projects", "project-manager", "projects"))
+SAFE_REPO = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,80}")
+FAILED = "I couldn't prepare that job."
+PREPARE_SECONDS = 30
+
+
+def say(message, code):
+    print(json.dumps({"message": message, "speak": True}))
+    return code
+
+
+def agent_os_bin():
+    return os.path.abspath(os.environ.get("AGENT_OS_BIN") or shutil.which("agent-os") or DEFAULT_BIN)
+
+
+def known(repo):
+    """A project <user> has: a folder in Projects or experiments, or a project-manager page (<name>.md)."""
+    if not SAFE_REPO.fullmatch(repo) or repo in ("desk", ".", "..", "README", "REGISTRY"):
+        return False
+    return any(os.path.isdir(os.path.join(d, repo)) or os.path.isfile(os.path.join(d, repo + ".md"))
+               for d in PROJECT_DIRS)
+
+
+def pretty(repo):
+    return " ".join(w if any(c.isupper() for c in w) else w.capitalize() for w in re.split(r"[-_ ]+", repo))
+
+
+def main(argv):
+    if len(argv) != 4 or argv[0] != "--repo" or argv[2] != "--":
+        return say(FAILED, 2)
+    repo, text = argv[1], argv[3]
+    if not text.strip() or re.search(r"[\x00-\x08\x0a-\x1f\x7f]", text) or len(text) > 500 \
+            or text.lstrip().startswith("-") or not known(repo):
+        return say(FAILED, 2)
+    try:
+        out = subprocess.run([agent_os_bin(), "boss", "prepare", "--repo", repo, "--", text], capture_output=True,
+                             text=True, timeout=PREPARE_SECONDS, stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.TimeoutExpired):
+        return say(FAILED, 1)
+    if out.returncode != 0:
+        return say(FAILED, 1)
+    return say(f"Prepared the {pretty(repo)} team job. It waits for your go.", 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
