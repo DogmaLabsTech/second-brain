@@ -312,7 +312,7 @@ class Build(unittest.TestCase):
                 self.assertTrue(job["speak"])
                 self.assertEqual(job["args"], {"project": project, "name": jobs.pretty(project), "text": task,
                                                "how": "voice"})
-                self.assertIn("agent-os-boss --repo " + project + " -- " + task, job["command"])
+                self.assertIn("agent-os-boss --repo " + project + " --how voice -- " + task, job["command"])
                 self.assertIn("Nothing starts until you say go", out["answer"])
 
     def test_no_task_keeps_the_pm_chat_card(self):
@@ -484,7 +484,7 @@ class TeamJob(Fakes):
         code, printed, _ = self.run_job("start-claude", "start a claude on example: tidy the logs", how="voice")
         self.assertEqual(code, 0)
         self.assertEqual(self.calls(), [{"tool": "agent-os",
-                                         "argv": ["boss", "prepare", "--repo", "example", "--", "tidy the logs"]}])
+                                         "argv": ["boss", "prepare", "--repo", "example", "--how", "voice", "--", "tidy the logs"]}])
         self.assertEqual(json.loads(printed.strip().splitlines()[-1]),
                          {"message": "Prepared the Example team job. It waits for your go.", "speak": True})
 
@@ -505,8 +505,8 @@ class TeamJob(Fakes):
         code, _, _ = self.run_job("start-claude", "start a claude on example: tidy $(touch " + marker + ") 'logs'; rm -rf ~")
         self.assertEqual(code, 0)
         argv = self.calls("agent-os")[0]["argv"]
-        self.assertEqual(argv[:5], ["boss", "prepare", "--repo", "example", "--"])
-        self.assertEqual(len(argv), 6)
+        self.assertEqual(argv[:7], ["boss", "prepare", "--repo", "example", "--how", "typed", "--"])
+        self.assertEqual(len(argv), 8)
         self.assertFalse(os.path.exists(marker))
 
     def test_failing_agent_os_is_spoken(self):
@@ -521,16 +521,18 @@ class TeamJob(Fakes):
         boss = load_start(BOSS, "agent_os_boss")
         out = io.StringIO()
         with mock.patch.object(boss, "PREPARE_SECONDS", 1), contextlib.redirect_stdout(out):
-            code = boss.main(["--repo", "example", "--", "tidy the logs"])
+            code = boss.main(["--repo", "example", "--how", "voice", "--", "tidy the logs"])
         self.assertEqual((code, self.message(out.getvalue())), (1, "I couldn't prepare that job."))
 
     def test_script_refuses_bad_input_before_agent_os(self):
-        for argv in ([], ["--repo", "example"], ["--repo", "example", "--", ""], ["--repo", "example", "--", "   "],
-                     ["--repo", "example", "--", "two\nlines"], ["--repo", "example", "--", "x" * 501],
-                     ["--repo", "example", "--", "-rf everything"], ["--repo", "example", "--", " -x"],
-                     ["--repo", "nonesuch", "--", "do it"], ["--repo", "desk", "--", "do it"],
-                     ["--repo", "../etc", "--", "do it"], ["--repo", "example", "--", "a", "b"],
-                     ["--repo", "example", "tidy the logs"]):
+        for argv in ([], ["--repo", "example"], ["--repo", "example", "--how", "voice", "--", ""], ["--repo", "example", "--how", "voice", "--", "   "],
+                     ["--repo", "example", "--how", "voice", "--", "two\nlines"], ["--repo", "example", "--how", "voice", "--", "x" * 501],
+                     ["--repo", "example", "--how", "voice", "--", "-rf everything"], ["--repo", "example", "--how", "voice", "--", " -x"],
+                     ["--repo", "nonesuch", "--how", "voice", "--", "do it"], ["--repo", "desk", "--how", "voice", "--", "do it"],
+                     ["--repo", "../etc", "--how", "voice", "--", "do it"], ["--repo", "example", "--how", "voice", "--", "a", "b"],
+                     ["--repo", "example", "tidy the logs"],
+                     ["--repo", "example", "--", "no how given"], ["--repo", "example", "--how", "shouted", "--", "x"],
+                     ["--repo", "example", "--how", "voice", "tidy the logs"]):
             with self.subTest(argv=argv):
                 code, printed = self.run_boss(*argv)
                 self.assertNotEqual(code, 0)
@@ -538,7 +540,7 @@ class TeamJob(Fakes):
                 self.assertEqual(self.calls(), [])
 
     def test_script_accepts_500_characters(self):
-        code, printed = self.run_boss("--repo", "example", "--", "x" * 500)
+        code, printed = self.run_boss("--repo", "example", "--how", "voice", "--", "x" * 500)
         self.assertEqual(code, 0, printed)
         self.assertEqual(self.calls("agent-os")[0]["argv"][-1], "x" * 500)
 
