@@ -124,7 +124,9 @@ or `desk` is refused before agent-os is called, and a failing or slow (over 30 s
 on example-game", "open the example-rpg PM", "start working on example") and "start a claude on the desk" still open
 the PM chat, as before; so do "so I can watch it", "that's all" and a second project name ("... on example and
 example-rpg"), which are not tasks (a missed task is safe, a guessed one is not). "... on example to check in" is a
-task on purpose: the card shows the task before you press Yes, and Yes only prepares. "Start a claude on the desk:
+task on purpose: the card shows the task before you press Yes, and Yes only prepares. After a comma or dash the task
+needs two or more words and may not start with so / I / you / we / it or filler ("example, ok", "example - quick",
+"example, example-rpg too" are not tasks); after a colon or "to" / "and" / "then" one word is enough. "Start a claude on the desk:
 tidy the board" opens the desk PM and the card says the task was not used. "Start a
 job on ..." is its own job and still wins for those words. Two Yes presses make two team jobs (nothing runs; delete one).
 **Known gap:** spoken or typed is not passed on. `agent-os boss prepare` has no `--how` flag and always writes

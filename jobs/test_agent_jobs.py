@@ -157,6 +157,11 @@ TEAM_CARDS = [
     ("start a claude on example-game, fix the saves, please", "example-game", "fix the saves"),
     # "to check in" is a task on purpose: "to" is how people say it, and the card shows the task before Yes.
     ("start a claude on example to check in", "example", "check in"),
+    # one word is enough after a colon (and after a joining word), not after a comma or dash
+    ("start a claude on example: cleanup", "example", "cleanup"),
+    ("start a claude on example, to check in", "example", "check in"),
+    ("start a claude on example-rpg, fix the login page", "example-rpg", "fix the login page"),
+    ("start a claude for example-rpg - fix logins too", "example-rpg", "fix logins"),
 ]
 TEAM_PHRASES = [t for t, _, _ in TEAM_CARDS]
 NO_TASK = ["start a claude on example-game", "open the example-rpg PM", "start working on example",
@@ -164,7 +169,14 @@ NO_TASK = ["start a claude on example-game", "open the example-rpg PM", "start w
            "start a claude on example, then", "start a claude on example so I can watch it",
            "start a claude on example that's all", "start a claude on example and example-rpg",
            "start a claude on example, example-rpg",
-           "start a claude on example: example-rpg", "start a claude on example: 's all", "start a claude on example's logs"]
+           "start a claude on example: example-rpg", "start a claude on example: 's all", "start a claude on example's logs",
+           # after a comma or dash: chat, filler and one word are not a task (round 3)
+           "start a claude on example, ok", "start a claude on example, right", "start a claude on example, cool",
+           "start a claude on example, you know", "start a claude on example \u2014 okay",
+           "start a claude for example-rpg - quick", "start a claude on example, I'll tell it what to do",
+           "start a claude on example, so I can watch", "start a claude on example, example-rpg too",
+           "start a claude on example, yeah sure", "start a claude on example - we will see", "start a claude on example, tidy",
+           "start a claude on example: so I can watch", "start a claude on example: okay"]
 
 
 class Rules(unittest.TestCase):

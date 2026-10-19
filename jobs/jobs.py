@@ -244,8 +244,10 @@ def _lead_project(words):
 TEAM_LEAD = re.compile(r"\b(on|for)\b\s*", re.I)
 TEAM_SPLIT = re.compile(r"\s*[,;\u2013\u2014]+\s*|\s+-+\s+")   # a comma, dash or em dash right after the name
 TEAM_CONNECT = re.compile(r"^(?:[,;\-\u2013\u2014]+\s*|(?:and|then|to)\b[,\s]*)+", re.I)
-TEAM_TRAIL = re.compile(r"(?:^|[\s,;\-]+)(?:please|pls|thanks|thank you|now|like now|right now)(?:[\s,;\-]+"
-                        r"(?:please|pls|thanks|thank you|now|like now|right now))*$", re.I)
+TEAM_FILLER = r"(?:please|pls|thanks|thank you|now|like now|right now|too|also|as well)"
+TEAM_TRAIL = re.compile(r"(?:^|[\s,;\-]+)" + TEAM_FILLER + r"(?:[\s,;\-]+" + TEAM_FILLER + r")*$", re.I)
+# A task never starts with these: chat ("so I can watch", "you know", "I'll tell it") or filler ("ok", "quick").
+TEAM_NOT_FIRST = re.compile(r"^(?:so|i|you|we|it|ok|okay|right|cool|quick|too|yes|yeah|sure|thanks|please)\b", re.I)
 TEAM_DESK = re.compile(r"^(?:the )?(?:whole )?desk\b\s*", re.I)
 
 
@@ -263,6 +265,7 @@ def team_task(text):
         return None, ""
     rest = t[m.end():]
     desk = TEAM_DESK.match(rest)
+    via_sep = False
     if ":" in rest:
         head, tail = rest.split(":", 1)
         repo = find_project(head)
@@ -276,13 +279,18 @@ def team_task(text):
         head_repo, head_left = _lead_project(rest[:sep.start()].split()) if sep else (None, "")
         if head_repo and not head_left:
             repo, tail = head_repo, rest[sep.end():]
+            # After a comma or dash only a real task counts (2+ words): ", ok", "- quick", ", right" are chat.
+            # A joining word ("example, to check in") or a colon is a stronger signal and is exempt.
+            via_sep = not re.match(r"(?:and|then|to)\b", tail.strip(), re.I)
         elif repo and TEAM_CONNECT.match(tail):
             pass
         else:
             repo = None   # words after the name with no joining word: not a task
         tail = TEAM_CONNECT.sub("", tail.strip(), count=1) if repo else ""
     task = TEAM_TRAIL.sub("", tail.strip()).strip(" ,;")
-    if not repo or not task or task[0] in "'\"\u2019" or not _is_task(task):
+    if via_sep and len(task.split()) < 2:
+        return None, ""
+    if not repo or not task or task[0] in "'\"\u2019" or TEAM_NOT_FIRST.match(task) or not _is_task(task):
         return None, ""
     return repo, task
 
