@@ -248,6 +248,13 @@ TEAM_FILLER = r"(?:please|pls|thanks|thank you|now|like now|right now|too|also|a
 TEAM_TRAIL = re.compile(r"(?:^|[\s,;\-]+)" + TEAM_FILLER + r"(?:[\s,;\-]+" + TEAM_FILLER + r")*$", re.I)
 # A task never starts with these: chat ("so I can watch", "you know", "I'll tell it") or filler ("ok", "quick").
 TEAM_NOT_FIRST = re.compile(r"^(?:so|i|you|we|it|ok|okay|right|cool|quick|too|yes|yeah|sure|thanks|please)\b", re.I)
+# After a full stop the task must open with a work verb: another request ("open spotify", "remember ...") or a question
+# or chat ("what time is it", "sounds good") is not a task. After a colon, comma or dash the rules stay as they were.
+TEAM_DO = re.compile(r"^(?:fix|tidy|clean|add|check|update|write|refactor|build|make|remove|delete|rename|"
+                     r"review|test|improve|change|look|find|set up|create|implement|finish|investigate|handle|sort|"
+                     r"document|debug|migrate|upgrade|speed|simplify|rewrite|redo|repair|patch|wire|hook|merge|"
+                     r"split|move|polish|trim|shorten|tune|audit|compare|summarize|summarise|list|draft|plan|run|"
+                     r"go through|work on|take care of|get rid of|clear out|clean up|tidy up)\b", re.I)
 TEAM_SENTENCE = re.compile(r"[.!?]+\s+")   # a full stop, question or exclamation mark between the words
 TEAM_DESK = re.compile(r"^(?:the )?(?:whole )?desk\b\s*", re.I)
 
@@ -276,10 +283,12 @@ def team_task(text):
     elif TEAM_SENTENCE.search(rest) and _lead_project(TEAM_SENTENCE.split(rest, 1)[0].split())[0] \
             and not _lead_project(TEAM_SENTENCE.split(rest, 1)[0].split())[1]:
         # Spoken with a pause, the engine writes a full stop: "Start an agent on Example. Tidy the logs." Treat it like
-        # a comma: the task needs 2+ words and may not open with chat ("I need the logs").
+        # a comma: the task needs 2+ words and has to open with a work verb ("Tidy the logs", not "I need the logs").
         head, tail = TEAM_SENTENCE.split(rest, 1)
         repo = _lead_project(head.split())[0]
         via_sep = True
+        if not TEAM_DO.match(tail.strip()):
+            return None, ""
     else:
         # The comma or dash sticks to the project word _lead_project takes, so split at it first.
         repo, tail = _lead_project(rest.split())

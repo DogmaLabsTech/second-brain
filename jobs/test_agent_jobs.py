@@ -168,11 +168,17 @@ TEAM_CARDS += [
     ("Start a claude on Example. Tidy the logs.", "example", "Tidy the logs"),
     ("Start an agent on Example. Tidy the logs.", "example", "Tidy the logs"),
     ("start a claude on example-rpg! fix the login page", "example-rpg", "fix the login page"),
+    ("Start a claude on Example. Look at the example-board links.", "example", "Look at the example-board links"),
+    ("Start an agent on example-rpg. Take care of the map loading.", "example-rpg", "Take care of the map loading"),
 ]
 # The speech engine often hears "Claude" as one of these (<user>'s real tries, 2026-10-19); "agent" is what the decider took.
 MISHEARD_CLAUDE = ["Start a clot on Example. Tidy the logs.", "start a cloud on example: tidy the logs",
                    "Start an agent on Example. Tidy the logs.", "get a clod on example-rpg, fix the login page"]
-SENTENCE_NO_TASK = ["Start a claude on Example. I need the logs.", "start a claude on example. Thanks.",
+SENTENCE_NO_TASK = ["Start a claude on example. What time is it?", "start a claude on example. Open spotify.",
+                    "start a claude on example. Remember the dentist.", "start a claude on example. That's all.",
+                    "start a claude on example. Sounds good.", "start a claude on example. No rush.",
+                    "start a claude on example. See you later.", "start a claude on example. The usual.",
+"Start a claude on Example. I need the logs.", "start a claude on example. Thanks.",
                     "start a claude on example. Okay.", "Start a claude on Example. Quick one.",
                     "start a claude on example-rpg. example-rpg."]
 TEAM_PHRASES = [t for t, _, _ in TEAM_CARDS if " agent " not in t]
