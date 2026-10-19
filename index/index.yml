@@ -74,8 +74,8 @@ collections:
     includeByDefault: false
     path: ~/agent-os
     # <user>'s desk, moved out of Projects/ to ~/agent-os on 2026-10-17. Its guides, stage and desk CONTEXT files, docs,
-    # and since 2026-10-19 the lessons (lore/: stories of real mistakes) and the team (desk/team.md, experts' pages).
-    pattern: "*.md,*/CONTEXT.md,*/*/CONTEXT.md,docs/**/*.md,lore/*.md,desk/team.md,desk/team/*.md"
+    # and since 2026-10-19 the lessons (lore/: stories of real mistakes).
+    pattern: "*.md,*/CONTEXT.md,*/*/CONTEXT.md,docs/**/*.md,lore/*.md"
     ignore:
       # These only point at AGENTS.md, which is indexed.
       - "CLAUDE.md"
