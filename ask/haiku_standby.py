@@ -97,15 +97,16 @@ def serve(conn, spare):
         else:
             f.write(json.dumps({"error": "haiku stopped without an answer"}) + "\n")
             f.flush()
-    except (OSError, ValueError, KeyError):
-        pass   # the asker hung up (its answer wasn't needed) or sent nonsense
+    except (OSError, ValueError, KeyError) as why:
+        if not isinstance(why, (BrokenPipeError, ConnectionResetError)):   # those two: the asker hung up, its answer wasn't needed
+            print(f"haiku standby: dropped a request: {why!r}", file=sys.stderr)
     finally:
         if proc:
             proc.kill()
         try:
             conn.close()
-        except OSError:
-            pass
+        except OSError as why:
+            print(f"haiku standby: could not close the connection: {why}", file=sys.stderr)
 
 
 def main():

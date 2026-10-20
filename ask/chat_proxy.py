@@ -112,8 +112,9 @@ class Proxy(BaseHTTPRequestHandler):
     upstream = urllib.parse.urlsplit("http://localhost:8182")
     protocol_version = "HTTP/1.1"
 
-    def log_message(self, *a):   # quiet: journald gets only errors
-        pass
+    def log_request(self, *a):
+        """No line per request (journald gets only errors): the default log_message still says every error."""
+        return None
 
     def _send_upstream(self, body, headers=None):
         conn = http.client.HTTPConnection(self.upstream.hostname, self.upstream.port, timeout=600)
@@ -193,10 +194,11 @@ class Proxy(BaseHTTPRequestHandler):
         except ValueError:
             return self._relay(body)
         except (ConnectionError, OSError, http.client.HTTPException) as why:
+            print(f"search server failed, answering 502: {why}", file=sys.stderr)
             try:
                 self._reply(502, "application/json", json.dumps({"error": f"search server: {why}"}).encode())
-            except OSError:
-                pass
+            except OSError as gone:
+                print(f"could not send the 502 (the caller hung up): {gone}", file=sys.stderr)
 
     do_GET = do_POST = do_DELETE = do_HEAD = do_OPTIONS = do_PUT = _handle
 
@@ -210,8 +212,8 @@ def serve(port, upstream):
     servers = [ThreadingHTTPServer(("127.0.0.1", port), Proxy)]
     try:   # "localhost" may be ::1 first (Claude's MCP client); this computer only either way
         servers.append(V6(("::1", port), Proxy))
-    except OSError:
-        pass
+    except OSError as why:
+        print(f"no listener on ::1 (IPv4 only): {why}", file=sys.stderr)
     for s in servers[1:]:
         threading.Thread(target=s.serve_forever, daemon=True).start()
     print(f"chat search mix on :{port} -> {upstream}", file=sys.stderr)
