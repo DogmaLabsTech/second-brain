@@ -99,7 +99,7 @@ def serve(conn, spare):
             f.flush()
     except (OSError, ValueError, KeyError) as why:
         if not isinstance(why, (BrokenPipeError, ConnectionResetError)):   # those two: the asker hung up, its answer wasn't needed
-            print(f"haiku standby: dropped a request: {why!r}", file=sys.stderr)
+            print(f"haiku standby: dropped a request: {type(why).__name__}", file=sys.stderr)
     finally:
         if proc:
             proc.kill()
