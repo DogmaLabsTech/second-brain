@@ -65,7 +65,10 @@ def on():
     try:
         with open(CONFIG) as f:
             return bool(json.load(f).get("on"))
-    except (OSError, ValueError):
+    except FileNotFoundError:   # never set: off
+        return False
+    except (OSError, ValueError) as why:
+        print(f"details: could not read {CONFIG} ({why}); details are off", file=sys.stderr)
         return False
 
 
@@ -146,7 +149,9 @@ def fill(job_id, text, projects=(), timeout=SECONDS):
         r = conn.getresponse()
         out = json.loads(json.loads(r.read())["message"]["content"]) if r.status == 200 else None
         conn.close()
-    except (OSError, ValueError, KeyError):
+    except (OSError, ValueError, KeyError) as why:
+        if not _timed_out(why):   # too slow is expected; anything else is said
+            print(f"details: the writer failed ({type(why).__name__}: {why}); no details", file=sys.stderr)
         return None
     return ground(job_id, out, text, projects) if isinstance(out, dict) else None
 

@@ -146,7 +146,10 @@ def _sources():
     try:
         with open(SOURCES) as f:
             data = json.load(f)
-    except (OSError, ValueError):
+    except FileNotFoundError:   # no list of extra folders
+        return {}
+    except (OSError, ValueError) as why:
+        print(f"sendfiles: could not read {SOURCES} ({why}); no extra folders", file=sys.stderr)
         return {}
     return {k: v for k, v in data.items() if isinstance(v, list)} if isinstance(data, dict) else {}
 

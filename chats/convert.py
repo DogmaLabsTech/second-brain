@@ -360,7 +360,10 @@ def load_state(path):
     try:
         with open(path) as fh:
             return json.load(fh)
-    except (OSError, ValueError):
+    except FileNotFoundError:   # first run
+        return {}
+    except (OSError, ValueError) as why:
+        print(f"convert: could not read the state file {path} ({why}); starting from an empty state", file=sys.stderr)
         return {}
 
 

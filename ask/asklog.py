@@ -62,7 +62,10 @@ def read(path):
     try:
         with open(path) as f:
             return [json.loads(l) for l in f if l.strip()]
-    except (OSError, ValueError):
+    except FileNotFoundError:   # nothing recorded yet
+        return []
+    except (OSError, ValueError) as why:
+        print(f"asklog: could not read {path}: {why}", file=sys.stderr)
         return []
 
 
