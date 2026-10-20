@@ -128,72 +128,97 @@ def _hex_sub(text):
     return "".join(out), n
 
 
-def redact(text):
-    """Return (redacted_text, count)."""
-    if not text:
-        return text, 0
+def _own_emails(text):
     total = 0
-
     for email in OWN_EMAILS:
         text, k = re.subn(re.escape(email), EMAIL_MARK, text, flags=re.I)
         total += k
         # Cut short by a column ("agent-os@users.noreply.github.com" in a tailscale status table): still his address.
         text, k = re.subn(re.escape(email.split("@")[0] + "@") + r"(?![\w.-])", EMAIL_MARK, text, flags=re.I)
         total += k
+    return text, total
 
-    text, k = _PRIVATE_KEY.subn(MARK, text)
-    total += k
+
+def _known_tokens(text):
+    text, total = _PRIVATE_KEY.subn(MARK, text)
     for pat in _TOKEN_PATTERNS:
         text, k = pat.subn(MARK, text)
         total += k
+    return text, total
 
+
+def _auth_and_urls(text):
+    total = 0
     for pat in (_AUTH_HEADER, _BEARER_LONG):
         text, k = pat.subn(lambda m: m.group(1) + m.group(2) + MARK, text)
         total += k
     text, k = _URL_CREDS.subn(lambda m: m.group(1) + MARK + m.group(3), text)
-    total += k
+    return text, total + k
 
-    def assign(m):
-        val = m.group(2)
-        if val.lower() in _HARMLESS_VALUES or val.startswith(("$", "{", "<", "[redacted")):
-            return m.group(0)
-        return m.group(1) + MARK
 
-    def assign_colon(m):
-        val = m.group(2)
-        # Prose like "Key: something" is fine; only token-shaped values go.
-        if val.lower() in _HARMLESS_VALUES or val.startswith(("$", "{", "<", "/", "~", "http", "[redacted")):
-            return m.group(0)
-        if not any(c.isdigit() for c in val):
-            return m.group(0)
-        return m.group(1) + MARK
+def _assign(m):
+    val = m.group(2)
+    if val.lower() in _HARMLESS_VALUES or val.startswith(("$", "{", "<", "[redacted")):
+        return m.group(0)
+    return m.group(1) + MARK
 
-    for pat, fn in ((_ASSIGN_EQ, assign), (_ASSIGN_COLON, assign_colon)):
+
+def _assign_colon(m):
+    val = m.group(2)
+    # Prose like "Key: something" is fine; only token-shaped values go.
+    if val.lower() in _HARMLESS_VALUES or val.startswith(("$", "{", "<", "/", "~", "http", "[redacted")):
+        return m.group(0)
+    if not any(c.isdigit() for c in val):
+        return m.group(0)
+    return m.group(1) + MARK
+
+
+def _env(m):
+    val = m.group(2)
+    if val.startswith(("/", "~", "$", ".", "[redacted", "http://localhost", "http://127.")):
+        return m.group(0)
+    return m.group(1) + MARK
+
+
+def _sub_counting(patterns_and_fns, text):
+    """Apply each (pattern, replacer) in turn; how many marks they added."""
+    total = 0
+    for pat, fn in patterns_and_fns:
         new = pat.sub(fn, text)
         total += new.count(MARK) - text.count(MARK)
         text = new
+    return text, total
 
-    def env(m):
-        val = m.group(2)
-        if val.startswith(("/", "~", "$", ".", "[redacted", "http://localhost", "http://127.")):
-            return m.group(0)
-        return m.group(1) + MARK
 
-    for pat in (_ENV_LINE, _ENV_INLINE):
-        new = pat.sub(env, text)
-        total += new.count(MARK) - text.count(MARK)
-        text = new
+def _assignments(text):
+    return _sub_counting(((_ASSIGN_EQ, _assign), (_ASSIGN_COLON, _assign_colon)), text)
 
+
+def _env_lines(text):
+    return _sub_counting(((_ENV_LINE, _env), (_ENV_INLINE, _env)), text)
+
+
+def _pairing_codes(text):
     new = _PAIR_AFTER.sub(lambda m: m.group(1) + MARK, text)
     new = _PAIR_BEFORE.sub(lambda m: MARK + m.group(2), new)
-    total += new.count(MARK) - text.count(MARK)
-    text = new
+    return new, new.count(MARK) - text.count(MARK)
 
-    text, k = _hex_sub(text)
-    total += k
 
+def _long_runs(text):
+    text, total = _hex_sub(text)
     new = _B64.sub(_b64_sub, text)
-    total += new.count(MARK) - text.count(MARK)
-    text = new
+    return new, total + new.count(MARK) - text.count(MARK)
 
+
+STEPS = (_own_emails, _known_tokens, _auth_and_urls, _assignments, _env_lines, _pairing_codes, _long_runs)
+
+
+def redact(text):
+    """Return (redacted_text, count)."""
+    if not text:
+        return text, 0
+    total = 0
+    for step in STEPS:
+        text, k = step(text)
+        total += k
     return text, total

@@ -33,21 +33,33 @@ HOP = {"connection", "keep-alive", "transfer-encoding", "content-length", "host"
 
 # ---------- the rewrite (no network; tested in ask/test_chat_proxy.py) ----------
 
-def rewrite_args(args):
-    """A `query` call's arguments -> (new arguments, the limit the caller wanted)."""
-    args = dict(args)
-    want = int(args.get("limit") or 10)
+def _plain_query_to_searches(args):
+    """A plain `query` (no `searches`) becomes the island's key words + question lines, rerank off."""
     if args.get("query") and not args.get("searches"):
         q = str(args.pop("query"))
         args["searches"] = [dict(zip(("type", "query"), l.split(": ", 1))) for l in expanded_document(q).splitlines()]
         args.setdefault("rerank", False)
-    searches = [dict(s) for s in args.get("searches") or []]
+
+
+def _notes_words_line(searches):
+    """The one more meaning-search line with the notes' words for <user>'s words, or None when none are new."""
     vec = next((s["query"] for s in searches if s.get("type") == "vec"), None)
     said = " ".join(s.get("query", "") for s in searches if s.get("type") in ("lex", "vec"))
     words = [w for w in extra_words(said) if w.lower() not in said.lower()]
-    base = vec or said
-    line = f"{base} {' '.join(words)}".strip()
+    line = f"{vec or said} {' '.join(words)}".strip()
     if words and len(searches) < MAX_SEARCHES and all(s.get("query") != line for s in searches):
+        return line
+    return None
+
+
+def rewrite_args(args):
+    """A `query` call's arguments -> (new arguments, the limit the caller wanted)."""
+    args = dict(args)
+    want = int(args.get("limit") or 10)
+    _plain_query_to_searches(args)
+    searches = [dict(s) for s in args.get("searches") or []]
+    line = _notes_words_line(searches)
+    if line:
         searches.append({"type": "vec", "query": line})
     args["searches"] = searches
     if ask.NEWER_DAYS > 0:
@@ -194,17 +206,26 @@ class Proxy(BaseHTTPRequestHandler):
         self._to_caller(self.end_headers)
         self._to_caller(self.wfile.write, data)
 
-    def _handle(self):
+    def _read_body(self):
         n = int(self.headers.get("Content-Length") or 0)
-        body = self.rfile.read(n) if n else (None if self.command in ("GET", "HEAD", "DELETE") else b"")
+        return self.rfile.read(n) if n else (None if self.command in ("GET", "HEAD", "DELETE") else b"")
+
+    def _is_query_post(self, body):
+        """The parsed /mcp message when this POST holds a `query` tool call, else None."""
+        if self.command == "POST" and self.path.split("?")[0] == "/mcp" and body:
+            msg = json.loads(body)
+            if any(is_query_call(m) for m in (msg if isinstance(msg, list) else [msg])):
+                return msg
+        return None
+
+    def _handle(self):
+        body = self._read_body()
         try:
-            if self.command == "POST" and self.path.split("?")[0] == "/mcp" and body:
-                msg = json.loads(body)
-                if any(is_query_call(m) for m in (msg if isinstance(msg, list) else [msg])):
-                    try:
-                        return self._query(json.loads(body))
-                    except (ValueError, KeyError, TypeError, AttributeError) as why:
-                        print(f"query rewrite failed, sent as it was: {why}", file=sys.stderr)
+            if self._is_query_post(body) is not None:
+                try:
+                    return self._query(json.loads(body))
+                except (ValueError, KeyError, TypeError, AttributeError) as why:
+                    print(f"query rewrite failed, sent as it was: {why}", file=sys.stderr)
             return self._relay(body)
         except ValueError:
             return self._relay(body)

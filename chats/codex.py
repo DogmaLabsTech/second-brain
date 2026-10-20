@@ -16,7 +16,6 @@ one for Codex: helper sessions (approval reviewers, spawned sub-agents) are set 
 """
 
 import argparse
-import fcntl
 import glob
 import json
 import os
@@ -29,9 +28,9 @@ from datetime import datetime, timezone
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from convert import (ASSISTANT_MAX, LOW_DIR, NOTE_MAX, TITLE_MAX, USER_MAX, clean_user_text,  # noqa: E402
-                     fmt_duration, load_state, low_value, one_line, parse_ts, project_slug, read_lines,
-                     save_state, trim, write_note)
+from convert import (LOW_DIR, TITLE_MAX, clean_user_text, cut_middle, fmt_duration,  # noqa: E402
+                     load_sources, lock_out_dir, low_value, one_line, parse_ts, project_slug, read_lines,
+                     redact_turns, render_blocks, save_state, trim, write_note)
 from redact import redact  # noqa: E402
 
 HOME = os.path.expanduser("~")
@@ -72,6 +71,20 @@ def is_helper(meta):
     return isinstance(src, dict) or meta.get("thread_source") in ("subagent", "guardian_review")
 
 
+def _message_text(p, role):
+    """The words of one Codex message: <user>'s with the noise cleaned out, Codex's as written."""
+    want = "input_text" if role == "user" else "output_text"
+    parts = [b.get("text") for b in p.get("content") or []
+             if isinstance(b, dict) and b.get("type") == want and isinstance(b.get("text"), str)]
+    if role == "user":
+        return "\n\n".join(x for x in (clean_codex_user(s) for s in parts) if x)
+    return "\n\n".join(s.strip() for s in parts if s.strip())
+
+
+def _is_chat_message(t, p):
+    return t == "response_item" and p.get("type") == "message" and p.get("role") in ("user", "assistant")
+
+
 def extract(path):
     """Return (turns=[[role, ts, text]], meta) for one Codex jsonl file."""
     turns, meta, first, last = [], None, None, None
@@ -80,19 +93,13 @@ def extract(path):
         if t == "session_meta":
             meta = meta or p   # a resumed or forked chat repeats it; the first one is this chat
             continue
-        if t != "response_item" or p.get("type") != "message" or p.get("role") not in ("user", "assistant"):
+        if not _is_chat_message(t, p):
             continue
         ts = parse_ts(d.get("timestamp"))
         if ts:
             first, last = first or ts, ts
         role = p["role"]
-        want = "input_text" if role == "user" else "output_text"
-        parts = [b.get("text") for b in p.get("content") or []
-                 if isinstance(b, dict) and b.get("type") == want and isinstance(b.get("text"), str)]
-        if role == "user":
-            text = "\n\n".join(x for x in (clean_codex_user(s) for s in parts) if x)
-        else:
-            text = "\n\n".join(s.strip() for s in parts if s.strip())
+        text = _message_text(p, role)
         if not text:
             continue
         if turns and turns[-1][0] == role:   # merge a run of replies (or pasted parts) into one message
@@ -102,15 +109,35 @@ def extract(path):
     return turns, (meta or {}), first, last
 
 
+def _frontmatter(title, local_first, cwd, sid, name_line, turns, first_ts, last_ts, path, helper):
+    fm = [
+        "---",
+        f"title: {json.dumps(title, ensure_ascii=False)}",
+        f"date: {local_first:%Y-%m-%d}",
+        f"started: {local_first.isoformat(timespec='minutes')}",
+        "agent: codex",
+        f"project: {json.dumps(cwd)}",
+        f"session: {sid}",
+    ]
+    if name_line:
+        fm.append(name_line)
+    fm += [
+        f"messages: {len(turns)}",
+        f"duration: {fmt_duration(first_ts, last_ts)}",
+        f"source: {json.dumps(path.replace(HOME, '~', 1))}",
+    ]
+    if helper:
+        fm.append("helper: true")
+    fm.append("---")
+    return fm
+
+
 def build_note(path, names=None):
     """Return (filename, text, n_redactions, n_messages) or None if the chat has nothing to keep."""
     turns, meta, first_ts, last_ts = extract(path)
     if not turns:
         return None
-    redactions = 0
-    for t in turns:
-        t[2], k = redact(t[2])
-        redactions += k
+    redactions = redact_turns(turns)
 
     sid = meta.get("id") or meta.get("session_id") or os.path.basename(path)[:-6]
     cwd = meta.get("cwd") or ""
@@ -122,53 +149,19 @@ def build_note(path, names=None):
     redactions += k
     title = trim(title, TITLE_MAX)
 
-    blocks = []
-    for role, ts, text in turns:
-        who = "<user>" if role == "user" else "Codex"
-        when = ts.astimezone().strftime("%H:%M") if ts else ""
-        blocks.append(f"**{who}** ({when}):\n\n{trim(text, USER_MAX if role == 'user' else ASSISTANT_MAX)}\n")
-    if sum(len(b) + 1 for b in blocks) > NOTE_MAX:
-        head, size = [], 0
-        for b in blocks:
-            if size + len(b) > int(NOTE_MAX * 0.55) and head:
-                break
-            head.append(b)
-            size += len(b) + 1
-        tail, size = [], 0
-        for b in reversed(blocks[len(head):]):
-            if size + len(b) > int(NOTE_MAX * 0.4) and tail:
-                break
-            tail.insert(0, b)
-            size += len(b) + 1
-        cut = len(blocks) - len(head) - len(tail)
-        blocks = head + [f"*[… {cut} messages cut from the middle to keep this note short …]*\n"] + tail
+    blocks = cut_middle(render_blocks(turns, agent="Codex"))
 
     # Codex ids are time-ordered, so their first letters repeat: name the note by the last 8.
     name = f"{local_first:%Y-%m-%d}-codex-{project_slug(cwd)}-{sid.replace('-', '')[-8:]}.md"
     helper = is_helper(meta)
     if helper or low_value(cwd, turns):
         name = os.path.join(LOW_DIR, name)
-    fm = [
-        "---",
-        f"title: {json.dumps(title, ensure_ascii=False)}",
-        f"date: {local_first:%Y-%m-%d}",
-        f"started: {local_first.isoformat(timespec='minutes')}",
-        "agent: codex",
-        f"project: {json.dumps(cwd)}",
-        f"session: {sid}",
-    ]
+    name_line = None
     if names and names.get(sid):
         thread, k = redact(one_line(names[sid]))
         redactions += k
-        fm.append(f"name: {json.dumps(trim(thread, TITLE_MAX), ensure_ascii=False)}")
-    fm += [
-        f"messages: {len(turns)}",
-        f"duration: {fmt_duration(first_ts, last_ts)}",
-        f"source: {json.dumps(path.replace(HOME, '~', 1))}",
-    ]
-    if helper:
-        fm.append("helper: true")
-    fm.append("---")
+        name_line = f"name: {json.dumps(trim(thread, TITLE_MAX), ensure_ascii=False)}"
+    fm = _frontmatter(title, local_first, cwd, sid, name_line, turns, first_ts, last_ts, path, helper)
     body, k = redact(f"\n# {title}\n\n" + "\n".join(blocks))   # safety net: one more pass over the note
     redactions += k
     return name, "\n".join(fm) + "\n" + body, redactions, len(turns)
@@ -192,7 +185,7 @@ def signature(path):
         return None
 
 
-def main(argv=None):
+def _parse_args(argv):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--all", action="store_true", help="reconvert every chat")
     ap.add_argument("--dry-run", action="store_true", help="print what would happen, write nothing")
@@ -200,64 +193,31 @@ def main(argv=None):
     ap.add_argument("--src", default=SRC, help=argparse.SUPPRESS)
     ap.add_argument("--out", default=OUT, help=argparse.SUPPRESS)
     ap.add_argument("--quiet", action="store_true", help="only the summary line")
-    args = ap.parse_args(argv)
+    return ap.parse_args(argv)
 
-    t0 = time.time()
-    files = sorted(glob.glob(os.path.join(args.src, "**", "*.jsonl"), recursive=True))
-    names = thread_names()
 
-    if args.sample:
-        out_dir = tempfile.mkdtemp(prefix="codex-sample-")
-        os.chmod(out_dir, 0o700)
-        red = 0
-        for f in random.sample(files, min(args.sample, len(files))):
-            r = build_note(f, names)
-            if r:
-                write_note(out_dir, r[0], r[1])
-                red += r[2]
-                print(f"{r[0]}  ({r[3]} msgs, {len(r[1]) // 1024} KB, {r[2]} redactions)")
-            else:
-                print(f"(empty) {f}")
-        print(f"sample written to {out_dir}  redactions={red}")
-        return 0
+def _write_sample(n, files, names):
+    out_dir = tempfile.mkdtemp(prefix="codex-sample-")
+    os.chmod(out_dir, 0o700)
+    red = 0
+    for f in random.sample(files, min(n, len(files))):
+        r = build_note(f, names)
+        if r:
+            write_note(out_dir, r[0], r[1])
+            red += r[2]
+            print(f"{r[0]}  ({r[3]} msgs, {len(r[1]) // 1024} KB, {r[2]} redactions)")
+        else:
+            print(f"(empty) {f}")
+    print(f"sample written to {out_dir}  redactions={red}")
+    return 0
 
-    out_dir = args.out
-    if not args.dry_run:
-        os.makedirs(out_dir, mode=0o700, exist_ok=True)
-        os.chmod(out_dir, 0o700)  # private: chats hold business and family talk
-        lock = open(os.path.join(out_dir, ".lock"), "w")
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
-            print("codex.py: another run is busy, skipping")
-            return 0
-    state_path = os.path.join(out_dir, STATE_NAME)
-    state = load_state(state_path)
-    if not isinstance(state.get("sources"), dict):
-        state = {"version": 1, "sources": {}}
-    src_state = state["sources"]
 
-    todo = [(f, signature(f)) for f in files
-            if args.all or not src_state.get(f) or src_state[f].get("sig") != signature(f)]
-    gone = [k for k in src_state if k not in set(files)]
-    stats = {"converted": 0, "written": 0, "empty": 0, "removed": 0, "redactions": 0, "errors": 0}
+def _drop_note(out_dir, note):
+    if note and os.path.exists(os.path.join(out_dir, note)):
+        os.remove(os.path.join(out_dir, note))
 
-    if args.dry_run:
-        for k in gone:
-            print(f"would delete note for vanished source {k}: {src_state[k].get('note')}")
-        for f, _ in todo:
-            print(f"would convert {f}")
-        print(f"dry run: {len(todo)} to convert, {len(gone)} to delete, {len(files) - len(todo)} unchanged")
-        return 0
 
-    def drop_note(note):
-        if note and os.path.exists(os.path.join(out_dir, note)):
-            os.remove(os.path.join(out_dir, note))
-
-    for k in gone:
-        drop_note(src_state.pop(k).get("note"))
-        stats["removed"] += 1
-
+def _convert_todo(todo, src_state, names, out_dir, state_path, state, stats, quiet, t0):
     for i, (f, sig) in enumerate(todo, 1):
         old = src_state.get(f)
         try:
@@ -276,21 +236,74 @@ def main(argv=None):
         else:
             stats["empty"] += 1
         if old and old.get("note") and old.get("note") != new_note:
-            drop_note(old["note"])
+            _drop_note(out_dir, old["note"])
         src_state[f] = {"sig": sig, "note": new_note}
         if i % 100 == 0:
             save_state(state_path, state)
-            if not args.quiet:
+            if not quiet:
                 print(f"  {i}/{len(todo)} chats  ({time.time() - t0:.0f}s)", flush=True)
 
-    save_state(state_path, state)
+
+def _summary_line(files, stats, out_dir, t0):
     notes = [n for n in os.listdir(out_dir) if n.endswith(".md")]
     low = os.path.join(out_dir, LOW_DIR)
     n_low = len([n for n in os.listdir(low) if n.endswith(".md")]) if os.path.isdir(low) else 0
-    print(f"codex chats: {len(files)} sessions, {stats['converted']} converted, {stats['written']} notes written, "
-          f"{stats['empty']} empty, {stats['removed']} removed, {stats['errors']} errors, "
-          f"{stats['redactions']} redactions; folder has {len(notes)} notes, {n_low} set aside in {LOW_DIR}/; "
-          f"{time.time() - t0:.0f}s")
+    return (f"codex chats: {len(files)} sessions, {stats['converted']} converted, {stats['written']} notes written, "
+            f"{stats['empty']} empty, {stats['removed']} removed, {stats['errors']} errors, "
+            f"{stats['redactions']} redactions; folder has {len(notes)} notes, {n_low} set aside in {LOW_DIR}/; "
+            f"{time.time() - t0:.0f}s")
+
+
+def _todo_and_gone(files, src_state, redo_all):
+    """The chats to convert (with their signature) and the state keys whose source vanished."""
+    todo = [(f, signature(f)) for f in files
+            if redo_all or not src_state.get(f) or src_state[f].get("sig") != signature(f)]
+    return todo, [k for k in src_state if k not in set(files)]
+
+
+def _say_dry_run(files, todo, gone, src_state):
+    for k in gone:
+        print(f"would delete note for vanished source {k}: {src_state[k].get('note')}")
+    for f, _ in todo:
+        print(f"would convert {f}")
+    print(f"dry run: {len(todo)} to convert, {len(gone)} to delete, {len(files) - len(todo)} unchanged")
+
+
+def main(argv=None):
+    args = _parse_args(argv)
+
+    t0 = time.time()
+    files = sorted(glob.glob(os.path.join(args.src, "**", "*.jsonl"), recursive=True))
+    names = thread_names()
+
+    if args.sample:
+        return _write_sample(args.sample, files, names)
+
+    out_dir = args.out
+    if not args.dry_run:
+        lock = lock_out_dir(out_dir)   # kept until main returns
+        if lock is None:
+            print("codex.py: another run is busy, skipping")
+            return 0
+    state_path = os.path.join(out_dir, STATE_NAME)
+    state = load_sources(state_path)
+    src_state = state["sources"]
+
+    todo, gone = _todo_and_gone(files, src_state, args.all)
+    stats = {"converted": 0, "written": 0, "empty": 0, "removed": 0, "redactions": 0, "errors": 0}
+
+    if args.dry_run:
+        _say_dry_run(files, todo, gone, src_state)
+        return 0
+
+    for k in gone:
+        _drop_note(out_dir, src_state.pop(k).get("note"))
+        stats["removed"] += 1
+
+    _convert_todo(todo, src_state, names, out_dir, state_path, state, stats, args.quiet, t0)
+
+    save_state(state_path, state)
+    print(_summary_line(files, stats, out_dir, t0))
     return 1 if stats["errors"] and not stats["converted"] else 0
 
 

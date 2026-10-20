@@ -55,6 +55,37 @@ def _app_dirs():
     return [os.path.join(d, "applications") for d in data if d]
 
 
+def _desktop_entry(path):
+    """The [Desktop Entry] section of one file, or None when it can't be read."""
+    cp = configparser.RawConfigParser(interpolation=None, strict=False)
+    try:
+        cp.read(path, encoding="utf-8")
+        return cp["Desktop Entry"]
+    except (configparser.Error, KeyError, UnicodeDecodeError):
+        return None
+
+
+def _exe_name(app_id, e):
+    exe = os.path.basename((e.get("Exec") or "").split(" ")[0]) if e.get("Exec") else ""
+    if exe in TERMINALS and app_id not in TERMINALS and e.get("StartupWMClass", "").lower() not in TERMINALS:
+        exe = ""
+    return exe
+
+
+def _app_record(app_id, e):
+    """{name, words, wmclass, exe, web} for a visible app; None for one that is hidden or not an app."""
+    hidden = e.get("NoDisplay", "").lower() == "true" or e.get("Hidden", "").lower() == "true"
+    if hidden or e.get("Type", "Application") != "Application" or not e.get("Name"):
+        return None
+    exe = _exe_name(app_id, e)
+    words = [e.get("Name"), e.get("GenericName", ""), exe, app_id.split(".")[-1]]
+    words += [k for k in e.get("Keywords", "").split(";") if k]
+    return {"name": re.sub(r"\s*\(.*?\)\s*", " ", e.get("Name")).strip() or e.get("Name"),
+            "words": [w.lower() for w in words if w],
+            "wmclass": e.get("StartupWMClass", ""), "exe": exe,
+            "web": "(web)" in e.get("Name", "").lower() or exe == "omarchy-launch-webapp"}
+
+
 def apps():
     """Installed, visible apps: {id: {name, words, wmclass}}. The first folder wins (your own copies)."""
     found = {}
@@ -63,25 +94,10 @@ def apps():
             app_id = os.path.relpath(path, d).replace(os.sep, "-")[:-len(".desktop")]
             if app_id in found:
                 continue
-            cp = configparser.RawConfigParser(interpolation=None, strict=False)
-            try:
-                cp.read(path, encoding="utf-8")
-                e = cp["Desktop Entry"]
-            except (configparser.Error, KeyError, UnicodeDecodeError):
+            e = _desktop_entry(path)
+            if e is None:
                 continue
-            hidden = e.get("NoDisplay", "").lower() == "true" or e.get("Hidden", "").lower() == "true"
-            if hidden or e.get("Type", "Application") != "Application" or not e.get("Name"):
-                found[app_id] = None  # a hidden copy hides the system one too
-                continue
-            exe = os.path.basename((e.get("Exec") or "").split(" ")[0]) if e.get("Exec") else ""
-            if exe in TERMINALS and app_id not in TERMINALS and e.get("StartupWMClass", "").lower() not in TERMINALS:
-                exe = ""
-            words = [e.get("Name"), e.get("GenericName", ""), exe, app_id.split(".")[-1]]
-            words += [k for k in e.get("Keywords", "").split(";") if k]
-            found[app_id] = {"name": re.sub(r"\s*\(.*?\)\s*", " ", e.get("Name")).strip() or e.get("Name"),
-                             "words": [w.lower() for w in words if w],
-                             "wmclass": e.get("StartupWMClass", ""), "exe": exe,
-                             "web": "(web)" in e.get("Name", "").lower() or exe == "omarchy-launch-webapp"}
+            found[app_id] = _app_record(app_id, e)   # None: a hidden copy hides the system one too
     return {k: v for k, v in found.items() if v}
 
 
@@ -106,6 +122,30 @@ def app_topic(text):
     return APP_SAID.get(t.lower(), t)
 
 
+def _name_score(nt, name, a):
+    """How well the normalised words fit the app's name and first four words, without keywords."""
+    if name == nt:
+        return 1.0
+    if nt and nt in [_norm(w) for w in a["words"][:4]]:
+        return 0.95
+    score = max([difflib.SequenceMatcher(None, nt, _norm(w)).ratio() for w in a["words"][:4] if w] or [0])
+    if name and len(nt) >= 4 and (name.startswith(nt) or nt.startswith(name)):
+        score = max(score, 0.88)
+    # A whole word of the name: "chrome" for "Google Chrome".
+    if len(nt) >= 4 and nt in re.findall(r"[a-z0-9]+", a["name"].lower()):
+        score = max(score, 0.9)
+    return score
+
+
+def _app_score(nt, a):
+    """How well the normalised words `nt` name this app, 0 to 1."""
+    score = _name_score(nt, _norm(a["name"]), a)
+    # Keywords count a little, so "music" can find Spotify but never beats a real name.
+    if score < 0.8 and nt in [_norm(w) for w in a["words"][4:]]:
+        score = 0.8
+    return score
+
+
 def find_app(text, catalog=None):
     """(app id, name, score) for the app the text names, or (None, None, 0)."""
     topic = app_topic(text).lower()
@@ -116,24 +156,7 @@ def find_app(text, catalog=None):
         return key, SPECIAL[key][0], 1.0
     catalog = catalog if catalog is not None else apps()
     nt = _norm(topic)
-    scored = []
-    for app_id, a in catalog.items():
-        name = _norm(a["name"])
-        if name == nt:
-            score = 1.0
-        elif nt and nt in [_norm(w) for w in a["words"][:4]]:
-            score = 0.95
-        else:
-            score = max([difflib.SequenceMatcher(None, nt, _norm(w)).ratio() for w in a["words"][:4] if w] or [0])
-            if name and len(nt) >= 4 and (name.startswith(nt) or nt.startswith(name)):
-                score = max(score, 0.88)
-            # A whole word of the name: "chrome" for "Google Chrome".
-            if len(nt) >= 4 and nt in re.findall(r"[a-z0-9]+", a["name"].lower()):
-                score = max(score, 0.9)
-        # Keywords count a little, so "music" can find Spotify but never beats a real name.
-        if score < 0.8 and nt in [_norm(w) for w in a["words"][4:]]:
-            score = 0.8
-        scored.append((score, app_id, a))
+    scored = [(_app_score(nt, a), app_id, a) for app_id, a in catalog.items()]
     if not scored:
         return None, None, 0.0
     top = max(s for s, _, _ in scored)
@@ -158,6 +181,22 @@ def _is_open(a, classes):
     return any(n and n.lower() in classes for n in (a["wmclass"], a["exe"]))
 
 
+def _launch_pattern(app_id, a):
+    """The window words launch-or-focus matches for an app.
+
+    An open window that fits is focused instead of opening a second one. launch-or-focus tries the same
+    pattern on a window's class and on its title, so the short words (the window class, the program, the
+    last part of the id: "code" for VS Code) must be the whole class, never just a word in a title
+    ("Claude Code - ..." in a terminal is not VS Code). Only the app's full name may sit in a title."""
+    short = [n for n in dict.fromkeys([a["wmclass"], a["exe"], app_id.split(".")[-1], app_id]) if n and len(n) > 2]
+    parts = []
+    if short:
+        parts.append(r"^(?:[\w.-]*\.)?(?:" + "|".join(re.escape(n) for n in short) + r")$")
+    if a["name"] and len(a["name"]) > 2:
+        parts.append(re.escape(a["name"]))
+    return "(?:" + "|".join(parts) + ")" if parts else "^" + re.escape(app_id) + "$"
+
+
 def app_command(app_id, catalog=None):
     """The command that opens (or focuses, if already open) the app. Raises ValueError if unknown."""
     if app_id in SPECIAL:
@@ -165,19 +204,7 @@ def app_command(app_id, catalog=None):
     catalog = catalog if catalog is not None else apps()
     if app_id not in catalog or not SAFE_ID.match(app_id):
         raise ValueError("that app isn't installed")
-    a = catalog[app_id]
-    # An open window that fits is focused instead of opening a second one. launch-or-focus tries the same
-    # pattern on a window's class and on its title, so the short words (the window class, the program, the
-    # last part of the id: "code" for VS Code) must be the whole class, never just a word in a title
-    # ("Claude Code - ..." in a terminal is not VS Code). Only the app's full name may sit in a title.
-    short = [n for n in dict.fromkeys([a["wmclass"], a["exe"], app_id.split(".")[-1], app_id]) if n and len(n) > 2]
-    parts = []
-    if short:
-        parts.append(r"^(?:[\w.-]*\.)?(?:" + "|".join(re.escape(n) for n in short) + r")$")
-    if a["name"] and len(a["name"]) > 2:
-        parts.append(re.escape(a["name"]))
-    pattern = "(?:" + "|".join(parts) + ")" if parts else "^" + re.escape(app_id) + "$"
-    return ["omarchy-launch-or-focus", pattern, f"uwsm-app -- {app_id}.desktop"]
+    return ["omarchy-launch-or-focus", _launch_pattern(app_id, catalog[app_id]), f"uwsm-app -- {app_id}.desktop"]
 
 
 # ---------- files and folders ----------
@@ -246,6 +273,45 @@ def known_folder(text):
     return p if os.path.isdir(p) else None
 
 
+def _name_search(longest, wants_folder):
+    """Paths in the home folder whose name holds the longest word said (fd, at most 3 s)."""
+    cmd = ["fd", "--ignore-case", "--max-depth", "7", "--max-results", "400", "--color", "never"]
+    for s in SKIP_DIRS:
+        cmd += ["--exclude", s]
+    if wants_folder:
+        cmd += ["--type", "d"]
+    cmd += ["--fixed-strings", longest, HOME]
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=3).stdout.splitlines()
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+
+
+def _path_score(path, words, key, wants_folder, exts):
+    base = os.path.basename(path).lower()
+    stem = os.path.splitext(base)[0] if os.path.isfile(path) else base
+    hit = sum(1 for w in words if w in base) / len(words)
+    sim = difflib.SequenceMatcher(None, key, _norm(stem)).ratio()
+    score = 0.7 * hit + 0.3 * sim
+    if os.path.isdir(path) == wants_folder:
+        score += 0.05
+    if exts:  # "picture", "video", "pdf": the asked-for kind counts a lot
+        score += 0.4 if os.path.splitext(base)[1] in exts else -0.3
+    score -= 0.01 * path[len(HOME):].count(os.sep)  # shallower wins a close call
+    if path[len(HOME) + 1:].startswith(USER_AREAS):
+        score += 0.05
+    return score
+
+
+def _asked_extensions(low):
+    """The file endings of the kinds named ("picture", "pdf")."""
+    exts = ()
+    for rule, e in KIND_EXT.items():
+        if re.search(r"\b(" + rule + r")s?\b", low):
+            exts += e
+    return exts
+
+
 def find_file(text, project_dirs=(), min_score=0.6):
     """(path, kind 'folder'|'file', score) for what the text names, or (None, None, 0).
     Known folders and project folders first, then a name search of your home (fd, at most 3 s)."""
@@ -261,36 +327,11 @@ def find_file(text, project_dirs=(), min_score=0.6):
     for d in project_dirs:
         if _norm(os.path.basename(d)) == key and os.path.isdir(d):
             return d, "folder", 1.0
-    exts = ()
-    for rule, e in KIND_EXT.items():
-        if re.search(r"\b(" + rule + r")s?\b", low):
-            exts += e
-    longest = max(words, key=len)
-    cmd = ["fd", "--ignore-case", "--max-depth", "7", "--max-results", "400", "--color", "never"]
-    for s in SKIP_DIRS:
-        cmd += ["--exclude", s]
-    if wants_folder:
-        cmd += ["--type", "d"]
-    cmd += ["--fixed-strings", longest, HOME]
-    try:
-        out = subprocess.run(cmd, capture_output=True, text=True, timeout=3).stdout.splitlines()
-    except (OSError, subprocess.TimeoutExpired):
-        out = []
+    exts = _asked_extensions(low)
     best = (None, None, 0.0)
-    for line in out:
+    for line in _name_search(max(words, key=len), wants_folder):
         path = line.rstrip("/")
-        base = os.path.basename(path).lower()
-        stem = os.path.splitext(base)[0] if os.path.isfile(path) else base
-        hit = sum(1 for w in words if w in base) / len(words)
-        sim = difflib.SequenceMatcher(None, key, _norm(stem)).ratio()
-        score = 0.7 * hit + 0.3 * sim
-        if os.path.isdir(path) == wants_folder:
-            score += 0.05
-        if exts:  # "picture", "video", "pdf": the asked-for kind counts a lot
-            score += 0.4 if os.path.splitext(base)[1] in exts else -0.3
-        score -= 0.01 * path[len(HOME):].count(os.sep)  # shallower wins a close call
-        if path[len(HOME) + 1:].startswith(USER_AREAS):
-            score += 0.05
+        score = _path_score(path, words, key, wants_folder, exts)
         if score > best[2] and allowed_path(path):
             best = (path, "folder" if os.path.isdir(path) else "file", score)
     return best if best[2] >= min_score else (None, None, best[2])
@@ -326,9 +367,19 @@ def is_window_move(text):
     return bool(WINDOW_MOVE.search(t)) and not OPEN_START.search(t)
 
 
-def monitor_spec(text):
-    """The screen the text names, as a spec string, or None when it names none."""
-    t = text.lower()
+def _number_word_for_screen(t, found):
+    """"screen two" / "monitor 2" written the other way round ("to screen two"): second or first."""
+    n = SCREEN_NUMBER.search(t)
+    if n and (found is None or not found):
+        if n.group(1) in ("2", "two", "second"):
+            return ["second"]
+        if n.group(1) in ("1", "one", "first"):
+            return ["first"]
+    return found
+
+
+def _words_after_screen(t):
+    """The words said before "screen"/"monitor"/"display" (the last such phrase), or None when there is none."""
     found = None
     for m in SCREEN_PHRASE.finditer(t):
         words = [w for w in re.findall(r"[a-z0-9-]+", m.group(1) or "")]
@@ -337,12 +388,12 @@ def monitor_spec(text):
         if after in ("2", "two", "second") and not words:
             words = ["second"]
         found = words
-    n = SCREEN_NUMBER.search(t)
-    if n and (found is None or not found):
-        if n.group(1) in ("2", "two", "second"):
-            found = ["second"]
-        elif n.group(1) in ("1", "one", "first"):
-            found = ["first"]
+    return _number_word_for_screen(t, found)
+
+
+def monitor_spec(text):
+    """The screen the text names, as a spec string, or None when it names none."""
+    found = _words_after_screen(text.lower())
     if found is None:
         return None
     joined = " ".join(found)
@@ -393,6 +444,14 @@ def check_monitor_spec(spec, mons=None):
                                                       else m.group(1).title() if m else "that"))
 
 
+def _next_screen(order, from_id):
+    ids = [m["id"] for m in order]
+    if from_id in ids:
+        return order[(ids.index(from_id) + 1) % len(order)]
+    focused = next((m for m in order if m.get("focused")), order[0])
+    return next(m for m in order if m is not focused)
+
+
 def resolve_monitor(spec, mons, from_id=None):
     """(monitor, None) or (None, plain reason). `other` is the next screen after the one the window is on
     (left to right, wrapping)."""
@@ -400,11 +459,7 @@ def resolve_monitor(spec, mons, from_id=None):
         return None, "You only have one screen right now."
     order = sorted(mons, key=lambda m: (m.get("x", 0), m.get("y", 0)))
     if spec == "other":
-        ids = [m["id"] for m in order]
-        if from_id in ids:
-            return order[(ids.index(from_id) + 1) % len(order)], None
-        focused = next((m for m in order if m.get("focused")), order[0])
-        return next(m for m in order if m is not focused), None
+        return _next_screen(order, from_id), None
     axis = {"left": ("x", min), "right": ("x", max), "top": ("y", min), "bottom": ("y", max)}.get(spec)
     if axis:
         key, pick = axis
@@ -476,6 +531,11 @@ def window_pattern(app_id, catalog=None):
     return argv[1] if argv[0] == "omarchy-launch-or-focus" else None
 
 
+def _on_screen(clist):
+    return [c for c in clist if c.get("mapped", True) and not c.get("hidden") and
+            (c.get("workspace") or {}).get("id", 1) > 0]
+
+
 def app_windows(app_id, clist=None, catalog=None):
     """The app's open windows, the one focused most recently first. A window class that fits wins over
     a title that fits (launch-or-focus checks both)."""
@@ -487,8 +547,7 @@ def app_windows(app_id, clist=None, catalog=None):
         rx = re.compile(r"\b(?:" + pattern + r")\b" if app_id not in SPECIAL_CLASSES else pattern, re.I)
     except re.error:
         return []
-    live = [c for c in clist if c.get("mapped", True) and not c.get("hidden") and
-            (c.get("workspace") or {}).get("id", 1) > 0]
+    live = _on_screen(clist)
     by_class = [c for c in live if rx.search(c.get("class", "") or "")]
     # The pattern's short words only fit a whole class (see app_command), so a title only fits by the
     # app's full name: a terminal titled "Claude Code - ..." is not VS Code.
@@ -496,9 +555,8 @@ def app_windows(app_id, clist=None, catalog=None):
     return sorted(hits, key=lambda c: c.get("focusHistoryID", 99))
 
 
-def window_move(text):
-    """{"to": spec|None, "app": app id|None, "said": what was named|""} for a move request."""
-    t = " ".join(text.lower().split()).strip(" .?!")
+def _named_window(t):
+    """What was named to move ("chrome"), with the small words around it dropped; "" when it says this window."""
     m = re.search(r"\b" + MOVE_VERBS + r"\s+(.*?)\s+(?:to|onto|on|over to)\s+(?:(?:my|the|that|this|a)\s+)?"
                   r"(?:[\w-]+\s+){0,2}?(?:screen|monitor|display)s?\b", t)
     said = m.group(1) if m else ""
@@ -510,6 +568,11 @@ def window_move(text):
     said = re.sub(r"\s+(window|app|application|program|tab)s?$", "", said).strip()
     if said in ("", "it", "this", "that", "window", "one", "thing", "app", "application", "program", "tab"):
         said = ""
+    return said
+
+
+def _app_to_move(said):
+    """(app id or None, said is a file word and not an app)."""
     app_id, not_app = None, False
     if said:
         app_id, _, score = find_app(said)
@@ -520,6 +583,14 @@ def window_move(text):
             app_id = None
         elif not app_id and NOT_APP_WORDS.match(said):
             not_app = True
+    return app_id, not_app
+
+
+def window_move(text):
+    """{"to": spec|None, "app": app id|None, "said": what was named|""} for a move request."""
+    t = " ".join(text.lower().split()).strip(" .?!")
+    said = _named_window(t)
+    app_id, not_app = _app_to_move(said)
     out = {"to": monitor_spec(t), "app": app_id, "said": said}
     if not_app:
         out["not_app"] = True
@@ -666,6 +737,16 @@ CLOCK = re.compile(
     r"(?:\s+(?P<day2>today|tonight|tomorrow|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))?(?=\W|$)", re.I)
 
 
+def _hour_and_minute(m, ampm):
+    """(hour, minute) as written, or None when the numbers make no sense (25, 12:60, 13 pm)."""
+    h = m.group("h").lower()
+    hour = int(h) if h.isdigit() else HOUR_WORDS[h]
+    minute = int(m.group("m") or 0)
+    if hour > 23 or minute > 59 or (ampm and not 1 <= hour <= 12):
+        return None
+    return hour, minute
+
+
 def _clock_time(m, day):
     """(hour, minute, fixed) from a CLOCK match, or None when the numbers make no sense. `fixed`: the words said
     which half of the day it is (am/pm, noon, "at night", "tonight"), so it is not guessed later."""
@@ -673,13 +754,13 @@ def _clock_time(m, day):
     part = (m.group("part") or "").lower()
     if m.group("noon"):
         return (0 if m.group("noon").lower() == "midnight" else 12), 0, True
-    h = m.group("h").lower()
-    hour = int(h) if h.isdigit() else HOUR_WORDS[h]
-    minute = int(m.group("m") or 0)
-    if hour > 23 or minute > 59 or (ampm and not 1 <= hour <= 12):
+    parsed = _hour_and_minute(m, ampm)
+    if parsed is None:
         return None
-    fixed = bool(ampm or part or hour == 0 or hour > 12 or "at night" in m.group(0).lower())
-    if ampm == "pm" or part in ("afternoon", "evening") or "at night" in m.group(0).lower() or day == "tonight":
+    hour, minute = parsed
+    night = "at night" in m.group(0).lower()
+    fixed = bool(ampm or part or hour == 0 or hour > 12 or night)
+    if ampm == "pm" or part in ("afternoon", "evening") or night or day == "tonight":
         hour, fixed = hour % 12 + 12, True
     elif ampm == "am" or part == "morning":
         hour = hour % 12
@@ -736,6 +817,24 @@ def word_number(s):
     return int(s) if s.isdigit() else NUMBERS.get(s)
 
 
+def _action_value(action, m, text):
+    """(action, value) once the rule for `action` matched: the theme, the time or the workspace said."""
+    if action in ("theme-next", "theme-set"):
+        name = find_theme(text)
+        if name:
+            return "theme-set", name
+        return ("theme-next", None) if action == "theme-next" else ("theme-picker", None)
+    if action == "reminder":
+        at, msg = parse_clock(text)
+        if at:
+            return "reminder", {"at": at, "message": msg}
+        minutes, msg = parse_reminder(text)
+        return ("reminder", {"minutes": minutes, "message": msg}) if minutes else ("reminder", None)
+    if action == "workspace":
+        return "workspace", word_number(m.group(3))
+    return action, None
+
+
 def find_action(text):
     """(action id, value) for what the text asks, or (None, None)."""
     t = text.lower().strip(" .?!")
@@ -745,22 +844,8 @@ def find_action(text):
                 return action, window_move(t)
             continue
         m = re.search(rule, t)
-        if not m:
-            continue
-        if action in ("theme-next", "theme-set"):
-            name = find_theme(text)
-            if name:
-                return "theme-set", name
-            return ("theme-next", None) if action == "theme-next" else ("theme-picker", None)
-        if action == "reminder":
-            at, msg = parse_clock(text)
-            if at:
-                return "reminder", {"at": at, "message": msg}
-            minutes, msg = parse_reminder(text)
-            return ("reminder", {"minutes": minutes, "message": msg}) if minutes else ("reminder", None)
-        if action == "workspace":
-            return "workspace", word_number(m.group(3))
-        return action, None
+        if m:
+            return _action_value(action, m, text)
     return None, None
 
 
@@ -779,6 +864,48 @@ def clock_when(ts):
     return ("tomorrow " if days == 1 else t.strftime("on %A ") if days > 1 else "") + words
 
 
+def _check_reminder(action, value):
+    v = value if isinstance(value, dict) else {}
+    message = " ".join(str(v.get("message") or "Reminder").split())[:120]
+    if v.get("at") not in (None, ""):
+        try:
+            at = int(v.get("at"))
+        except (TypeError, ValueError):
+            raise ValueError("I didn't catch when") from None
+        if not time.time() + 30 <= at <= time.time() + 7 * 24 * 3600:
+            raise ValueError("reminders can be from now to a week ahead")
+        return action, {"at": at, "message": message}
+    try:
+        minutes = int(v.get("minutes"))
+    except (TypeError, ValueError):
+        raise ValueError("I didn't catch how long to wait") from None
+    if not 1 <= minutes <= 1440:
+        raise ValueError("reminders can be 1 minute to 24 hours")
+    return action, {"minutes": minutes, "message": message}
+
+
+def _check_window_monitor(action, value):
+    v = value if isinstance(value, dict) else {}
+    spec = check_monitor_spec(v.get("to"))
+    app_id = v.get("app")
+    if app_id in (None, ""):
+        app_id = None
+    else:
+        app_command(str(app_id))  # raises if it isn't an installed app
+        app_id = str(app_id)
+    return action, {"to": spec, "app": app_id}
+
+
+def _check_workspace(action, value):
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        raise ValueError("which workspace?") from None
+    if not 1 <= n <= 10:
+        raise ValueError("workspaces go from 1 to 10")
+    return action, n
+
+
 def check_action(action, value):
     """Rebuild a checked (action, value); raises ValueError with a plain reason."""
     if action not in ACTIONS:
@@ -788,41 +915,11 @@ def check_action(action, value):
             raise ValueError(f"there's no theme called {value}")
         return action, str(value)
     if action == "reminder":
-        v = value if isinstance(value, dict) else {}
-        message = " ".join(str(v.get("message") or "Reminder").split())[:120]
-        if v.get("at") not in (None, ""):
-            try:
-                at = int(v.get("at"))
-            except (TypeError, ValueError):
-                raise ValueError("I didn't catch when") from None
-            if not time.time() + 30 <= at <= time.time() + 7 * 24 * 3600:
-                raise ValueError("reminders can be from now to a week ahead")
-            return action, {"at": at, "message": message}
-        try:
-            minutes = int(v.get("minutes"))
-        except (TypeError, ValueError):
-            raise ValueError("I didn't catch how long to wait") from None
-        if not 1 <= minutes <= 1440:
-            raise ValueError("reminders can be 1 minute to 24 hours")
-        return action, {"minutes": minutes, "message": message}
+        return _check_reminder(action, value)
     if action == "window-monitor":
-        v = value if isinstance(value, dict) else {}
-        spec = check_monitor_spec(v.get("to"))
-        app_id = v.get("app")
-        if app_id in (None, ""):
-            app_id = None
-        else:
-            app_command(str(app_id))  # raises if it isn't an installed app
-            app_id = str(app_id)
-        return action, {"to": spec, "app": app_id}
+        return _check_window_monitor(action, value)
     if action == "workspace":
-        try:
-            n = int(value)
-        except (TypeError, ValueError):
-            raise ValueError("which workspace?") from None
-        if not 1 <= n <= 10:
-            raise ValueError("workspaces go from 1 to 10")
-        return action, n
+        return _check_workspace(action, value)
     return action, None
 
 

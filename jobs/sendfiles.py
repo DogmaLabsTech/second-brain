@@ -105,29 +105,42 @@ def fmt_size(n):
 
 # ---------- finding the files ----------
 
+def _list_dir(d):
+    try:
+        return list(os.scandir(d))
+    except OSError:
+        return []
+
+
+def _entry_kind(e):
+    """"dir" or "file" for a real folder or file; None for a link, an odd thing or one that can't be read."""
+    try:
+        if e.is_dir(follow_symlinks=False):
+            return "dir"
+        if e.is_file(follow_symlinks=False):
+            return "file"
+    except OSError:
+        pass
+    return None
+
+
 def _walk(root, depth, budget, deadline):
     """Files under root, at most `depth` folders down, never into hidden or build folders or symlinked folders."""
     stack = [(root, 0)]
     while stack:
         d, lvl = stack.pop()
-        try:
-            entries = list(os.scandir(d))
-        except OSError:
-            continue
-        for e in entries:
+        for e in _list_dir(d):
             budget[0] -= 1
             if budget[0] <= 0 or time.monotonic() > deadline:
                 return
             if e.name.startswith(".") or e.name in desktop.SKIP_DIRS:
                 continue
-            try:
-                if e.is_dir(follow_symlinks=False):
-                    if lvl < depth:
-                        stack.append((e.path, lvl + 1))
-                elif e.is_file(follow_symlinks=False):
-                    yield e.path
-            except OSError:
-                continue
+            kind = _entry_kind(e)
+            if kind == "dir":
+                if lvl < depth:
+                    stack.append((e.path, lvl + 1))
+            elif kind == "file":
+                yield e.path
 
 
 def _shareable(path):
@@ -172,36 +185,36 @@ def _project_folder_paths(project_dir, budget, deadline):
             yield path
 
 
-def project_files(project, project_dir=None, seconds=2.5):
-    """Shareable files that belong to a project, newest first:
-    folders named like it in Downloads, Documents, Media and _inbox; files there that carry its name;
-    folders listed in config/send-sources.json; and its own folder (two levels deep)."""
+def _project_paths(project, project_dir, budget, deadline):
+    """Every file that might belong to the project, from its three kinds of place, in the order they are tried."""
     home = desktop.HOME
     pn = desktop._norm(project)
     words = [w for w in re.split(r"[-_ ]+", project.lower()) if len(w) > 1]
-    deadline = time.monotonic() + seconds
-    budget = [60000]
-    found = {}
-
-    def add(path):
-        real = os.path.realpath(path)
-        if _shareable(real) and desktop.allowed_path(real):
-            found[real] = _mtime(real)
-
     for area in desktop.USER_AREAS:
         root = os.path.join(home, area)
         if os.path.isdir(root):
             for path in _walk(root, 4, budget, deadline):
                 if _carries_name(path, root, pn, words):
-                    add(path)
+                    yield path
     for folder in _sources().get(project, []):
         root = os.path.expanduser(str(folder))
         if os.path.isdir(root):
-            for path in _walk(root, 2, budget, deadline):
-                add(path)
+            yield from _walk(root, 2, budget, deadline)
     if project_dir and os.path.isdir(project_dir):
-        for path in _project_folder_paths(project_dir, budget, deadline):
-            add(path)
+        yield from _project_folder_paths(project_dir, budget, deadline)
+
+
+def project_files(project, project_dir=None, seconds=2.5):
+    """Shareable files that belong to a project, newest first:
+    folders named like it in Downloads, Documents, Media and _inbox; files there that carry its name;
+    folders listed in config/send-sources.json; and its own folder (two levels deep)."""
+    deadline = time.monotonic() + seconds
+    budget = [60000]
+    found = {}
+    for path in _project_paths(project, project_dir, budget, deadline):
+        real = os.path.realpath(path)
+        if _shareable(real) and desktop.allowed_path(real):
+            found[real] = _mtime(real)
     return sorted(found, key=lambda p: (-found[p], p))
 
 
@@ -232,25 +245,36 @@ def newest(paths, many):
 
 # ---------- the safety check ----------
 
+def _refuse_links(path, dirpath, names):
+    for name in names:
+        # A link inside the folder could point anywhere (a hidden folder, a key, something huge), and the
+        # copy and the zip would follow it. So a folder with links in it isn't sent.
+        if os.path.islink(os.path.join(dirpath, name)):
+            raise ValueError(f"the folder {os.path.basename(path)} has shortcuts (links) in it, so I won't "
+                             "send it. Tell me which files you want")
+
+
+def _refuse_dirs(path, dirs):
+    for d in dirs:
+        if d.startswith(".") or d in desktop.SKIP_DIRS or DENY_NAME.search(d):
+            raise ValueError(f"the folder {os.path.basename(path)} has hidden or program folders in it, "
+                             "so I won't send it. Tell me which files you want")
+
+
+def _refuse_file(path, f):
+    if f.startswith(".") or DENY_NAME.search(f) or os.path.splitext(f)[1].lower() in desktop.BAD_EXT:
+        raise ValueError(f"the folder {os.path.basename(path)} has files in it I won't send ({f}). "
+                         "Tell me which files you want")
+
+
 def _folder_info(path):
     """(file count, bytes) of a folder; ValueError if it holds hidden, program or key-like things."""
     count, size = 0, 0
     for dirpath, dirs, files in os.walk(path, followlinks=False):
-        for name in dirs + files:
-            # A link inside the folder could point anywhere (a hidden folder, a key, something huge), and the
-            # copy and the zip would follow it. So a folder with links in it isn't sent.
-            if os.path.islink(os.path.join(dirpath, name)):
-                raise ValueError(f"the folder {os.path.basename(path)} has shortcuts (links) in it, so I won't "
-                                 "send it. Tell me which files you want")
-        for d in dirs:
-            if d.startswith(".") or d in desktop.SKIP_DIRS or DENY_NAME.search(d):
-                raise ValueError(f"the folder {os.path.basename(path)} has hidden or program folders in it, "
-                                 "so I won't send it. Tell me which files you want")
+        _refuse_links(path, dirpath, dirs + files)
+        _refuse_dirs(path, dirs)
         for f in files:
-            if f.startswith(".") or DENY_NAME.search(f) or \
-                    os.path.splitext(f)[1].lower() in desktop.BAD_EXT:
-                raise ValueError(f"the folder {os.path.basename(path)} has files in it I won't send ({f}). "
-                                 "Tell me which files you want")
+            _refuse_file(path, f)
             count += 1
             if count > MAX_FOLDER_FILES:
                 raise ValueError(f"the folder {os.path.basename(path)} has more than {MAX_FOLDER_FILES} files. "
@@ -262,41 +286,58 @@ def _folder_info(path):
     return count, size
 
 
-def check_send(device, paths):
-    """(device, [real paths], {"count", "bytes", "dirs"}) for a send that is allowed; ValueError with a plain
-    reason otherwise. The one check used when building the card, before running, and inside bin/send."""
+def _check_args(device, paths):
     if device not in DEVICES:
         raise ValueError("I only know the laptop, the test machine and your iPhone")
-    dev = DEVICES[device]
     if not isinstance(paths, list) or not paths or not all(isinstance(p, str) for p in paths):
         raise ValueError("there was no file to send")
     if len(paths) > MAX_PATHS:
-        raise ValueError(f"that's {len(paths)} files and I can send {dev['max_files']} at a time")
-    real, dirs, total, count = [], 0, 0, 0
-    for p in paths:
-        r = desktop.allowed_path(p)
-        if not r:
-            raise ValueError(f"I'm not allowed to send {os.path.basename(str(p)) or 'that'}: it has to be a plain "
-                             "file in your home folder, not hidden and not a program")
-        if DENY_NAME.search(os.path.basename(r)):
-            raise ValueError(f"{os.path.basename(r)} looks like a key or a password, so I won't send it")
-        if r in real:
-            continue
-        real.append(r)
-        if os.path.isdir(r):
-            n, size = _folder_info(r)
-            dirs += 1
-            count += n
-            total += size
-        else:
-            count += 1
-            total += os.path.getsize(r)
+        raise ValueError(f"that's {len(paths)} files and I can send {DEVICES[device]['max_files']} at a time")
+
+
+def _allowed_real(p):
+    """The real path of one thing to send, or ValueError saying why not."""
+    r = desktop.allowed_path(p)
+    if not r:
+        raise ValueError(f"I'm not allowed to send {os.path.basename(str(p)) or 'that'}: it has to be a plain "
+                         "file in your home folder, not hidden and not a program")
+    if DENY_NAME.search(os.path.basename(r)):
+        raise ValueError(f"{os.path.basename(r)} looks like a key or a password, so I won't send it")
+    return r
+
+
+def _size_of(r):
+    """(is a folder, file count, bytes) of one real path."""
+    if os.path.isdir(r):
+        n, size = _folder_info(r)
+        return True, n, size
+    return False, 1, os.path.getsize(r)
+
+
+def _check_totals(dev, real, total):
     if len(real) > dev["max_files"]:
         raise ValueError(f"that's {len(real)} files and I can send {dev['max_files']} at a time to "
                          f"{dev['say']}. Pick fewer files")
     if total > dev["max_mb"] * 1024 * 1024:
         raise ValueError(f"that's {fmt_size(total)}. I can send up to {dev['max_mb']} MB at a time to "
                          f"{dev['say']}. Pick fewer files")
+
+
+def check_send(device, paths):
+    """(device, [real paths], {"count", "bytes", "dirs"}) for a send that is allowed; ValueError with a plain
+    reason otherwise. The one check used when building the card, before running, and inside bin/send."""
+    _check_args(device, paths)
+    real, dirs, total, count = [], 0, 0, 0
+    for p in paths:
+        r = _allowed_real(p)
+        if r in real:
+            continue
+        real.append(r)
+        is_dir, n, size = _size_of(r)
+        dirs += is_dir
+        count += n
+        total += size
+    _check_totals(DEVICES[device], real, total)
     return device, real, {"count": count, "bytes": total, "dirs": dirs}
 
 
@@ -365,73 +406,86 @@ def _name_fits(path, named, subject):
     return all(_close(w, tokens) or w in base for w in named)
 
 
-def plan(text, find_project=None, projects_root=None, project_dirs=()):
-    """Work out the send: {"device", "paths", "name", "label", "answer"} or {"answer": a plain reply}.
-    find_project(text) -> project folder name or None (jobs.find_project)."""
-    device = device_from(text)
-    if not device:
-        return {"answer": WHICH}
-    subject = subject_of(text)
-    if KEY_WORDS.search(subject):
-        return {"answer": "That looks like a key or a password, so I won't send it."}
-    many = bool(PLURAL.search(subject))
-    latest = bool(LATEST.search(subject))
-    project = find_project(subject) if find_project and subject else None
-    if project == "desk":
-        project = None
-    paths, project_name = [], None
-    if project and (latest or many):
-        paths = newest(project_files(project, _project_dir(project, projects_root)), many)
-        project_name = _pretty(project)
-    if not paths and subject:
-        kind_rx = [(rule, exts) for rule, exts in desktop.KIND_EXT.items()
-                   if re.search(r"\b(" + rule + r")s?\b", subject)]
-        named = [w for w in desktop._words(subject)
-                 if not LATEST.search(w) and not PLURAL.search(w) and w not in GENERIC and
-                 not any(re.fullmatch(r"(" + rule + r")s?", w) for rule, _ in kind_rx)]
-        wants_folder = bool(re.search(r"\b(folder|directory)\b", subject))
-        has_ext = bool(re.search(r"\.[a-z0-9]{2,4}\b", subject))
-        if not kind_rx and not project and not desktop.known_folder(subject):
-            if not named:
-                return {"answer": "Which file should I send? Tell me its name."}
-            if (all(w in NOT_FILE for w in named) or MESSAGE_START.match(subject)) and not wants_folder:
-                return {"answer": NOT_A_FILE}
-            if not wants_folder and not has_ext:
-                app_id, app_name, score = desktop.find_app(subject)
-                if app_id and score >= 0.9:
-                    return {"answer": f"{app_name} is an app, and I can only send files. Tell me the name of the file."}
-        # "the screenshot", "the latest pdf": a kind of file and no name, so the newest of that kind.
-        if kind_rx and not project and (latest or not named):
-            exts = tuple(e for _, es in kind_rx for e in es)
-            home = desktop.HOME
-            shots = os.path.join(home, "Media", "Pictures", "Screenshots")
-            dirs = [shots] if "screenshot" in subject else \
-                [os.path.join(home, a) for a in ("Downloads", "Media/Pictures", "Documents", "_inbox")] + [shots]
-            paths = newest(kind_files(exts, dirs), many)
-        if not paths:
-            path, what, score = desktop.find_file(subject, project_dirs, min_score=0.6)
-            exact = path and score >= 1.0   # a known folder or a project folder, by its name
-            if path and not exact and not _name_fits(path, named, subject):
-                path = None
-            if path:
-                is_project_dir = os.path.basename(path) in {os.path.basename(d) for d in project_dirs}
-                if is_project_dir and not wants_folder:
-                    proj = os.path.basename(path)
-                    paths = newest(project_files(proj, path), many)
-                    project_name = _pretty(proj)
-                else:
-                    paths = [path]
-    if not paths:
-        if project_name or project:
-            return {"answer": f"I couldn't find any {_pretty(project)} files to send. Tell me the name of the file."}
-        if not subject:
-            return {"answer": "Which file should I send? Tell me its name."}
-        return {"answer": f"I couldn't find a file for {subject}. Tell me the name of the file."}
-    try:
-        device, real, info = check_send(device, paths)
-    except ValueError as why:
-        msg = str(why)
-        return {"answer": msg[:1].upper() + msg[1:].rstrip(".") + "."}
+def _refusal(subject, named, kind_rx, project, wants_folder, has_ext):
+    """The plain answer when what was said cannot be a file: no name, a message, or an app. None otherwise."""
+    if kind_rx or project or desktop.known_folder(subject):
+        return None
+    if not named:
+        return {"answer": "Which file should I send? Tell me its name."}
+    if (all(w in NOT_FILE for w in named) or MESSAGE_START.match(subject)) and not wants_folder:
+        return {"answer": NOT_A_FILE}
+    if not wants_folder and not has_ext:
+        app_id, app_name, score = desktop.find_app(subject)
+        if app_id and score >= 0.9:
+            return {"answer": f"{app_name} is an app, and I can only send files. Tell me the name of the file."}
+    return None
+
+
+def _newest_of_kind(subject, kind_rx, many):
+    """"the screenshot", "the latest pdf": a kind of file and no name, so the newest of that kind."""
+    exts = tuple(e for _, es in kind_rx for e in es)
+    home = desktop.HOME
+    shots = os.path.join(home, "Media", "Pictures", "Screenshots")
+    dirs = [shots] if "screenshot" in subject else \
+        [os.path.join(home, a) for a in ("Downloads", "Media/Pictures", "Documents", "_inbox")] + [shots]
+    return newest(kind_files(exts, dirs), many)
+
+
+def _find_by_name(subject, named, wants_folder, many, project_dirs):
+    """The file (or the project's newest files) the name points at: (paths, project_name)."""
+    path, what, score = desktop.find_file(subject, project_dirs, min_score=0.6)
+    exact = path and score >= 1.0   # a known folder or a project folder, by its name
+    if path and not exact and not _name_fits(path, named, subject):
+        path = None
+    if not path:
+        return [], None
+    is_project_dir = os.path.basename(path) in {os.path.basename(d) for d in project_dirs}
+    if is_project_dir and not wants_folder:
+        proj = os.path.basename(path)
+        return newest(project_files(proj, path), many), _pretty(proj)
+    return [path], None
+
+
+def _kind_rules(subject):
+    """The (rule, endings) of the kinds of file named ("screenshot", "pdf")."""
+    return [(rule, exts) for rule, exts in desktop.KIND_EXT.items() if re.search(r"\b(" + rule + r")s?\b", subject)]
+
+
+def _named_words(subject, kind_rx):
+    """The words that name a file: not "latest", not plural words, not a kind word, not filler."""
+    return [w for w in desktop._words(subject)
+            if not LATEST.search(w) and not PLURAL.search(w) and w not in GENERIC and
+            not any(re.fullmatch(r"(" + rule + r")s?", w) for rule, _ in kind_rx)]
+
+
+def _from_subject(subject, project, many, latest, project_dirs):
+    """Look for the files by kind, then by name: (paths, project_name, answer). An answer means stop and say it."""
+    kind_rx = _kind_rules(subject)
+    named = _named_words(subject, kind_rx)
+    wants_folder = bool(re.search(r"\b(folder|directory)\b", subject))
+    has_ext = bool(re.search(r"\.[a-z0-9]{2,4}\b", subject))
+    refusal = _refusal(subject, named, kind_rx, project, wants_folder, has_ext)
+    if refusal:
+        return [], None, refusal
+    paths = []
+    if kind_rx and not project and (latest or not named):
+        paths = _newest_of_kind(subject, kind_rx, many)
+    if paths:
+        return paths, None, None
+    paths, project_name = _find_by_name(subject, named, wants_folder, many, project_dirs)
+    return paths, project_name, None
+
+
+def _nothing_found(subject, project, project_name):
+    if project_name or project:
+        return {"answer": f"I couldn't find any {_pretty(project)} files to send. Tell me the name of the file."}
+    if not subject:
+        return {"answer": "Which file should I send? Tell me its name."}
+    return {"answer": f"I couldn't find a file for {subject}. Tell me the name of the file."}
+
+
+def _card(device, real, info, project_name):
+    """The label and the answer <user> hears for a send that passed the safety check."""
     dev = DEVICES[device]
     names = [os.path.basename(p) for p in real]
     if len(real) == 1:
@@ -450,3 +504,44 @@ def plan(text, find_project=None, projects_root=None, project_dirs=()):
     answer = f"{listed} ({inside}{fmt_size(info['bytes'])}){where}. {LANDS[device]}"
     name = project_name or "Files"
     return {"device": device, "paths": real, "name": name, "label": label, "answer": answer}
+
+
+def _understood(text, find_project):
+    """(answer, parts): an answer when the ask can't go on (no device, a key word), else
+    (device, subject, many, latest, project) as `parts`."""
+    device = device_from(text)
+    if not device:
+        return {"answer": WHICH}, None
+    subject = subject_of(text)
+    if KEY_WORDS.search(subject):
+        return {"answer": "That looks like a key or a password, so I won't send it."}, None
+    project = find_project(subject) if find_project and subject else None
+    if project == "desk":
+        project = None
+    return None, (device, subject, bool(PLURAL.search(subject)), bool(LATEST.search(subject)), project)
+
+
+def plan(text, find_project=None, projects_root=None, project_dirs=()):
+    """Work out the send: {"device", "paths", "name", "label", "answer"} or {"answer": a plain reply}.
+    find_project(text) -> project folder name or None (jobs.find_project)."""
+    answer, parts = _understood(text, find_project)
+    if answer:
+        return answer
+    device, subject, many, latest, project = parts
+    paths, project_name = [], None
+    if project and (latest or many):
+        paths = newest(project_files(project, _project_dir(project, projects_root)), many)
+        project_name = _pretty(project)
+    if not paths and subject:
+        paths, found_name, answer = _from_subject(subject, project, many, latest, project_dirs)
+        if answer:
+            return answer
+        project_name = found_name or project_name
+    if not paths:
+        return _nothing_found(subject, project, project_name)
+    try:
+        device, real, info = check_send(device, paths)
+    except ValueError as why:
+        msg = str(why)
+        return {"answer": msg[:1].upper() + msg[1:].rstrip(".") + "."}
+    return _card(device, real, info, project_name)

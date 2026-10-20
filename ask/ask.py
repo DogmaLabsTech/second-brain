@@ -258,37 +258,48 @@ def user_prompt(q, hits):
     return f"Notes:\n{notes_block(hits)}\n\nQuestion: {q}"
 
 
-def local_write(prompt, model=LOCAL_MODEL, deadline=None, system=SYSTEM, max_tokens=110):
-    """Ollama chat, streamed. Returns (text, first_ms, total_ms). Raises TimeoutError past `deadline`
-    (seconds from now): the connection is closed, which stops Ollama generating."""
-    t0 = time.monotonic()
+def _ollama_body(prompt, model, system, max_tokens):
     body = {"model": model, "stream": True, "keep_alive": "5m",
             "options": {"num_ctx": 4096, "temperature": 0.1, "num_predict": max_tokens},
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}]}
     if model.startswith("granite") or model.startswith("gpt-oss"):
         body["think"] = False if model.startswith("granite") else "low"
+    return body
+
+
+def _read_ollama(resp, t0, deadline):
+    """The streamed answer: (text, seconds to the first piece or None)."""
+    first, text = None, ""
+    while True:
+        if deadline and time.monotonic() - t0 > deadline:
+            raise TimeoutError("local writer too slow")
+        line = resp.readline()
+        if not line:
+            break
+        d = json.loads(line)
+        piece = d.get("message", {}).get("content", "")
+        if piece and first is None:
+            first = time.monotonic() - t0
+        text += piece
+        if d.get("done"):
+            break
+    return text, first
+
+
+def local_write(prompt, model=LOCAL_MODEL, deadline=None, system=SYSTEM, max_tokens=110):
+    """Ollama chat, streamed. Returns (text, first_ms, total_ms). Raises TimeoutError past `deadline`
+    (seconds from now): the connection is closed, which stops Ollama generating."""
+    t0 = time.monotonic()
+    body = _ollama_body(prompt, model, system, max_tokens)
     host, _, port = OLLAMA.partition(":")
     conn = http.client.HTTPConnection(host, int(port or 11434), timeout=deadline or 300)
     _LIVE.append(conn)
-    first, text = None, ""
     try:
         conn.request("POST", "/api/chat", json.dumps(body), {"content-type": "application/json"})
         resp = conn.getresponse()
         if resp.status != 200:
             raise RuntimeError(f"ollama {resp.status}: {resp.read()[:200]!r}")
-        while True:
-            if deadline and time.monotonic() - t0 > deadline:
-                raise TimeoutError("local writer too slow")
-            line = resp.readline()
-            if not line:
-                break
-            d = json.loads(line)
-            piece = d.get("message", {}).get("content", "")
-            if piece and first is None:
-                first = time.monotonic() - t0
-            text += piece
-            if d.get("done"):
-                break
+        text, first = _read_ollama(resp, t0, deadline)
     except OSError as e:   # socket timeout = past the deadline
         if deadline and time.monotonic() - t0 >= deadline - 0.05:
             raise TimeoutError("local writer too slow") from e
@@ -344,6 +355,43 @@ def haiku_standby_write(prompt, timeout=30, on_text=None):
     return text.strip(), int((first or 0) * 1000), int((time.monotonic() - t0) * 1000)
 
 
+def _haiku_argv(system):
+    return ["claude", "-p", "--model", HAIKU_MODEL, "--tools", "", "--strict-mcp-config", "--setting-sources", "",
+            "--no-session-persistence", "--disable-slash-commands", "--system-prompt", system,
+            "--output-format", "stream-json", "--verbose", "--include-partial-messages"]
+
+
+def _delta_text(d):
+    """The new words in a stream event, or None when it isn't a text delta."""
+    ev = d.get("event") or {}
+    if d.get("type") == "stream_event" and ev.get("type") == "content_block_delta":
+        return (ev.get("delta") or {}).get("text", "")
+    return None
+
+
+def _read_haiku_stream(proc, t0, on_text):
+    """What `claude -p` streamed: (first-piece seconds or None, the text so far, the final result or None)."""
+    first, text, final = None, "", None
+    for line in proc.stdout:
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        piece = _delta_text(d)
+        if piece is not None:
+            if piece and first is None:
+                first = time.monotonic() - t0
+            text += piece
+            if piece and on_text:
+                on_text(text)
+        elif d.get("type") == "result":
+            final = d.get("result")
+            if d.get("is_error"):
+                raise RuntimeError(f"haiku: {str(final)[:200]}")
+            break
+    return first, text, final
+
+
 def haiku_write(prompt, system=SYSTEM, timeout=30, on_text=None):
     """Claude Haiku: the pre-started one when it's running (and the rules are the usual ones), else
     `claude -p` started now: no tools, no MCP, no settings, no saved session.
@@ -354,36 +402,15 @@ def haiku_write(prompt, system=SYSTEM, timeout=30, on_text=None):
         except (OSError, ConnectionError) as why:   # not running: start one here
             print(f"brain ask: the standby Haiku did not answer ({why}); starting Haiku here", file=sys.stderr)
     t0 = time.monotonic()
-    argv = ["claude", "-p", "--model", HAIKU_MODEL, "--tools", "", "--strict-mcp-config", "--setting-sources", "",
-            "--no-session-persistence", "--disable-slash-commands", "--system-prompt", system,
-            "--output-format", "stream-json", "--verbose", "--include-partial-messages"]
-    proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                            text=True, cwd=tempfile.gettempdir())
+    proc = subprocess.Popen(_haiku_argv(system), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL, text=True, cwd=tempfile.gettempdir())
     _LIVE.append(proc)
     proc.stdin.write(prompt)
     proc.stdin.close()
     timer = threading.Timer(timeout, proc.kill)
     timer.start()
-    first, text, final = None, "", None
     try:
-        for line in proc.stdout:
-            try:
-                d = json.loads(line)
-            except ValueError:
-                continue
-            ev = d.get("event") or {}
-            if d.get("type") == "stream_event" and ev.get("type") == "content_block_delta":
-                piece = (ev.get("delta") or {}).get("text", "")
-                if piece and first is None:
-                    first = time.monotonic() - t0
-                text += piece
-                if piece and on_text:
-                    on_text(text)
-            elif d.get("type") == "result":
-                final = d.get("result")
-                if d.get("is_error"):
-                    raise RuntimeError(f"haiku: {str(final)[:200]}")
-                break
+        first, text, final = _read_haiku_stream(proc, t0, on_text)
     finally:
         timer.cancel()
         try:
@@ -429,6 +456,42 @@ def warm_local(model=LOCAL_MODEL):
     threading.Thread(target=go, daemon=True).start()
 
 
+def _run_into(res, key, fn):
+    """Run a writer and keep its answer (or the first 120 characters of why it failed) in `res`."""
+    try:
+        res[key] = fn()
+    except Exception as why:  # noqa: BLE001
+        res[key + "_error"] = str(why)[:120]
+
+
+def _local_good(res):
+    return "local" in res and local_ok(res["local"][0])
+
+
+def _local_won(res, extra):
+    for x in list(_LIVE):   # stop Haiku, if it started
+        if hasattr(x, "kill"):
+            x.kill()
+    text, first, total = res["local"]
+    return text, first, total, "local:" + MODEL_SHORT.get(LOCAL_MODEL, LOCAL_MODEL), extra
+
+
+def _wait_for_local(res, tl, extra, t0):
+    """Haiku has started and local is still writing. Whichever is first: a good local answer wins; a finished
+    Haiku isn't kept waiting. The winning local answer, or None."""
+    while time.monotonic() - t0 < LOCAL_SECONDS + 0.2:
+        if _local_good(res):
+            return _local_won(res, extra)
+        if "haiku" in res or "haiku_error" in res or not tl.is_alive():
+            break
+        time.sleep(0.05)
+    return _local_won(res, extra) if _local_good(res) else None
+
+
+def _why_local_gave_up(res):
+    return ("weak answer: " + res["local"][0][:60]) if "local" in res else res.get("local_error", "too slow")
+
+
 def auto_write(prompt):
     """Local first; Haiku only when the local one is too slow or weak (docs/writer-race.md).
     The local writer starts alone. Haiku (which needs the notes) starts only if there is no good local
@@ -441,45 +504,22 @@ def auto_write(prompt):
     res = {}
     use_local = LOCAL_SECONDS > 0 and local_loaded()
     extra = {"haiku_started": False}
-
-    def run(key, fn):
-        try:
-            res[key] = fn()
-        except Exception as why:  # noqa: BLE001
-            res[key + "_error"] = str(why)[:120]
-
-    def local_good():
-        return "local" in res and local_ok(res["local"][0])
-
-    def local_answer():
-        for x in list(_LIVE):   # stop Haiku, if it started
-            if hasattr(x, "kill"):
-                x.kill()
-        text, first, total = res["local"]
-        return text, first, total, "local:" + MODEL_SHORT.get(LOCAL_MODEL, LOCAL_MODEL), extra
-
-    th = threading.Thread(target=run, args=("haiku", lambda: haiku_write(prompt, on_text=lambda t: FIRST.feed(text=t))),
+    th = threading.Thread(target=_run_into, args=(res, "haiku", lambda: haiku_write(prompt, on_text=lambda t: FIRST.feed(text=t))),
                           daemon=True)
     if use_local:
-        tl = threading.Thread(target=run, args=("local", lambda: local_write(prompt, LOCAL_MODEL, deadline=LOCAL_SECONDS)),
+        tl = threading.Thread(target=_run_into, args=(res, "local", lambda: local_write(prompt, LOCAL_MODEL, deadline=LOCAL_SECONDS)),
                               daemon=True)
         tl.start()
         tl.join(min(HAIKU_WAIT, LOCAL_SECONDS))
-        if local_good():
-            return local_answer()
-        if not ("local" in res and not local_good()):   # still writing: Haiku starts, local keeps going
+        if _local_good(res):
+            return _local_won(res, extra)
+        if not ("local" in res and not _local_good(res)):   # still writing: Haiku starts, local keeps going
             extra["haiku_started"] = True
             th.start()
-            # Whichever is first: a good local answer wins; a finished Haiku isn't kept waiting.
-            while time.monotonic() - t0 < LOCAL_SECONDS + 0.2:
-                if local_good():
-                    return local_answer()
-                if "haiku" in res or "haiku_error" in res or not tl.is_alive():
-                    break
-                time.sleep(0.05)
-            if local_good():
-                return local_answer()
-        extra["local_gave_up"] = ("weak answer: " + res["local"][0][:60]) if "local" in res else res.get("local_error", "too slow")
+            won = _wait_for_local(res, tl, extra, t0)
+            if won:
+                return won
+        extra["local_gave_up"] = _why_local_gave_up(res)
         FIRST.feed(winner=True)
     else:
         extra["local_gave_up"] = "not loaded" if LOCAL_SECONDS > 0 else "off"
@@ -564,41 +604,25 @@ def answer_question(q, hits, writer, steps):
         return f"I couldn't write an answer just now, but your note {hits[0]['title']} looks like the best match.", "none"
 
 
-def ask(q, writer="auto", how="typed"):
-    """Intent and search start together. Unless a job rule fits the words, the answer is written
-    straight after the search, without waiting for the decider (it takes 0.2-3 s); if the decider then
-    says job or chitchat, that answer is thrown away (and the writer stopped)."""
-    t0 = time.monotonic()
-    q = jobslib.clean_text(q) or q
-    steps = {}
-    box = {}
-    rule = jobslib.match_rule(q)
+def _run_intent(q, rule, box, steps):
+    t = time.monotonic()
+    box["intent"] = decide("intent", q, timeout=1.5 if rule else INTENT_SECONDS)
+    steps["intent_ms"] = int((time.monotonic() - t) * 1000)
 
-    def run_intent():
-        t = time.monotonic()
-        box["intent"] = decide("intent", q, timeout=1.5 if rule else INTENT_SECONDS)
-        steps["intent_ms"] = int((time.monotonic() - t) * 1000)
 
-    def run_search(then_answer):
-        t = time.monotonic()
-        try:
-            box["hits"] = search(q)
-        except Exception as why:  # noqa: BLE001
-            box["hits"], steps["search_error"] = [], str(why)[:200]
-        steps["search_ms"] = int((time.monotonic() - t) * 1000)
-        if then_answer:
-            box["answer"] = answer_question(q, box["hits"], writer, steps)
+def _run_search(q, writer, box, steps, then_answer):
+    t = time.monotonic()
+    try:
+        box["hits"] = search(q)
+    except Exception as why:  # noqa: BLE001
+        box["hits"], steps["search_error"] = [], str(why)[:200]
+    steps["search_ms"] = int((time.monotonic() - t) * 1000)
+    if then_answer:
+        box["answer"] = answer_question(q, box["hits"], writer, steps)
 
-    ti = threading.Thread(target=run_intent, daemon=True)
-    ts = threading.Thread(target=run_search, args=(rule is None,), daemon=True)
-    ti.start()
-    ts.start()
-    ti.join()
-    intent = box["intent"]
-    label, by = intent.get("label", "unsure"), intent.get("by", "?")
-    # A decider's own "unsure" (or the local decider under its bar) means it didn't catch what <user> wants. A timeout or a
-    # fallback with no answer keeps the old way: the word rules, else a question.
-    again = label == "unsure" and not rule and (by in ("local_decider", "second_decider") or intent.get("reason") == "below-bar")
+
+def _word_rule_fix(q, rule, label, by, again):
+    """The first correction the word rules make to the decider's answer: (label, by, again)."""
     if label == "unsure" or not label:
         if not again:
             label, by = (f"job:{rule}", "rule") if rule else ("question", by)
@@ -610,29 +634,74 @@ def ask(q, writer="auto", how="typed"):
         label, by = f"job:{rule}", "rule"
     elif jobslib.route_label(rule, label, q) != label:   # "send it to the laptop" is not an open-file
         label, by = jobslib.route_label(rule, label, q), "rule"
+    return label, by, again
+
+
+def _question_not_job(q, rule, label):
     if label[4:] in jobslib.DESKTOP_JOBS and jobslib.is_how_question(q):
-        label = "question"
+        return "question"
     if label[4:] in jobslib.AGENT_JOBS and rule != label[4:] and jobslib.is_how_question(q):
-        label = "question"   # "what should I fix on my remember list?" is a question, whatever the decider says
+        return "question"   # "what should I fix on my remember list?" is a question, whatever the decider says
+    return label
+
+
+def _route(q, rule, intent):
+    """What the decider said, corrected by the word rules: (label, by, again). `again` = say it again."""
+    label, by = intent.get("label", "unsure"), intent.get("by", "?")
+    # A decider's own "unsure" (or the local decider under its bar) means it didn't catch what <user> wants. A timeout or a
+    # fallback with no answer keeps the old way: the word rules, else a question.
+    again = label == "unsure" and not rule and (by in ("local_decider", "second_decider") or intent.get("reason") == "below-bar")
+    label, by, again = _word_rule_fix(q, rule, label, by, again)
+    return _question_not_job(q, rule, label), by, again
+
+
+def _job_answer(q, how, label, by, steps, out):
+    stop_writers()
+
+    def note_search(topic):
+        return public_sources(search(topic))
+    built = jobslib.build_with_details(label[4:], q, search=note_search, how=how,
+                                       local_writer=lambda p: local_write(p, LOCAL_MODEL, deadline=8, system="Answer with one name only.",
+                                                                          max_tokens=12)[0])
+    steps["details"] = built.pop("details", "rules")   # router upgrade 3: "local" = the writer's form made the job
+    if "details_ms" in built:
+        steps["details_ms"] = built.pop("details_ms")
+    built.pop("form", None)
+    out.update(built)
+    out["writer"] = by if by in ("second_decider", "local_decider") else "rule"
+
+
+def _question_answer(q, writer, ts, box, steps, out):
+    ts.join()
+    hits = box["hits"]
+    answer, name = box["answer"] if "answer" in box else answer_question(q, hits, writer, steps)
+    out.update(answer=answer, writer=name, sources=public_sources(hits[:3]))
+    if answer == NOT_FOUND:
+        out["found"] = False
+
+
+def ask(q, writer="auto", how="typed"):
+    """Intent and search start together. Unless a job rule fits the words, the answer is written
+    straight after the search, without waiting for the decider (it takes 0.2-3 s); if the decider then
+    says job or chitchat, that answer is thrown away (and the writer stopped)."""
+    t0 = time.monotonic()
+    q = jobslib.clean_text(q) or q
+    steps = {}
+    box = {}
+    rule = jobslib.match_rule(q)
+    ti = threading.Thread(target=_run_intent, args=(q, rule, box, steps), daemon=True)
+    ts = threading.Thread(target=_run_search, args=(q, writer, box, steps, rule is None), daemon=True)
+    ti.start()
+    ts.start()
+    ti.join()
+    label, by, again = _route(q, rule, box["intent"])
     steps["intent"] = f"{label} ({by})"
     if not label.startswith("job:") and label != "chitchat" and not again:
         FIRST.feed(question=True)
     out = {"kind": "answer", "answer": "", "sources": [], "job": None, "writer": "", "ms": 0}
 
     if label.startswith("job:"):
-        stop_writers()
-
-        def note_search(topic):
-            return public_sources(search(topic))
-        built = jobslib.build_with_details(label[4:], q, search=note_search, how=how,
-                                           local_writer=lambda p: local_write(p, LOCAL_MODEL, deadline=8, system="Answer with one name only.",
-                                                                              max_tokens=12)[0])
-        steps["details"] = built.pop("details", "rules")   # router upgrade 3: "local" = the writer's form made the job
-        if "details_ms" in built:
-            steps["details_ms"] = built.pop("details_ms")
-        built.pop("form", None)
-        out.update(built)
-        out["writer"] = by if by in ("second_decider", "local_decider") else "rule"
+        _job_answer(q, how, label, by, steps, out)
     elif label == "chitchat":
         stop_writers()
         out.update(answer=chitchat(q), writer="rule")
@@ -640,19 +709,14 @@ def ask(q, writer="auto", how="typed"):
         stop_writers()
         out.update(answer=SAY_AGAIN, writer="rule", found=False, again=True)
     else:
-        ts.join()
-        hits = box["hits"]
-        answer, name = box["answer"] if "answer" in box else answer_question(q, hits, writer, steps)
-        out.update(answer=answer, writer=name, sources=public_sources(hits[:3]))
-        if answer == NOT_FOUND:
-            out["found"] = False
+        _question_answer(q, writer, ts, box, steps, out)
     out["ms"] = int((time.monotonic() - t0) * 1000)
     out["steps"] = steps
     return out
 
 
-def main(argv):
-    as_json = "--json" in argv
+def _parse_argv(argv):
+    """(words, as_json, writer, source, stream, how) from the command line."""
     writer = "auto"
     source = os.environ.get("BRAIN_FROM", "cli")
     stream = False
@@ -679,6 +743,30 @@ def main(argv):
         else:
             words.append(a)
         i += 1
+    return words, "--json" in argv, writer, source, stream, how
+
+
+def _print_stream_done(result):
+    first = FIRST.sent
+    if first and result["answer"].startswith(first):
+        result["rest"] = result["answer"][len(first):].strip()
+    elif first:
+        result["rest"] = ""   # already spoke a different start; don't repeat
+    print(json.dumps(dict(result, event="done", first=first)), flush=True)
+
+
+def _print_plain(result):
+    print(result["answer"])
+    if result.get("job"):
+        j = result["job"]
+        print(f"\nJob: {j['label']}{' (asks first)' if j['needs_confirm'] else ''}\n  run: brain job run {j['id']} --args-json '{json.dumps(j)}'")
+    for s in result["sources"]:
+        print(f"  - {s['title']}: {s['path']}")
+    print(f"({result['writer']}, {result['ms']} ms)  rate it: brain rate {result['id']} up|down")
+
+
+def main(argv):
+    words, as_json, writer, source, stream, how = _parse_argv(argv)
     q = " ".join(words).strip()
     if not q:
         print("brain ask: say what to ask", file=sys.stderr)
@@ -689,23 +777,11 @@ def main(argv):
     result["id"] = asklog.new_id()
     asklog.log_ask(result["id"], q, result, source)
     if stream:
-        first = FIRST.sent
-        if first and result["answer"].startswith(first):
-            result["rest"] = result["answer"][len(first):].strip()
-        elif first:
-            result["rest"] = ""   # already spoke a different start; don't repeat
-        print(json.dumps(dict(result, event="done", first=first)), flush=True)
-        return 0
-    if as_json:
+        _print_stream_done(result)
+    elif as_json:
         print(json.dumps(result))
-        return 0
-    print(result["answer"])
-    if result.get("job"):
-        j = result["job"]
-        print(f"\nJob: {j['label']}{' (asks first)' if j['needs_confirm'] else ''}\n  run: brain job run {j['id']} --args-json '{json.dumps(j)}'")
-    for s in result["sources"]:
-        print(f"  - {s['title']}: {s['path']}")
-    print(f"({result['writer']}, {result['ms']} ms)  rate it: brain rate {result['id']} up|down")
+    else:
+        _print_plain(result)
     return 0
 
 

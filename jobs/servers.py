@@ -63,33 +63,42 @@ def action_of(text):
     return "off" if off and not on else "on" if on and not off else None
 
 
-def find_server(text, listing=None):
-    """The entry the words name, or None. Words in the label all being said beats some being said; then more words win
-    ("example-game" is the game, "example-game home" is the tablet page)."""
-    spoken = _spoken(text)
-    said = set(spoken.split())
-    squashed = spoken.replace(" ", "")
+def _hits(e, said, squashed):
+    # "pit wall" for "example-board": a word also counts when the spoken words run together into it
+    return [t for t in _tokens(e["label"]) if t in said or (len(t) > 3 and t in squashed)]
+
+
+def _best_entry(listing, said, squashed):
+    """(entry, key): the entry whose label shares the most said words, whole-name matches first."""
     best, best_key = None, None
-    listing = entries() if listing is None else listing
     for e in listing:
         toks = _tokens(e["label"])
         if not toks:
             continue
-        # "pit wall" for "example-board": a word also counts when the spoken words run together into it
-        hit = [t for t in toks if t in said or (len(t) > 3 and t in squashed)]
+        hit = _hits(e, said, squashed)
         id_hit = e["id"].lower() in said
         if not hit and not id_hit:
             continue
         key = (len(hit) == len(toks) or id_hit, len(hit))
         if best_key is None or key > best_key:
             best, best_key = e, key
+    return best, best_key
+
+
+def find_server(text, listing=None):
+    """The entry the words name, or None. Words in the label all being said beats some being said; then more words win
+    ("example-game" is the game, "example-game home" is the tablet page)."""
+    spoken = _spoken(text)
+    said = set(spoken.split())
+    squashed = spoken.replace(" ", "")
+    listing = entries() if listing is None else listing
+    best, best_key = _best_entry(listing, said, squashed)
     if best is None:
         return None
     if best_key[0]:
         return best
     # Half a name is enough only when those words name nobody else ("namer" is the LLC Namer; "example-game" is two).
-    toks = _tokens(best["label"])
-    said_toks = [t for t in toks if t in said or (len(t) > 3 and t in squashed)]
+    said_toks = _hits(best, said, squashed)
     others = {t for e in listing if e is not best for t in _tokens(e["label"])}
     return best if said_toks and not any(t in others for t in said_toks) else None
 
