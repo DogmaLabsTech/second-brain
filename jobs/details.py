@@ -203,6 +203,20 @@ def action_said(action, text):
     return rule is None or bool(re.search(rule, text.lower()))
 
 
+def _ground_project(f, t, text):
+    p = f["project"]
+    names = [w for w in re.split(r"[-_ ]+", p.lower()) if len(w) >= 3]
+    if not (p == "desk" and "desk" in t) and not any(said(w, text) for w in names):
+        f["project"] = "none"
+
+
+def _ground_desktop_action(f, text):
+    if not f.get("number") and f.get("action") in ("reminder", "workspace"):
+        f["action"] = "none"
+    if f.get("action") in desktop.ACTIONS and not action_said(f["action"], text):
+        f["action"] = "none"
+
+
 def ground(job_id, f, text, projects=()):
     """The form with every value <user> didn't actually say blanked out (the 3B writer makes up names and screens)."""
     f = dict(f)
@@ -217,14 +231,9 @@ def ground(job_id, f, text, projects=()):
     if f.get("words") and f.get("action") in ("theme-set", "window-monitor") and not said(f["words"], text):
         f["words"] = ""
     if job_id == "start-claude" and f.get("project") not in (None, "", "none"):
-        p = f["project"]
-        names = [w for w in re.split(r"[-_ ]+", p.lower()) if len(w) >= 3]
-        if not (p == "desk" and "desk" in t) and not any(said(w, text) for w in names):
-            f["project"] = "none"
-    if job_id == "desktop" and f.get("action") in ("reminder", "workspace") and not f.get("number"):
-        f["action"] = "none"
-    if job_id == "desktop" and f.get("action") in desktop.ACTIONS and not action_said(f["action"], text):
-        f["action"] = "none"
+        _ground_project(f, t, text)
+    if job_id == "desktop":
+        _ground_desktop_action(f, text)
     return f
 
 
@@ -235,30 +244,77 @@ def _clean(s, n=80):
 DEVICE_SAY = {"laptop": "the laptop", "testbox": "the testbox", "phone": "my phone"}
 
 
-def as_text(job_id, f):
-    """The form as a plain command for the word rules, or None. Values are only words here: what they point
-    at is found and checked by the normal build, exactly as for a typed command."""
-    if job_id == "open-app" and _clean(f.get("app")):
-        scr = f.get("screen") if f.get("screen") in SCREENS else ""
-        return f"open {_clean(f['app'])}" + (f" on my {scr} screen" if scr else "")
-    if job_id == "open-file" and _clean(f.get("name")):
-        kind = f.get("kind") if f.get("kind") in ("folder", "picture", "video", "pdf", "screenshot") else ""
-        return f"open the {_clean(f['name'])} {kind}".strip()
-    if job_id == "send-file" and f.get("device") in DEVICE_SAY:
-        name = re.sub(r"\b(latest|newest|last|recent|most recent)\b", " ", _clean(f.get("name")), flags=re.I).strip()
-        kind = f.get("kind") if f.get("kind") in ("screenshot", "picture", "pdf", "video") else ""
-        if name and f.get("kind") == "files":
-            return f"send the latest {name} files to {DEVICE_SAY[f['device']]}"   # a project's newest files
-        if name or kind:
-            return f"send {name or 'the latest ' + kind} to {DEVICE_SAY[f['device']]}"
-    if job_id == "start-claude" and f.get("project") not in (None, "", "none"):
-        return f"start a claude on {_clean(f['project'])}"
-    if job_id == "tv" and f.get("action") in ("up", "down", "mute"):
+def _text_open_app(f):
+    if not _clean(f.get("app")):
+        return None
+    scr = f.get("screen") if f.get("screen") in SCREENS else ""
+    return f"open {_clean(f['app'])}" + (f" on my {scr} screen" if scr else "")
+
+
+def _text_open_file(f):
+    if not _clean(f.get("name")):
+        return None
+    kind = f.get("kind") if f.get("kind") in ("folder", "picture", "video", "pdf", "screenshot") else ""
+    return f"open the {_clean(f['name'])} {kind}".strip()
+
+
+def _text_send_file(f):
+    if f.get("device") not in DEVICE_SAY:
+        return None
+    name = re.sub(r"\b(latest|newest|last|recent|most recent)\b", " ", _clean(f.get("name")), flags=re.I).strip()
+    kind = f.get("kind") if f.get("kind") in ("screenshot", "picture", "pdf", "video") else ""
+    if name and f.get("kind") == "files":
+        return f"send the latest {name} files to {DEVICE_SAY[f['device']]}"   # a project's newest files
+    if name or kind:
+        return f"send {name or 'the latest ' + kind} to {DEVICE_SAY[f['device']]}"
+    return None
+
+
+def _text_start_claude(f):
+    if f.get("project") in (None, "", "none"):
+        return None
+    return f"start a claude on {_clean(f['project'])}"
+
+
+def _text_tv(f):
+    if f.get("action") in ("up", "down", "mute"):
         return {"up": "turn the tv up", "down": "turn the tv down", "mute": "mute the tv"}[f["action"]]
-    if job_id == "music" and f.get("action") in ("Play", "Pause", "Next", "Previous", "PlayPause"):
+    return None
+
+
+def _text_music(f):
+    if f.get("action") in ("Play", "Pause", "Next", "Previous", "PlayPause"):
         return {"Play": "play", "Pause": "pause", "Next": "next song", "Previous": "previous song",
                 "PlayPause": "play or pause the music"}[f["action"]]
     return None
+
+
+TEXT_OF = {"open-app": _text_open_app, "open-file": _text_open_file, "send-file": _text_send_file,
+           "start-claude": _text_start_claude, "tv": _text_tv, "music": _text_music}
+
+
+def as_text(job_id, f):
+    """The form as a plain command for the word rules, or None. Values are only words here: what they point
+    at is found and checked by the normal build, exactly as for a typed command."""
+    make = TEXT_OF.get(job_id)
+    return make(f) if make else None
+
+
+def _action_value(action, f, words):
+    """The value a desktop form's action needs, as the runner's check expects it. None can mean a window app
+    that isn't there (second item False)."""
+    if action == "reminder":
+        return {"minutes": f.get("number"), "message": words or "Reminder"}, True
+    if action == "workspace":
+        return f.get("number"), True
+    if action == "theme-set":
+        return desktop.find_theme(words), True
+    if action == "window-monitor":
+        app = desktop.find_app("open " + words)[0] if words else None
+        if words and not app:
+            return None, False
+        return {"to": f.get("screen") or None, "app": app}, True
+    return None, True
 
 
 def desktop_args(f):
@@ -266,19 +322,9 @@ def desktop_args(f):
     action = f.get("action")
     if action not in desktop.ACTIONS:
         return None
-    value = None
-    words = _clean(f.get("words"), 120)
-    if action == "reminder":
-        value = {"minutes": f.get("number"), "message": words or "Reminder"}
-    elif action == "workspace":
-        value = f.get("number")
-    elif action == "theme-set":
-        value = desktop.find_theme(words)
-    elif action == "window-monitor":
-        app = desktop.find_app("open " + words)[0] if words else None
-        if words and not app:
-            return None
-        value = {"to": f.get("screen") or None, "app": app}
+    value, ok = _action_value(action, f, _clean(f.get("words"), 120))
+    if not ok:
+        return None
     try:
         return desktop.check_action(action, value)
     except ValueError:
