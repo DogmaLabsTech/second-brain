@@ -138,12 +138,17 @@ def private_list_problem(path=None):
     path = path or os.path.join(DECIDERS, "private.json")
     try:
         with open(path) as f:
-            json.load(f)
+            data = json.load(f)
     except FileNotFoundError:
         return None
     except (OSError, ValueError) as why:
         return (f"The private names list ({tilde(path)}) can't be read ({why}). Until it is fixed, family and "
                 "client names are not kept private: asks that name them can go to the second decider.")
+    if not isinstance(data, dict) or not isinstance(data.get("words", []), list) \
+            or not all(isinstance(w, str) for w in data.get("words", [])):
+        return (f"The private names list ({tilde(path)}) has the wrong shape (it must be an object whose 'words' "
+                "is a list of words). Until it is fixed, family and client names are not kept private: asks "
+                "that name them can go to the second decider.")
     return None
 
 

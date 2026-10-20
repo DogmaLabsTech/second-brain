@@ -27,6 +27,11 @@ class PrivateList(unittest.TestCase):
         self.assertIn("can't be read", said)
         self.assertIn("not kept private", said)
 
+    def test_a_file_of_the_wrong_shape_is_said_too(self):
+        for text in ('["rex"]', '{"words": "rex"}', '{"words": [1, 2]}'):
+            with self.subTest(text=text):
+                self.assertIn("wrong shape", self.problem(text))
+
 
 if __name__ == "__main__":
     unittest.main()
