@@ -65,14 +65,19 @@ def _desktop_entry(path):
         return None
 
 
+def _exe_name(app_id, e):
+    exe = os.path.basename((e.get("Exec") or "").split(" ")[0]) if e.get("Exec") else ""
+    if exe in TERMINALS and app_id not in TERMINALS and e.get("StartupWMClass", "").lower() not in TERMINALS:
+        exe = ""
+    return exe
+
+
 def _app_record(app_id, e):
     """{name, words, wmclass, exe, web} for a visible app; None for one that is hidden or not an app."""
     hidden = e.get("NoDisplay", "").lower() == "true" or e.get("Hidden", "").lower() == "true"
     if hidden or e.get("Type", "Application") != "Application" or not e.get("Name"):
         return None
-    exe = os.path.basename((e.get("Exec") or "").split(" ")[0]) if e.get("Exec") else ""
-    if exe in TERMINALS and app_id not in TERMINALS and e.get("StartupWMClass", "").lower() not in TERMINALS:
-        exe = ""
+    exe = _exe_name(app_id, e)
     words = [e.get("Name"), e.get("GenericName", ""), exe, app_id.split(".")[-1]]
     words += [k for k in e.get("Keywords", "").split(";") if k]
     return {"name": re.sub(r"\s*\(.*?\)\s*", " ", e.get("Name")).strip() or e.get("Name"),
@@ -117,20 +122,24 @@ def app_topic(text):
     return APP_SAID.get(t.lower(), t)
 
 
+def _name_score(nt, name, a):
+    """How well the normalised words fit the app's name and first four words, without keywords."""
+    if name == nt:
+        return 1.0
+    if nt and nt in [_norm(w) for w in a["words"][:4]]:
+        return 0.95
+    score = max([difflib.SequenceMatcher(None, nt, _norm(w)).ratio() for w in a["words"][:4] if w] or [0])
+    if name and len(nt) >= 4 and (name.startswith(nt) or nt.startswith(name)):
+        score = max(score, 0.88)
+    # A whole word of the name: "chrome" for "Google Chrome".
+    if len(nt) >= 4 and nt in re.findall(r"[a-z0-9]+", a["name"].lower()):
+        score = max(score, 0.9)
+    return score
+
+
 def _app_score(nt, a):
     """How well the normalised words `nt` name this app, 0 to 1."""
-    name = _norm(a["name"])
-    if name == nt:
-        score = 1.0
-    elif nt and nt in [_norm(w) for w in a["words"][:4]]:
-        score = 0.95
-    else:
-        score = max([difflib.SequenceMatcher(None, nt, _norm(w)).ratio() for w in a["words"][:4] if w] or [0])
-        if name and len(nt) >= 4 and (name.startswith(nt) or nt.startswith(name)):
-            score = max(score, 0.88)
-        # A whole word of the name: "chrome" for "Google Chrome".
-        if len(nt) >= 4 and nt in re.findall(r"[a-z0-9]+", a["name"].lower()):
-            score = max(score, 0.9)
+    score = _name_score(nt, _norm(a["name"]), a)
     # Keywords count a little, so "music" can find Spotify but never beats a real name.
     if score < 0.8 and nt in [_norm(w) for w in a["words"][4:]]:
         score = 0.8
@@ -294,6 +303,15 @@ def _path_score(path, words, key, wants_folder, exts):
     return score
 
 
+def _asked_extensions(low):
+    """The file endings of the kinds named ("picture", "pdf")."""
+    exts = ()
+    for rule, e in KIND_EXT.items():
+        if re.search(r"\b(" + rule + r")s?\b", low):
+            exts += e
+    return exts
+
+
 def find_file(text, project_dirs=(), min_score=0.6):
     """(path, kind 'folder'|'file', score) for what the text names, or (None, None, 0).
     Known folders and project folders first, then a name search of your home (fd, at most 3 s)."""
@@ -309,10 +327,7 @@ def find_file(text, project_dirs=(), min_score=0.6):
     for d in project_dirs:
         if _norm(os.path.basename(d)) == key and os.path.isdir(d):
             return d, "folder", 1.0
-    exts = ()
-    for rule, e in KIND_EXT.items():
-        if re.search(r"\b(" + rule + r")s?\b", low):
-            exts += e
+    exts = _asked_extensions(low)
     best = (None, None, 0.0)
     for line in _name_search(max(words, key=len), wants_folder):
         path = line.rstrip("/")
@@ -352,6 +367,17 @@ def is_window_move(text):
     return bool(WINDOW_MOVE.search(t)) and not OPEN_START.search(t)
 
 
+def _number_word_for_screen(t, found):
+    """"screen two" / "monitor 2" written the other way round ("to screen two"): second or first."""
+    n = SCREEN_NUMBER.search(t)
+    if n and (found is None or not found):
+        if n.group(1) in ("2", "two", "second"):
+            return ["second"]
+        if n.group(1) in ("1", "one", "first"):
+            return ["first"]
+    return found
+
+
 def _words_after_screen(t):
     """The words said before "screen"/"monitor"/"display" (the last such phrase), or None when there is none."""
     found = None
@@ -362,13 +388,7 @@ def _words_after_screen(t):
         if after in ("2", "two", "second") and not words:
             words = ["second"]
         found = words
-    n = SCREEN_NUMBER.search(t)
-    if n and (found is None or not found):
-        if n.group(1) in ("2", "two", "second"):
-            found = ["second"]
-        elif n.group(1) in ("1", "one", "first"):
-            found = ["first"]
-    return found
+    return _number_word_for_screen(t, found)
 
 
 def monitor_spec(text):

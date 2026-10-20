@@ -217,10 +217,8 @@ def _ground_desktop_action(f, text):
         f["action"] = "none"
 
 
-def ground(job_id, f, text, projects=()):
-    """The form with every value <user> didn't actually say blanked out (the 3B writer makes up names and screens)."""
-    f = dict(f)
-    t = text.lower()
+def _blank_unsaid_values(f, t, text):
+    """Blank the screen, kind, app, name and words the writer made up (<user> didn't say them)."""
     if "screen" in f and f["screen"] and not re.search(SCREEN_SAID.get(f["screen"], r"$^"), t):
         f["screen"] = ""
     if "kind" in f and f["kind"] and not re.search(KIND_SAID.get(f["kind"], r"$^"), t):
@@ -230,6 +228,13 @@ def ground(job_id, f, text, projects=()):
             f[k] = ""
     if f.get("words") and f.get("action") in ("theme-set", "window-monitor") and not said(f["words"], text):
         f["words"] = ""
+
+
+def ground(job_id, f, text, projects=()):
+    """The form with every value <user> didn't actually say blanked out (the 3B writer makes up names and screens)."""
+    f = dict(f)
+    t = text.lower()
+    _blank_unsaid_values(f, t, text)
     if job_id == "start-claude" and f.get("project") not in (None, "", "none"):
         _ground_project(f, t, text)
     if job_id == "desktop":
