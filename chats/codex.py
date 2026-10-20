@@ -254,6 +254,21 @@ def _summary_line(files, stats, out_dir, t0):
             f"{time.time() - t0:.0f}s")
 
 
+def _todo_and_gone(files, src_state, redo_all):
+    """The chats to convert (with their signature) and the state keys whose source vanished."""
+    todo = [(f, signature(f)) for f in files
+            if redo_all or not src_state.get(f) or src_state[f].get("sig") != signature(f)]
+    return todo, [k for k in src_state if k not in set(files)]
+
+
+def _say_dry_run(files, todo, gone, src_state):
+    for k in gone:
+        print(f"would delete note for vanished source {k}: {src_state[k].get('note')}")
+    for f, _ in todo:
+        print(f"would convert {f}")
+    print(f"dry run: {len(todo)} to convert, {len(gone)} to delete, {len(files) - len(todo)} unchanged")
+
+
 def main(argv=None):
     args = _parse_args(argv)
 
@@ -274,17 +289,11 @@ def main(argv=None):
     state = load_sources(state_path)
     src_state = state["sources"]
 
-    todo = [(f, signature(f)) for f in files
-            if args.all or not src_state.get(f) or src_state[f].get("sig") != signature(f)]
-    gone = [k for k in src_state if k not in set(files)]
+    todo, gone = _todo_and_gone(files, src_state, args.all)
     stats = {"converted": 0, "written": 0, "empty": 0, "removed": 0, "redactions": 0, "errors": 0}
 
     if args.dry_run:
-        for k in gone:
-            print(f"would delete note for vanished source {k}: {src_state[k].get('note')}")
-        for f, _ in todo:
-            print(f"would convert {f}")
-        print(f"dry run: {len(todo)} to convert, {len(gone)} to delete, {len(files) - len(todo)} unchanged")
+        _say_dry_run(files, todo, gone, src_state)
         return 0
 
     for k in gone:

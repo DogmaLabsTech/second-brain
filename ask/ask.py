@@ -361,6 +361,14 @@ def _haiku_argv(system):
             "--output-format", "stream-json", "--verbose", "--include-partial-messages"]
 
 
+def _delta_text(d):
+    """The new words in a stream event, or None when it isn't a text delta."""
+    ev = d.get("event") or {}
+    if d.get("type") == "stream_event" and ev.get("type") == "content_block_delta":
+        return (ev.get("delta") or {}).get("text", "")
+    return None
+
+
 def _read_haiku_stream(proc, t0, on_text):
     """What `claude -p` streamed: (first-piece seconds or None, the text so far, the final result or None)."""
     first, text, final = None, "", None
@@ -369,9 +377,8 @@ def _read_haiku_stream(proc, t0, on_text):
             d = json.loads(line)
         except ValueError:
             continue
-        ev = d.get("event") or {}
-        if d.get("type") == "stream_event" and ev.get("type") == "content_block_delta":
-            piece = (ev.get("delta") or {}).get("text", "")
+        piece = _delta_text(d)
+        if piece is not None:
             if piece and first is None:
                 first = time.monotonic() - t0
             text += piece
@@ -614,12 +621,8 @@ def _run_search(q, writer, box, steps, then_answer):
         box["answer"] = answer_question(q, box["hits"], writer, steps)
 
 
-def _route(q, rule, intent):
-    """What the decider said, corrected by the word rules: (label, by, again). `again` = say it again."""
-    label, by = intent.get("label", "unsure"), intent.get("by", "?")
-    # A decider's own "unsure" (or the local decider under its bar) means it didn't catch what <user> wants. A timeout or a
-    # fallback with no answer keeps the old way: the word rules, else a question.
-    again = label == "unsure" and not rule and (by in ("local_decider", "second_decider") or intent.get("reason") == "below-bar")
+def _word_rule_fix(q, rule, label, by, again):
+    """The first correction the word rules make to the decider's answer: (label, by, again)."""
     if label == "unsure" or not label:
         if not again:
             label, by = (f"job:{rule}", "rule") if rule else ("question", by)
@@ -631,11 +634,25 @@ def _route(q, rule, intent):
         label, by = f"job:{rule}", "rule"
     elif jobslib.route_label(rule, label, q) != label:   # "send it to the laptop" is not an open-file
         label, by = jobslib.route_label(rule, label, q), "rule"
-    if label[4:] in jobslib.DESKTOP_JOBS and jobslib.is_how_question(q):
-        label = "question"
-    if label[4:] in jobslib.AGENT_JOBS and rule != label[4:] and jobslib.is_how_question(q):
-        label = "question"   # "what should I fix on my remember list?" is a question, whatever the decider says
     return label, by, again
+
+
+def _question_not_job(q, rule, label):
+    if label[4:] in jobslib.DESKTOP_JOBS and jobslib.is_how_question(q):
+        return "question"
+    if label[4:] in jobslib.AGENT_JOBS and rule != label[4:] and jobslib.is_how_question(q):
+        return "question"   # "what should I fix on my remember list?" is a question, whatever the decider says
+    return label
+
+
+def _route(q, rule, intent):
+    """What the decider said, corrected by the word rules: (label, by, again). `again` = say it again."""
+    label, by = intent.get("label", "unsure"), intent.get("by", "?")
+    # A decider's own "unsure" (or the local decider under its bar) means it didn't catch what <user> wants. A timeout or a
+    # fallback with no answer keeps the old way: the word rules, else a question.
+    again = label == "unsure" and not rule and (by in ("local_decider", "second_decider") or intent.get("reason") == "below-bar")
+    label, by, again = _word_rule_fix(q, rule, label, by, again)
+    return _question_not_job(q, rule, label), by, again
 
 
 def _job_answer(q, how, label, by, steps, out):
