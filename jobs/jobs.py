@@ -277,45 +277,55 @@ def team_task(text):
     m = TEAM_LEAD.search(t)
     if not m:
         return None, ""
-    rest = t[m.end():]
-    desk = TEAM_DESK.match(rest)
-    via_sep = False
-    if ":" in rest:
-        head, tail = rest.split(":", 1)
-        repo = find_project(head)
-    elif desk:
-        repo, tail = "desk", rest[desk.end():]
-        tail = TEAM_CONNECT.sub("", tail.strip(), count=1)
-    elif TEAM_SENTENCE.search(rest) and _lead_project(TEAM_SENTENCE.split(rest, 1)[0].split())[0] \
-            and not _lead_project(TEAM_SENTENCE.split(rest, 1)[0].split())[1]:
-        # Spoken with a pause, the engine writes a full stop: "Start an agent on Example. Tidy the logs." Treat it like
-        # a comma: the task needs 2+ words and has to open with a work verb ("Tidy the logs", not "I need the logs").
-        head, tail = TEAM_SENTENCE.split(rest, 1)
-        repo = _lead_project(head.split())[0]
-        via_sep = True
-        if not TEAM_DO.match(tail.strip()):
-            return None, ""
-    else:
-        # The comma or dash sticks to the project word _lead_project takes, so split at it first.
-        repo, tail = _lead_project(rest.split())
-        sep = TEAM_SPLIT.search(rest)
-        head_repo, head_left = _lead_project(rest[:sep.start()].split()) if sep else (None, "")
-        if head_repo and not head_left:
-            repo, tail = head_repo, rest[sep.end():]
-            # After a comma or dash only a real task counts (2+ words): ", ok", "- quick", ", right" are chat.
-            # A joining word ("example, to check in") or a colon is a stronger signal and is exempt.
-            via_sep = not re.match(r"(?:and|then|to)\b", tail.strip(), re.I)
-        elif repo and TEAM_CONNECT.match(tail):
-            pass
-        else:
-            repo = None   # words after the name with no joining word: not a task
-        tail = TEAM_CONNECT.sub("", tail.strip(), count=1) if repo else ""
+    parts = _team_parts(t[m.end():])
+    if parts is None:
+        return None, ""
+    repo, tail, via_sep = parts
     task = TEAM_TRAIL.sub("", tail.strip()).strip(" ,;")
     if via_sep and len(task.split()) < 2:
         return None, ""
     if not repo or not task or task[0] in "'\"\u2019" or TEAM_NOT_FIRST.match(task) or not _is_task(task):
         return None, ""
     return repo, task
+
+
+def _team_parts(rest):
+    """(project, the words after it, whether a pause or dash split them) from what follows "start a claude on",
+    or None when those words are chat, not a task."""
+    desk = TEAM_DESK.match(rest)
+    if ":" in rest:
+        head, tail = rest.split(":", 1)
+        return find_project(head), tail, False
+    if desk:
+        return "desk", TEAM_CONNECT.sub("", rest[desk.end():].strip(), count=1), False
+    if TEAM_SENTENCE.search(rest) and _lead_project(TEAM_SENTENCE.split(rest, 1)[0].split())[0] \
+            and not _lead_project(TEAM_SENTENCE.split(rest, 1)[0].split())[1]:
+        # Spoken with a pause, the engine writes a full stop: "Start an agent on Example. Tidy the logs." Treat it like
+        # a comma: the task needs 2+ words and has to open with a work verb ("Tidy the logs", not "I need the logs").
+        head, tail = TEAM_SENTENCE.split(rest, 1)
+        if not TEAM_DO.match(tail.strip()):
+            return None
+        return _lead_project(head.split())[0], tail, True
+    return _team_parts_loose(rest)
+
+
+def _team_parts_loose(rest):
+    """The project and task when the name is followed by a comma or dash, a joining word ("to", "and", "then") or
+    plain words (which are not a task)."""
+    # The comma or dash sticks to the project word _lead_project takes, so split at it first.
+    repo, tail = _lead_project(rest.split())
+    sep = TEAM_SPLIT.search(rest)
+    head_repo, head_left = _lead_project(rest[:sep.start()].split()) if sep else (None, "")
+    via_sep = False
+    if head_repo and not head_left:
+        repo, tail = head_repo, rest[sep.end():]
+        # After a comma or dash only a real task counts (2+ words): ", ok", "- quick", ", right" are chat.
+        # A joining word ("example, to check in") or a colon is a stronger signal and is exempt.
+        via_sep = not re.match(r"(?:and|then|to)\b", tail.strip(), re.I)
+    elif not (repo and TEAM_CONNECT.match(tail)):
+        repo = None   # words after the name with no joining word: not a task
+    tail = TEAM_CONNECT.sub("", tail.strip(), count=1) if repo else ""
+    return repo, tail, via_sep
 
 
 def _is_task(task):
