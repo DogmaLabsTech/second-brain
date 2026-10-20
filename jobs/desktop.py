@@ -737,6 +737,16 @@ CLOCK = re.compile(
     r"(?:\s+(?P<day2>today|tonight|tomorrow|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))?(?=\W|$)", re.I)
 
 
+def _hour_and_minute(m, ampm):
+    """(hour, minute) as written, or None when the numbers make no sense (25, 12:60, 13 pm)."""
+    h = m.group("h").lower()
+    hour = int(h) if h.isdigit() else HOUR_WORDS[h]
+    minute = int(m.group("m") or 0)
+    if hour > 23 or minute > 59 or (ampm and not 1 <= hour <= 12):
+        return None
+    return hour, minute
+
+
 def _clock_time(m, day):
     """(hour, minute, fixed) from a CLOCK match, or None when the numbers make no sense. `fixed`: the words said
     which half of the day it is (am/pm, noon, "at night", "tonight"), so it is not guessed later."""
@@ -744,13 +754,13 @@ def _clock_time(m, day):
     part = (m.group("part") or "").lower()
     if m.group("noon"):
         return (0 if m.group("noon").lower() == "midnight" else 12), 0, True
-    h = m.group("h").lower()
-    hour = int(h) if h.isdigit() else HOUR_WORDS[h]
-    minute = int(m.group("m") or 0)
-    if hour > 23 or minute > 59 or (ampm and not 1 <= hour <= 12):
+    parsed = _hour_and_minute(m, ampm)
+    if parsed is None:
         return None
-    fixed = bool(ampm or part or hour == 0 or hour > 12 or "at night" in m.group(0).lower())
-    if ampm == "pm" or part in ("afternoon", "evening") or "at night" in m.group(0).lower() or day == "tonight":
+    hour, minute = parsed
+    night = "at night" in m.group(0).lower()
+    fixed = bool(ampm or part or hour == 0 or hour > 12 or night)
+    if ampm == "pm" or part in ("afternoon", "evening") or night or day == "tonight":
         hour, fixed = hour % 12 + 12, True
     elif ampm == "am" or part == "morning":
         hour = hour % 12
