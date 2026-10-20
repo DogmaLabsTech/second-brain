@@ -162,6 +162,32 @@ def pretty(repo):
                     for w in re.split(r"[-_ ]+", repo))
 
 
+def _closest_project(text, names):
+    """The project whose name is closest to something said (speech to text slips), if close enough."""
+    words = re.findall(r"[a-z0-9]+", text.lower())
+    grams = {"".join(words[i:i + k]) for k in (1, 2, 3) for i in range(len(words) - k + 1)}
+    best, score = None, 0.0
+    for n in names:
+        for g in grams:
+            r = difflib.SequenceMatcher(None, _norm(n), g).ratio()
+            if r > score:
+                best, score = n, r
+    return best if score >= 0.82 else None
+
+
+def _writer_picks_project(text, names, local_writer):
+    try:
+        pick = local_writer("Which one of these projects does the request mean? Reply with the exact name "
+                            "from the list, or none.\nProjects: " + ", ".join(names) + "\nRequest: " + text)
+    except Exception:  # noqa: BLE001
+        pick = ""
+    pick = (pick or "").strip().strip(".\"'` ")
+    for n in names:
+        if _norm(n) == _norm(pick):
+            return n
+    return None
+
+
 def find_project(text, local_writer=None):
     """Which project does the text name? Exact (spaces and dashes ignored) first, then close
     spelling (speech to text slips), then, only if both fail, the local writer picks from the list."""
@@ -172,26 +198,11 @@ def find_project(text, local_writer=None):
     hits = [n for n in names if _norm(n) and _norm(n) in t]
     if hits:
         return max(hits, key=lambda n: len(_norm(n)))
-    words = re.findall(r"[a-z0-9]+", text.lower())
-    grams = {"".join(words[i:i + k]) for k in (1, 2, 3) for i in range(len(words) - k + 1)}
-    best, score = None, 0.0
-    for n in names:
-        for g in grams:
-            r = difflib.SequenceMatcher(None, _norm(n), g).ratio()
-            if r > score:
-                best, score = n, r
-    if score >= 0.82:
-        return best
+    close = _closest_project(text, names)
+    if close:
+        return close
     if local_writer:
-        try:
-            pick = local_writer("Which one of these projects does the request mean? Reply with the exact name "
-                                "from the list, or none.\nProjects: " + ", ".join(names) + "\nRequest: " + text)
-        except Exception:  # noqa: BLE001
-            pick = ""
-        pick = (pick or "").strip().strip(".\"'` ")
-        for n in names:
-            if _norm(n) == _norm(pick):
-                return n
+        return _writer_picks_project(text, names, local_writer)
     return None
 
 
@@ -370,11 +381,7 @@ FILE_WORDS = re.compile(r"\b(folder|directory|file|picture|photo|image|video|pdf
                         r"downloads?|documents|screenshots?)\b", re.I)
 
 
-def resolve_open(job_id, text, search=None):
-    """"Open X": an app, a file or folder, or a note? Tries them in the order the words suggest
-    (file words: file first; note words: note first; else app first). Returns
-    (job id, args, label, answer, sources) or None."""
-    t = clean_text(text)
+def _open_order(job_id, t):
     order = ["open-app", "open-file", "open-note"]
     if FILE_WORDS.search(t) or job_id == "open-file":
         order = ["open-file", "open-app", "open-note"]
@@ -382,27 +389,47 @@ def resolve_open(job_id, text, search=None):
         order = ["open-note", "open-file", "open-app"]
     if desktop.known_folder(t):
         order.insert(0, "open-file")
+    return order
+
+
+def _try_open_file(t, order):
+    # Without file words it's an app that isn't installed, so only a project or known folder counts
+    # (a loose name search opened window-chrome.ts for "open chrome").
+    path, what, _ = desktop.find_file(t, [os.path.join(PROJECTS, p) for p in project_names()],
+                                      min_score=0.6 if order[0] == "open-file" else 1.0)
+    if not path:
+        return None
+    name = os.path.basename(path) or path
+    return ("open-file", {"path": path, "name": name}, f"Open {name}", f"Opening the {what} {name}.", [])
+
+
+def _try_open_note(t, order, search):
+    if not (search and (order[0] != "open-app" or NOTE_WORDS.search(t))):
+        return None
+    hits = search(note_topic(t))
+    if not hits:
+        return None
+    top = hits[0]
+    return ("open-note", {"path": top["path"], "title": top["title"]}, f"Open {top['title']}",
+            f"Opening your note {top['title']}.", hits[:3])
+
+
+def resolve_open(job_id, text, search=None):
+    """"Open X": an app, a file or folder, or a note? Tries them in the order the words suggest
+    (file words: file first; note words: note first; else app first). Returns
+    (job id, args, label, answer, sources) or None."""
+    t = clean_text(text)
+    order = _open_order(job_id, t)
     for kind in order:
         if kind == "open-app":
             app_id, name, _ = desktop.find_app(t)
-            if app_id:
-                return "open-app", {"app": app_id, "name": name}, f"Open {name}", f"Opening {name}.", []
+            found = ("open-app", {"app": app_id, "name": name}, f"Open {name}", f"Opening {name}.", []) if app_id else None
         elif kind == "open-file":
-            # Without file words it's an app that isn't installed, so only a project or known folder counts
-            # (a loose name search opened window-chrome.ts for "open chrome").
-            path, what, _ = desktop.find_file(t, [os.path.join(PROJECTS, p) for p in project_names()],
-                                              min_score=0.6 if order[0] == "open-file" else 1.0)
-            if path:
-                name = os.path.basename(path) or path
-                return ("open-file", {"path": path, "name": name}, f"Open {name}",
-                        f"Opening the {what} {name}.", [])
-        elif search and (order[0] != "open-app" or NOTE_WORDS.search(t)):
-            topic = note_topic(t)
-            hits = search(topic)
-            if hits:
-                top = hits[0]
-                return ("open-note", {"path": top["path"], "title": top["title"]}, f"Open {top['title']}",
-                        f"Opening your note {top['title']}.", hits[:3])
+            found = _try_open_file(t, order)
+        else:
+            found = _try_open_note(t, order, search)
+        if found:
+            return found
     return None
 
 
@@ -803,6 +830,27 @@ def _check(job_id, args):
     return check(job_id, dict(args or {})) if check else {}
 
 
+def _json_message(stdout, default_speak):
+    """(message, speak) from the last stdout line that is a JSON object with a message, else (None, default)."""
+    for line in reversed(stdout.splitlines()):
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(obj, dict) and obj.get("message"):
+            return obj["message"], bool(obj.get("speak", default_speak))
+    return None, default_speak
+
+
+def _no_message(job, args, out):
+    """What to say when the job printed no message of its own."""
+    if out.returncode == 0:
+        return (job["team_message"] if _command(job, args) is job.get("team_command")
+                else job.get("message", "Done.")).format(**args)
+    err = (out.stderr or out.stdout).strip().splitlines()
+    return "That didn't work" + (f": {err[-1][:160]}" if err else ".")
+
+
 def run(job_id, job_obj):
     jobs = load()
     job = jobs.get(job_id)
@@ -826,22 +874,9 @@ def run(job_id, job_obj):
     except (OSError, subprocess.TimeoutExpired) as why:
         print(json.dumps({"message": f"That didn't work: {why}."}))
         return 1
-    message, speak = None, bool(job.get("speak"))
-    for line in reversed(out.stdout.splitlines()):
-        try:
-            obj = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(obj, dict) and obj.get("message"):
-            message, speak = obj["message"], bool(obj.get("speak", speak))
-            break
+    message, speak = _json_message(out.stdout, bool(job.get("speak")))
     if message is None:
-        if out.returncode == 0:
-            message = (job["team_message"] if _command(job, args) is job.get("team_command")
-                       else job.get("message", "Done.")).format(**args)
-        else:
-            err = (out.stderr or out.stdout).strip().splitlines()
-            message = "That didn't work" + (f": {err[-1][:160]}" if err else ".")
+        message = _no_message(job, args, out)
     print(json.dumps({"message": message, "speak": speak} if speak else {"message": message}))
     return out.returncode
 
