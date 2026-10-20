@@ -172,6 +172,22 @@ def _is_open(a, classes):
     return any(n and n.lower() in classes for n in (a["wmclass"], a["exe"]))
 
 
+def _launch_pattern(app_id, a):
+    """The window words launch-or-focus matches for an app.
+
+    An open window that fits is focused instead of opening a second one. launch-or-focus tries the same
+    pattern on a window's class and on its title, so the short words (the window class, the program, the
+    last part of the id: "code" for VS Code) must be the whole class, never just a word in a title
+    ("Claude Code - ..." in a terminal is not VS Code). Only the app's full name may sit in a title."""
+    short = [n for n in dict.fromkeys([a["wmclass"], a["exe"], app_id.split(".")[-1], app_id]) if n and len(n) > 2]
+    parts = []
+    if short:
+        parts.append(r"^(?:[\w.-]*\.)?(?:" + "|".join(re.escape(n) for n in short) + r")$")
+    if a["name"] and len(a["name"]) > 2:
+        parts.append(re.escape(a["name"]))
+    return "(?:" + "|".join(parts) + ")" if parts else "^" + re.escape(app_id) + "$"
+
+
 def app_command(app_id, catalog=None):
     """The command that opens (or focuses, if already open) the app. Raises ValueError if unknown."""
     if app_id in SPECIAL:
@@ -179,19 +195,7 @@ def app_command(app_id, catalog=None):
     catalog = catalog if catalog is not None else apps()
     if app_id not in catalog or not SAFE_ID.match(app_id):
         raise ValueError("that app isn't installed")
-    a = catalog[app_id]
-    # An open window that fits is focused instead of opening a second one. launch-or-focus tries the same
-    # pattern on a window's class and on its title, so the short words (the window class, the program, the
-    # last part of the id: "code" for VS Code) must be the whole class, never just a word in a title
-    # ("Claude Code - ..." in a terminal is not VS Code). Only the app's full name may sit in a title.
-    short = [n for n in dict.fromkeys([a["wmclass"], a["exe"], app_id.split(".")[-1], app_id]) if n and len(n) > 2]
-    parts = []
-    if short:
-        parts.append(r"^(?:[\w.-]*\.)?(?:" + "|".join(re.escape(n) for n in short) + r")$")
-    if a["name"] and len(a["name"]) > 2:
-        parts.append(re.escape(a["name"]))
-    pattern = "(?:" + "|".join(parts) + ")" if parts else "^" + re.escape(app_id) + "$"
-    return ["omarchy-launch-or-focus", pattern, f"uwsm-app -- {app_id}.desktop"]
+    return ["omarchy-launch-or-focus", _launch_pattern(app_id, catalog[app_id]), f"uwsm-app -- {app_id}.desktop"]
 
 
 # ---------- files and folders ----------
@@ -420,6 +424,14 @@ def check_monitor_spec(spec, mons=None):
                                                       else m.group(1).title() if m else "that"))
 
 
+def _next_screen(order, from_id):
+    ids = [m["id"] for m in order]
+    if from_id in ids:
+        return order[(ids.index(from_id) + 1) % len(order)]
+    focused = next((m for m in order if m.get("focused")), order[0])
+    return next(m for m in order if m is not focused)
+
+
 def resolve_monitor(spec, mons, from_id=None):
     """(monitor, None) or (None, plain reason). `other` is the next screen after the one the window is on
     (left to right, wrapping)."""
@@ -427,11 +439,7 @@ def resolve_monitor(spec, mons, from_id=None):
         return None, "You only have one screen right now."
     order = sorted(mons, key=lambda m: (m.get("x", 0), m.get("y", 0)))
     if spec == "other":
-        ids = [m["id"] for m in order]
-        if from_id in ids:
-            return order[(ids.index(from_id) + 1) % len(order)], None
-        focused = next((m for m in order if m.get("focused")), order[0])
-        return next(m for m in order if m is not focused), None
+        return _next_screen(order, from_id), None
     axis = {"left": ("x", min), "right": ("x", max), "top": ("y", min), "bottom": ("y", max)}.get(spec)
     if axis:
         key, pick = axis
@@ -503,6 +511,11 @@ def window_pattern(app_id, catalog=None):
     return argv[1] if argv[0] == "omarchy-launch-or-focus" else None
 
 
+def _on_screen(clist):
+    return [c for c in clist if c.get("mapped", True) and not c.get("hidden") and
+            (c.get("workspace") or {}).get("id", 1) > 0]
+
+
 def app_windows(app_id, clist=None, catalog=None):
     """The app's open windows, the one focused most recently first. A window class that fits wins over
     a title that fits (launch-or-focus checks both)."""
@@ -514,8 +527,7 @@ def app_windows(app_id, clist=None, catalog=None):
         rx = re.compile(r"\b(?:" + pattern + r")\b" if app_id not in SPECIAL_CLASSES else pattern, re.I)
     except re.error:
         return []
-    live = [c for c in clist if c.get("mapped", True) and not c.get("hidden") and
-            (c.get("workspace") or {}).get("id", 1) > 0]
+    live = _on_screen(clist)
     by_class = [c for c in live if rx.search(c.get("class", "") or "")]
     # The pattern's short words only fit a whole class (see app_command), so a title only fits by the
     # app's full name: a terminal titled "Claude Code - ..." is not VS Code.
@@ -523,9 +535,8 @@ def app_windows(app_id, clist=None, catalog=None):
     return sorted(hits, key=lambda c: c.get("focusHistoryID", 99))
 
 
-def window_move(text):
-    """{"to": spec|None, "app": app id|None, "said": what was named|""} for a move request."""
-    t = " ".join(text.lower().split()).strip(" .?!")
+def _named_window(t):
+    """What was named to move ("chrome"), with the small words around it dropped; "" when it says this window."""
     m = re.search(r"\b" + MOVE_VERBS + r"\s+(.*?)\s+(?:to|onto|on|over to)\s+(?:(?:my|the|that|this|a)\s+)?"
                   r"(?:[\w-]+\s+){0,2}?(?:screen|monitor|display)s?\b", t)
     said = m.group(1) if m else ""
@@ -537,6 +548,11 @@ def window_move(text):
     said = re.sub(r"\s+(window|app|application|program|tab)s?$", "", said).strip()
     if said in ("", "it", "this", "that", "window", "one", "thing", "app", "application", "program", "tab"):
         said = ""
+    return said
+
+
+def _app_to_move(said):
+    """(app id or None, said is a file word and not an app)."""
     app_id, not_app = None, False
     if said:
         app_id, _, score = find_app(said)
@@ -547,6 +563,14 @@ def window_move(text):
             app_id = None
         elif not app_id and NOT_APP_WORDS.match(said):
             not_app = True
+    return app_id, not_app
+
+
+def window_move(text):
+    """{"to": spec|None, "app": app id|None, "said": what was named|""} for a move request."""
+    t = " ".join(text.lower().split()).strip(" .?!")
+    said = _named_window(t)
+    app_id, not_app = _app_to_move(said)
     out = {"to": monitor_spec(t), "app": app_id, "said": said}
     if not_app:
         out["not_app"] = True

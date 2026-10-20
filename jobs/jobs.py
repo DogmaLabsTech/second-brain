@@ -86,6 +86,15 @@ def is_how_question(text):
     return bool(HOW_QUESTION.search(clean_text(text)))
 
 
+def _send_rule_label(label, t):
+    """The send rule fits: the decider's open-file/app/note, or a desktop label with no action, becomes send-file."""
+    if label in ("job:open-file", "job:open-app", "job:open-note"):
+        return "job:send-file"
+    if label == "job:desktop" and not desktop.find_action(t)[0]:
+        return "job:send-file"
+    return None
+
+
 def route_label(rule, label, text):
     """The decider's label, corrected only where a rule is sure and the decider's job can't do it. A decider
     trained before the send and screen-move jobs existed calls "send it to the laptop" an open-file and "move
@@ -96,10 +105,9 @@ def route_label(rule, label, text):
     if rule == "servers" and label.startswith("job:") and label != "job:servers":
         return "job:servers"   # "start the llc namer" is not an open-app: the name is one of the hosted servers
     if rule == "send-file":
-        if label in ("job:open-file", "job:open-app", "job:open-note"):
-            return "job:send-file"
-        if label == "job:desktop" and not desktop.find_action(t)[0]:
-            return "job:send-file"
+        fixed = _send_rule_label(label, t)
+        if fixed:
+            return fixed
     elif label == "job:send-file" and rule:
         return f"job:{rule}"
     if rule == "desktop" and label in ("job:open-file", "job:open-app", "job:open-note") and desktop.is_window_move(t):
@@ -118,16 +126,8 @@ def match_rule(text, jobs=None):
     return None
 
 
-def _rule_fits(job, text):
-    """Does this one job's `match` (a regex or an `@module.function` check) fit the text?"""
+def _regex_rule_fits(job, text):
     m = job.get("match")
-    if m == "@desktop.find_action":
-        # "move spotify to the left screen" is a window move, not music
-        return bool(desktop.is_window_move(text) or (not NOT_DESKTOP.search(text) and desktop.find_action(text)[0]))
-    if m == "@servers.is_request":
-        return bool(servers.is_request(text))
-    if m == "@sendfiles.is_send_request":
-        return bool(sendfiles.is_send_request(text))
     if not (m and re.search(m, text, re.I)):
         return False
     if job["id"] in AGENT_JOBS and (two_asks(text, job["id"]) or is_how_question(text)):
@@ -135,6 +135,22 @@ def _rule_fits(job, text):
     if job["id"] == "start-job" and not all(job_project(text)):
         return False   # "start a run on tuesday" names no project: not this job
     return True
+
+
+def _desktop_rule_fits(text):
+    # "move spotify to the left screen" is a window move, not music
+    return bool(desktop.is_window_move(text) or (not NOT_DESKTOP.search(text) and desktop.find_action(text)[0]))
+
+
+CODE_RULES = {"@desktop.find_action": _desktop_rule_fits,
+              "@servers.is_request": lambda text: bool(servers.is_request(text)),
+              "@sendfiles.is_send_request": lambda text: bool(sendfiles.is_send_request(text))}
+
+
+def _rule_fits(job, text):
+    """Does this one job's `match` (a regex or an `@module.function` check) fit the text?"""
+    check = CODE_RULES.get(job.get("match"))
+    return check(text) if check else _regex_rule_fits(job, text)
 
 
 # ---------- arguments ----------
@@ -881,30 +897,42 @@ def run(job_id, job_obj):
     return out.returncode
 
 
+def _cmd_list():
+    for j in load().values():
+        c = j.get("needs_confirm")
+        c = "sometimes" if isinstance(c, str) else "asks first" if c else "no confirm"
+        print(f"{j['id']:14} {c:11} e.g. \"{j['phrases'][0]}\"")
+    return 0
+
+
+def _cmd_build(argv):
+    text = argv[1]
+    jid = argv[2] if len(argv) > 2 else match_rule(text)
+    print(json.dumps(build(jid, text) if jid else None))
+    return 0
+
+
+def _cmd_run(argv):
+    obj = {}
+    if "--args-json" in argv:
+        try:
+            obj = json.loads(argv[argv.index("--args-json") + 1])
+        except (ValueError, IndexError):
+            print(json.dumps({"message": "The job's details didn't make sense, so I did nothing."}))
+            return 2
+    return run(argv[1], obj if isinstance(obj, dict) else {})
+
+
 def main(argv):
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__.split("\n\n")[-1])
         return 0
     if argv[0] == "list":
-        for j in load().values():
-            c = j.get("needs_confirm")
-            c = "sometimes" if isinstance(c, str) else "asks first" if c else "no confirm"
-            print(f"{j['id']:14} {c:11} e.g. \"{j['phrases'][0]}\"")
-        return 0
+        return _cmd_list()
     if argv[0] == "build":
-        text = argv[1]
-        jid = argv[2] if len(argv) > 2 else match_rule(text)
-        print(json.dumps(build(jid, text) if jid else None))
-        return 0
+        return _cmd_build(argv)
     if argv[0] == "run" and len(argv) >= 2:
-        obj = {}
-        if "--args-json" in argv:
-            try:
-                obj = json.loads(argv[argv.index("--args-json") + 1])
-            except (ValueError, IndexError):
-                print(json.dumps({"message": "The job's details didn't make sense, so I did nothing."}))
-                return 2
-        return run(argv[1], obj if isinstance(obj, dict) else {})
+        return _cmd_run(argv)
     print("jobs: unknown command", file=sys.stderr)
     return 2
 
