@@ -666,6 +666,56 @@ CLOCK = re.compile(
     r"(?:\s+(?P<day2>today|tonight|tomorrow|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))?(?=\W|$)", re.I)
 
 
+def _clock_time(m, day):
+    """(hour, minute, fixed) from a CLOCK match, or None when the numbers make no sense. `fixed`: the words said
+    which half of the day it is (am/pm, noon, "at night", "tonight"), so it is not guessed later."""
+    ampm = (m.group("ampm") or "").replace(".", "").lower()
+    part = (m.group("part") or "").lower()
+    if m.group("noon"):
+        return (0 if m.group("noon").lower() == "midnight" else 12), 0, True
+    h = m.group("h").lower()
+    hour = int(h) if h.isdigit() else HOUR_WORDS[h]
+    minute = int(m.group("m") or 0)
+    if hour > 23 or minute > 59 or (ampm and not 1 <= hour <= 12):
+        return None
+    fixed = bool(ampm or part or hour == 0 or hour > 12 or "at night" in m.group(0).lower())
+    if ampm == "pm" or part in ("afternoon", "evening") or "at night" in m.group(0).lower() or day == "tonight":
+        hour, fixed = hour % 12 + 12, True
+    elif ampm == "am" or part == "morning":
+        hour = hour % 12
+    return hour, minute, fixed
+
+
+def _clock_date(today, day):
+    """The date a clock phrase means: tomorrow, the coming weekday ("on friday"), else today."""
+    if day == "tomorrow":
+        return today + dt.timedelta(days=1)
+    if day.startswith("on "):
+        return today + dt.timedelta(days=(WEEKDAYS.index(day[3:]) - today.weekday()) % 7)
+    return today
+
+
+def _clock_moment(base, hour, minute, fixed, day, now):
+    """The moment: an unfixed hour is guessed to be the next one to come, and one that has gone by moves on."""
+    when = dt.datetime.combine(base, dt.time(hour, minute))
+    if not fixed and 1 <= hour <= 6:
+        when += dt.timedelta(hours=12)          # "at 7 on friday" may be morning, but "at 3" is the afternoon
+    elif not fixed and when <= now and hour < 12 and when + dt.timedelta(hours=12) > now:
+        when += dt.timedelta(hours=12)          # "at 2" said at 12:47 is 2 pm
+    if when <= now:
+        when += dt.timedelta(days=7 if day.startswith("on ") else 1)
+    return when
+
+
+def _clock_message(text, m):
+    """What to remind about: the text without the clock phrase and the "remind me to" filler."""
+    msg = text[:m.start()] + " " + text[m.end():]
+    msg = re.sub(r"\b(please|hey claude|remind me|set (a |an )?(reminder|alarm)( for)?|to|that|about)\b", " ", msg,
+                 flags=re.I)
+    msg = " ".join(msg.split()).strip(" ,.?!")
+    return (msg[:1].upper() + msg[1:]) if msg else "Reminder"
+
+
 def parse_clock(text, now=None):
     """(epoch, message) from "remind me at 2pm to go outside with Ollie" ("at 9:30", "tomorrow at 8am", "at 7 on
     friday", "at noon"), or (None, None). A bare hour ("at 2") is the next 2:00 or 14:00 to come; a time that has
@@ -675,40 +725,11 @@ def parse_clock(text, now=None):
     if not m:
         return None, None
     day = (m.group("day1") or m.group("day2") or "").lower()
-    ampm = (m.group("ampm") or "").replace(".", "").lower()
-    part = (m.group("part") or "").lower()
-    if m.group("noon"):
-        hour, minute, fixed = (0 if m.group("noon").lower() == "midnight" else 12), 0, True
-    else:
-        h = m.group("h").lower()
-        hour = int(h) if h.isdigit() else HOUR_WORDS[h]
-        minute = int(m.group("m") or 0)
-        if hour > 23 or minute > 59 or (ampm and not 1 <= hour <= 12):
-            return None, None
-        fixed = bool(ampm or part or hour == 0 or hour > 12 or "at night" in m.group(0).lower())
-        if ampm == "pm" or part in ("afternoon", "evening") or "at night" in m.group(0).lower() or day == "tonight":
-            hour = hour % 12 + 12
-            fixed = True
-        elif ampm == "am" or part == "morning":
-            hour = hour % 12
-    base = now.date()
-    if day == "tomorrow":
-        base += dt.timedelta(days=1)
-    elif day.startswith("on "):
-        ahead = (WEEKDAYS.index(day[3:]) - base.weekday()) % 7
-        base += dt.timedelta(days=ahead)
-    when = dt.datetime.combine(base, dt.time(hour, minute))
-    if not fixed and 1 <= hour <= 6:
-        when += dt.timedelta(hours=12)          # "at 7 on friday" may be morning, but "at 3" is the afternoon
-    elif not fixed and when <= now and hour < 12 and when + dt.timedelta(hours=12) > now:
-        when += dt.timedelta(hours=12)          # "at 2" said at 12:47 is 2 pm
-    if when <= now:
-        when += dt.timedelta(days=7 if day.startswith("on ") else 1)
-    msg = text[:m.start()] + " " + text[m.end():]
-    msg = re.sub(r"\b(please|hey claude|remind me|set (a |an )?(reminder|alarm)( for)?|to|that|about)\b", " ", msg,
-                 flags=re.I)
-    msg = " ".join(msg.split()).strip(" ,.?!")
-    return int(when.timestamp()), (msg[:1].upper() + msg[1:]) if msg else "Reminder"
+    clock = _clock_time(m, day)
+    if clock is None:
+        return None, None
+    when = _clock_moment(_clock_date(now.date(), day), *clock, day, now)
+    return int(when.timestamp()), _clock_message(text, m)
 
 
 def word_number(s):
