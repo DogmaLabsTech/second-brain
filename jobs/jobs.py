@@ -113,25 +113,28 @@ def match_rule(text, jobs=None):
     function says yes. Used when the decider is unsure, and to correct it (route_label)."""
     text = clean_text(text).lower()
     for job in sorted((jobs or load()).values(), key=lambda j: j.get("order", 50)):
-        m = job.get("match")
-        if m == "@desktop.find_action":
-            if desktop.is_window_move(text):   # "move spotify to the left screen" is a window move, not music
-                return job["id"]
-            if not NOT_DESKTOP.search(text) and desktop.find_action(text)[0]:
-                return job["id"]
-        elif m == "@servers.is_request":
-            if servers.is_request(text):
-                return job["id"]
-        elif m == "@sendfiles.is_send_request":
-            if sendfiles.is_send_request(text):
-                return job["id"]
-        elif m and re.search(m, text, re.I):
-            if job["id"] in AGENT_JOBS and (two_asks(text, job["id"]) or is_how_question(text)):
-                continue
-            if job["id"] == "start-job" and not all(job_project(text)):
-                continue   # "start a run on tuesday" names no project: not this job
+        if _rule_fits(job, text):
             return job["id"]
     return None
+
+
+def _rule_fits(job, text):
+    """Does this one job's `match` (a regex or an `@module.function` check) fit the text?"""
+    m = job.get("match")
+    if m == "@desktop.find_action":
+        # "move spotify to the left screen" is a window move, not music
+        return bool(desktop.is_window_move(text) or (not NOT_DESKTOP.search(text) and desktop.find_action(text)[0]))
+    if m == "@servers.is_request":
+        return bool(servers.is_request(text))
+    if m == "@sendfiles.is_send_request":
+        return bool(sendfiles.is_send_request(text))
+    if not (m and re.search(m, text, re.I)):
+        return False
+    if job["id"] in AGENT_JOBS and (two_asks(text, job["id"]) or is_how_question(text)):
+        return False
+    if job["id"] == "start-job" and not all(job_project(text)):
+        return False   # "start a run on tuesday" names no project: not this job
+    return True
 
 
 # ---------- arguments ----------
@@ -277,45 +280,55 @@ def team_task(text):
     m = TEAM_LEAD.search(t)
     if not m:
         return None, ""
-    rest = t[m.end():]
-    desk = TEAM_DESK.match(rest)
-    via_sep = False
-    if ":" in rest:
-        head, tail = rest.split(":", 1)
-        repo = find_project(head)
-    elif desk:
-        repo, tail = "desk", rest[desk.end():]
-        tail = TEAM_CONNECT.sub("", tail.strip(), count=1)
-    elif TEAM_SENTENCE.search(rest) and _lead_project(TEAM_SENTENCE.split(rest, 1)[0].split())[0] \
-            and not _lead_project(TEAM_SENTENCE.split(rest, 1)[0].split())[1]:
-        # Spoken with a pause, the engine writes a full stop: "Start an agent on Example. Tidy the logs." Treat it like
-        # a comma: the task needs 2+ words and has to open with a work verb ("Tidy the logs", not "I need the logs").
-        head, tail = TEAM_SENTENCE.split(rest, 1)
-        repo = _lead_project(head.split())[0]
-        via_sep = True
-        if not TEAM_DO.match(tail.strip()):
-            return None, ""
-    else:
-        # The comma or dash sticks to the project word _lead_project takes, so split at it first.
-        repo, tail = _lead_project(rest.split())
-        sep = TEAM_SPLIT.search(rest)
-        head_repo, head_left = _lead_project(rest[:sep.start()].split()) if sep else (None, "")
-        if head_repo and not head_left:
-            repo, tail = head_repo, rest[sep.end():]
-            # After a comma or dash only a real task counts (2+ words): ", ok", "- quick", ", right" are chat.
-            # A joining word ("example, to check in") or a colon is a stronger signal and is exempt.
-            via_sep = not re.match(r"(?:and|then|to)\b", tail.strip(), re.I)
-        elif repo and TEAM_CONNECT.match(tail):
-            pass
-        else:
-            repo = None   # words after the name with no joining word: not a task
-        tail = TEAM_CONNECT.sub("", tail.strip(), count=1) if repo else ""
+    parts = _team_parts(t[m.end():])
+    if parts is None:
+        return None, ""
+    repo, tail, via_sep = parts
     task = TEAM_TRAIL.sub("", tail.strip()).strip(" ,;")
     if via_sep and len(task.split()) < 2:
         return None, ""
     if not repo or not task or task[0] in "'\"\u2019" or TEAM_NOT_FIRST.match(task) or not _is_task(task):
         return None, ""
     return repo, task
+
+
+def _team_parts(rest):
+    """(project, the words after it, whether a pause or dash split them) from what follows "start a claude on",
+    or None when those words are chat, not a task."""
+    desk = TEAM_DESK.match(rest)
+    if ":" in rest:
+        head, tail = rest.split(":", 1)
+        return find_project(head), tail, False
+    if desk:
+        return "desk", TEAM_CONNECT.sub("", rest[desk.end():].strip(), count=1), False
+    if TEAM_SENTENCE.search(rest) and _lead_project(TEAM_SENTENCE.split(rest, 1)[0].split())[0] \
+            and not _lead_project(TEAM_SENTENCE.split(rest, 1)[0].split())[1]:
+        # Spoken with a pause, the engine writes a full stop: "Start an agent on Example. Tidy the logs." Treat it like
+        # a comma: the task needs 2+ words and has to open with a work verb ("Tidy the logs", not "I need the logs").
+        head, tail = TEAM_SENTENCE.split(rest, 1)
+        if not TEAM_DO.match(tail.strip()):
+            return None
+        return _lead_project(head.split())[0], tail, True
+    return _team_parts_loose(rest)
+
+
+def _team_parts_loose(rest):
+    """The project and task when the name is followed by a comma or dash, a joining word ("to", "and", "then") or
+    plain words (which are not a task)."""
+    # The comma or dash sticks to the project word _lead_project takes, so split at it first.
+    repo, tail = _lead_project(rest.split())
+    sep = TEAM_SPLIT.search(rest)
+    head_repo, head_left = _lead_project(rest[:sep.start()].split()) if sep else (None, "")
+    via_sep = False
+    if head_repo and not head_left:
+        repo, tail = head_repo, rest[sep.end():]
+        # After a comma or dash only a real task counts (2+ words): ", ok", "- quick", ", right" are chat.
+        # A joining word ("example, to check in") or a colon is a stronger signal and is exempt.
+        via_sep = not re.match(r"(?:and|then|to)\b", tail.strip(), re.I)
+    elif not (repo and TEAM_CONNECT.match(tail)):
+        repo = None   # words after the name with no joining word: not a task
+    tail = TEAM_CONNECT.sub("", tail.strip(), count=1) if repo else ""
+    return repo, tail, via_sep
 
 
 def _is_task(task):

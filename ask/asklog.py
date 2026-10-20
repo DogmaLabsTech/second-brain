@@ -42,8 +42,8 @@ def log_ask(qid, q, result, source):
                        "job": (result.get("job") or {}).get("id"),
                        "sources": [s.get("path") for s in result.get("sources", [])],
                        "ms": result.get("ms"), "steps": result.get("steps", {})})
-    except OSError:
-        pass   # the record must never break an answer
+    except OSError as why:   # the record must never break an answer, but a lost line is said
+        print(f"asklog: could not record the question: {why}", file=sys.stderr)
 
 
 def rate(qid, verdict, why=""):
@@ -62,7 +62,10 @@ def read(path):
     try:
         with open(path) as f:
             return [json.loads(l) for l in f if l.strip()]
-    except (OSError, ValueError):
+    except FileNotFoundError:   # nothing recorded yet
+        return []
+    except (OSError, ValueError) as why:
+        print(f"asklog: could not read {path}: {why}", file=sys.stderr)
         return []
 
 

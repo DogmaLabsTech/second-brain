@@ -65,7 +65,10 @@ def on():
     try:
         with open(CONFIG) as f:
             return bool(json.load(f).get("on"))
-    except (OSError, ValueError):
+    except FileNotFoundError:   # never set: off
+        return False
+    except (OSError, ValueError) as why:
+        print(f"details: could not read {CONFIG} ({why}); details are off", file=sys.stderr)
         return False
 
 
@@ -107,13 +110,18 @@ def loaded():
         return False
 
 
+def _timed_out(why):
+    return isinstance(why, TimeoutError) or isinstance(getattr(why, "reason", None), TimeoutError)
+
+
 def wake():
     try:
         req = urllib.request.Request(f"http://{OLLAMA}/api/generate", json.dumps({"model": MODEL, "keep_alive": "5m"}).encode(),
                                      {"content-type": "application/json"})
         urllib.request.urlopen(req, timeout=0.3)
-    except Exception:  # noqa: BLE001  (it keeps loading after we stop waiting)
-        pass
+    except Exception as why:  # noqa: BLE001
+        if not _timed_out(why):   # a timeout is the plan: it keeps loading after we stop waiting
+            print(f"details: could not wake the writer: {why}", file=sys.stderr)
 
 
 def fill(job_id, text, projects=(), timeout=SECONDS):
@@ -141,7 +149,9 @@ def fill(job_id, text, projects=(), timeout=SECONDS):
         r = conn.getresponse()
         out = json.loads(json.loads(r.read())["message"]["content"]) if r.status == 200 else None
         conn.close()
-    except (OSError, ValueError, KeyError):
+    except (OSError, ValueError, KeyError) as why:
+        if not _timed_out(why):   # too slow is expected; anything else is said
+            print(f"details: the writer failed ({type(why).__name__}: {why}); no details", file=sys.stderr)
         return None
     return ground(job_id, out, text, projects) if isinstance(out, dict) else None
 

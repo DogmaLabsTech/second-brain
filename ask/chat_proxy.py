@@ -108,12 +108,17 @@ def sse_messages(raw):
     return out[0] if len(out) == 1 else out
 
 
+class CallerGone(Exception):
+    """Writing to the caller failed (it closed the stream or cancelled the search): not the search server's fault."""
+
+
 class Proxy(BaseHTTPRequestHandler):
     upstream = urllib.parse.urlsplit("http://localhost:8182")
     protocol_version = "HTTP/1.1"
 
-    def log_message(self, *a):   # quiet: journald gets only errors
-        pass
+    def log_request(self, *a):
+        """No line per request (journald gets only errors): the default log_message still says every error."""
+        return None
 
     def _send_upstream(self, body, headers=None):
         conn = http.client.HTTPConnection(self.upstream.hostname, self.upstream.port, timeout=600)
@@ -135,14 +140,25 @@ class Proxy(BaseHTTPRequestHandler):
                     self.send_header(k, v)
             self.send_header("Transfer-Encoding", "chunked")
             self.send_header("Connection", "close")
-            self.end_headers()
+            self._to_caller(self.end_headers)
             while chunk := resp.read1(65536):
-                self.wfile.write(b"%x\r\n%s\r\n" % (len(chunk), chunk))
-                self.wfile.flush()
-            self.wfile.write(b"0\r\n\r\n")
+                self._to_caller(self._write_chunk, chunk)
+            self._to_caller(self.wfile.write, b"0\r\n\r\n")
         finally:
             conn.close()
         self.close_connection = True
+
+    def _write_chunk(self, chunk):
+        self.wfile.write(b"%x\r\n%s\r\n" % (len(chunk), chunk))
+        self.wfile.flush()
+
+    @staticmethod
+    def _to_caller(write, *args):
+        """Run a write to the caller; a failure there is CallerGone, so it is not taken for an upstream failure."""
+        try:
+            write(*args)
+        except OSError as why:
+            raise CallerGone(why) from why
 
     def _query(self, msg):
         """A query call (or a batch holding one): rewrite, ask qmd, re-sort, answer as JSON or event-stream."""
@@ -175,8 +191,8 @@ class Proxy(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        self._to_caller(self.end_headers)
+        self._to_caller(self.wfile.write, data)
 
     def _handle(self):
         n = int(self.headers.get("Content-Length") or 0)
@@ -192,11 +208,16 @@ class Proxy(BaseHTTPRequestHandler):
             return self._relay(body)
         except ValueError:
             return self._relay(body)
+        except CallerGone:
+            # The caller closed the stream or cancelled the search: nothing to answer, nothing wrong upstream, so
+            # no log line (it would be a false "search server failed" each time).
+            self.close_connection = True
         except (ConnectionError, OSError, http.client.HTTPException) as why:
+            print(f"search server failed, answering 502: {why}", file=sys.stderr)
             try:
                 self._reply(502, "application/json", json.dumps({"error": f"search server: {why}"}).encode())
-            except OSError:
-                pass
+            except CallerGone:
+                self.close_connection = True   # the caller left before the 502 could reach it
 
     do_GET = do_POST = do_DELETE = do_HEAD = do_OPTIONS = do_PUT = _handle
 
@@ -210,8 +231,8 @@ def serve(port, upstream):
     servers = [ThreadingHTTPServer(("127.0.0.1", port), Proxy)]
     try:   # "localhost" may be ::1 first (Claude's MCP client); this computer only either way
         servers.append(V6(("::1", port), Proxy))
-    except OSError:
-        pass
+    except OSError as why:
+        print(f"no listener on ::1 (IPv4 only): {why}", file=sys.stderr)
     for s in servers[1:]:
         threading.Thread(target=s.serve_forever, daemon=True).start()
     print(f"chat search mix on :{port} -> {upstream}", file=sys.stderr)

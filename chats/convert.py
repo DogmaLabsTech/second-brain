@@ -228,8 +228,8 @@ class Session:
             try:
                 st = os.stat(f)
                 sig.append([os.path.basename(f), int(st.st_mtime), st.st_size])
-            except OSError:
-                pass
+            except OSError as why:   # left out of the signature, so the session is read again next time
+                print(f"convert: could not stat {f}: {why}", file=sys.stderr)
         return sig
 
 
@@ -360,7 +360,10 @@ def load_state(path):
     try:
         with open(path) as fh:
             return json.load(fh)
-    except (OSError, ValueError):
+    except FileNotFoundError:   # first run
+        return {}
+    except (OSError, ValueError) as why:
+        print(f"convert: could not read the state file {path} ({why}); starting from an empty state", file=sys.stderr)
         return {}
 
 

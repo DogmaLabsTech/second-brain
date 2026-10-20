@@ -24,6 +24,7 @@ joins if needed; a good local answer within BRAIN_LOCAL_SECONDS (4 s) still wins
 --json prints one object, the island's contract (user.brain-island README):
   {kind, answer, sources[{path,title,snippet}], job, writer, ms} (+ timings in `steps`).
 """
+import errno
 import http.client
 import json
 import math
@@ -186,8 +187,17 @@ def public_sources(hits):
 def decide(*args, timeout=INTENT_SECONDS):
     try:
         out = subprocess.run([DECIDE, *args], capture_output=True, text=True, timeout=timeout)
+        # brain-decide's own warnings (an unreadable private.json) would be lost here; its other stderr (the
+        # decider app's) might hold the question, so only its own lines are passed on
+        for line in out.stderr.splitlines():
+            if line.startswith("brain-decide:"):
+                print(line, file=sys.stderr)
         return json.loads(out.stdout.strip().splitlines()[-1])
-    except (OSError, ValueError, IndexError, subprocess.TimeoutExpired):
+    except (OSError, ValueError, IndexError, subprocess.TimeoutExpired) as why:
+        # the label stays "timeout" for every failure (the steps and the log show it as before); the real error is
+        # said, by type only: a timeout's text holds the whole command, question and private notes included
+        detail = f"after {why.timeout:g} s" if isinstance(why, subprocess.TimeoutExpired) else str(why)
+        print(f"brain ask: the decider failed ({type(why).__name__} {detail})", file=sys.stderr)
         return {"label": "unsure", "confidence": 0.0, "by": "timeout"}
 
 
@@ -236,8 +246,8 @@ def stop_writers():
     for x in list(_LIVE):
         try:
             x.kill() if hasattr(x, "kill") else x.close()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as why:  # noqa: BLE001
+            print(f"brain ask: could not stop a writer: {why}", file=sys.stderr)
 
 def notes_block(hits, n=4):
     return "\n\n".join(f"[{i}] {h['title']} ({short_path(h['path'])}): {passage(h)}"
@@ -299,8 +309,9 @@ class _Hangup:
     def kill(self):
         try:
             self.sock.shutdown(socket.SHUT_RDWR)
-        except OSError:
-            pass
+        except OSError as why:
+            if why.errno not in (errno.ENOTCONN, errno.EBADF):   # those two just mean it was already closed
+                print(f"brain ask: could not hang up on the standby Haiku: {why}", file=sys.stderr)
 
 
 def haiku_standby_write(prompt, timeout=30, on_text=None):
@@ -340,8 +351,8 @@ def haiku_write(prompt, system=SYSTEM, timeout=30, on_text=None):
     if system == SYSTEM and os.path.exists(HAIKU_SOCK):
         try:
             return haiku_standby_write(prompt, timeout, on_text)
-        except (OSError, ConnectionError):
-            pass   # not running: start one here
+        except (OSError, ConnectionError) as why:   # not running: start one here
+            print(f"brain ask: the standby Haiku did not answer ({why}); starting Haiku here", file=sys.stderr)
     t0 = time.monotonic()
     argv = ["claude", "-p", "--model", HAIKU_MODEL, "--tools", "", "--strict-mcp-config", "--setting-sources", "",
             "--no-session-persistence", "--disable-slash-commands", "--system-prompt", system,
@@ -377,8 +388,8 @@ def haiku_write(prompt, system=SYSTEM, timeout=30, on_text=None):
         timer.cancel()
         try:
             proc.kill()
-        except OSError:
-            pass
+        except OSError as why:
+            print(f"brain ask: could not stop Haiku: {why}", file=sys.stderr)
     if final is None and not text:
         raise RuntimeError("haiku gave no answer")
     return (final or text).strip(), int((first or 0) * 1000), int((time.monotonic() - t0) * 1000)
@@ -413,8 +424,8 @@ def warm_local(model=LOCAL_MODEL):
                                          json.dumps({"model": model, "keep_alive": "5m"}).encode(),
                                          {"content-type": "application/json"})
             urllib.request.urlopen(req, timeout=120).read()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as why:  # noqa: BLE001
+            print(f"brain ask: could not warm the local writer: {why}", file=sys.stderr)
     threading.Thread(target=go, daemon=True).start()
 
 
