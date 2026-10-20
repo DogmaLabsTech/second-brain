@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import desktop  # noqa: E402
 import details  # noqa: E402
 import sendfiles  # noqa: E402
+import servers  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HOME = os.path.expanduser("~")
@@ -53,7 +54,7 @@ def clean_text(text):
 NOT_DESKTOP = re.compile(r"\b(tv|television|telly|songs?|tracks?|music|spotify)\b", re.I)
 # Jobs whose own rule beats the decider's "question" or "unsure" (their rules are tight commands, and a
 # decider trained before they existed doesn't know their labels).
-DESKTOP_JOBS = ("desktop", "open-app", "open-file", "send-file", "team-screen")   # team-screen: agent-os, 2026-10-19
+DESKTOP_JOBS = ("desktop", "open-app", "open-file", "send-file", "team-screen", "servers")   # team-screen: agent-os, 2026-10-19
 # Jobs that sound like questions ("what moved today?"): their rule beats the decider's "question" too, and a
 # how-question doesn't undo them (they are new to the decider; add them to the next the local decider round).
 DAY_JOBS = ("what-changed", "goodnight")
@@ -92,6 +93,8 @@ def route_label(rule, label, text):
     send-file label gives way to another job's rule (the send rule is strict, so when it doesn't fit, "remind
     me to put the charger on the laptop" is a reminder, not a send)."""
     t = clean_text(text).lower()
+    if rule == "servers" and label.startswith("job:") and label != "job:servers":
+        return "job:servers"   # "start the llc namer" is not an open-app: the name is one of the hosted servers
     if rule == "send-file":
         if label in ("job:open-file", "job:open-app", "job:open-note"):
             return "job:send-file"
@@ -115,6 +118,9 @@ def match_rule(text, jobs=None):
             if desktop.is_window_move(text):   # "move spotify to the left screen" is a window move, not music
                 return job["id"]
             if not NOT_DESKTOP.search(text) and desktop.find_action(text)[0]:
+                return job["id"]
+        elif m == "@servers.is_request":
+            if servers.is_request(text):
                 return job["id"]
         elif m == "@sendfiles.is_send_request":
             if sendfiles.is_send_request(text):
@@ -567,6 +573,15 @@ def build(job_id, text, search=None, local_writer=None, how="typed"):
         args = {"action": action}
         label = {"up": "Turn the TV up", "down": "Turn the TV down", "mute": "Mute the TV"}[action]
         answer = label + "."
+    elif job_id == "servers":
+        t = clean_text(text)
+        action, site = servers.action_of(t), servers.find_server(t)
+        if not action or not site:
+            return {"kind": "answer", "answer": "Which server, and on or off? Say, turn on the LLC namer.",
+                    "sources": [], "job": None}
+        args = {"site": site["id"], "action": action}
+        label = f"Turn {action} {site['label']}"
+        answer = label + "."
     elif job_id == "remember":
         what = remember_text(text)
         if not what:
@@ -612,6 +627,8 @@ def build(job_id, text, search=None, local_writer=None, how="typed"):
         answer = "Checking who needs you."
     obj = {"id": job_id, "label": label, "needs_confirm": bool(job.get("needs_confirm")),
            "command": _cmd_string(job, args), "args": args}
+    if job_id == "servers":   # turning one on just happens; turning one off asks first (someone may be using it)
+        obj["needs_confirm"] = args["action"] == "off"
     if job.get("speak") or "text" in args and job_id == "start-claude":
         obj["speak"] = True
     return {"kind": "job", "answer": answer, "sources": sources, "job": obj}
@@ -669,6 +686,11 @@ def _check(job_id, args):
                 raise ValueError(f"I don't know a project called {repo or 'that'}")
             out = {"project": repo, "name": pretty(repo), **out}
         return out
+    if job_id == "servers":
+        known = {e["id"]: e["label"] for e in servers.entries()}
+        if a.get("action") not in ("on", "off") or a.get("site") not in known:
+            raise ValueError("I don't know that server")
+        return {"site": a["site"], "action": a["action"]}
     if job_id == "what-changed":
         if a.get("when") not in load()[job_id]["args"]["when"]:
             raise ValueError("I can only say today, yesterday or overnight")
