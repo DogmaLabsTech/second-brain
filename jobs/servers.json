@@ -1,0 +1,10 @@
+{
+  "id": "servers",
+  "label": "{label}",
+  "phrases": ["turn on the llc namer", "turn off the pit wall board", "stop the example-game home page", "start example"],
+  "match": "@servers.is_request",
+  "order": 6,
+  "needs_confirm": "only for turning one off",
+  "args": {"site": "a name from ~/.config/hosting (only ones with a tailnet link)", "action": ["on", "off"]},
+  "command": ["{jobs}/bin/servers", "{action}", "{site}"]
+}
