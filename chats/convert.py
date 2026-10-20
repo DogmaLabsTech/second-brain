@@ -384,23 +384,28 @@ def build_note(sess):
 
 # ---------------------------------------------------------------- discovery
 
-def find_sessions():
+def _sessions_in(projdir, all_mains):
+    """The sessions of one project folder: each main chat, or a folder of subagents with no main chat anywhere."""
+    pdir = os.path.join(SRC, projdir)
+    mains = {os.path.basename(f)[:-6]: f for f in glob.glob(os.path.join(pdir, "*.jsonl"))
+             if not os.path.basename(f).startswith("agent-")}
+    dirs = {d for d in os.listdir(pdir) if os.path.isdir(os.path.join(pdir, d)) and d != "memory"}
     sessions = []
+    for sid in sorted(set(mains) | dirs):
+        subs = glob.glob(os.path.join(pdir, sid, "subagents", "agent-*.jsonl"))
+        main = mains.get(sid)
+        if not main and (not subs or sid in all_mains):
+            continue  # nothing to read, or the main chat lives in another project folder
+        sessions.append(Session(main or os.path.join(pdir, sid), main, subs, projdir))
+    return sessions
+
+
+def find_sessions():
     all_mains = {os.path.basename(f)[:-6] for f in glob.glob(os.path.join(SRC, "*", "*.jsonl"))}
+    sessions = []
     for projdir in sorted(os.listdir(SRC)):
-        pdir = os.path.join(SRC, projdir)
-        if not os.path.isdir(pdir):
-            continue
-        mains = {os.path.basename(f)[:-6]: f for f in glob.glob(os.path.join(pdir, "*.jsonl"))
-                 if not os.path.basename(f).startswith("agent-")}
-        dirs = {d for d in os.listdir(pdir) if os.path.isdir(os.path.join(pdir, d)) and d != "memory"}
-        for sid in sorted(set(mains) | dirs):
-            subs = glob.glob(os.path.join(pdir, sid, "subagents", "agent-*.jsonl"))
-            main = mains.get(sid)
-            if not main and (not subs or sid in all_mains):
-                continue  # nothing to read, or the main chat lives in another project folder
-            key = main or os.path.join(pdir, sid)
-            sessions.append(Session(key, main, subs, projdir))
+        if os.path.isdir(os.path.join(SRC, projdir)):
+            sessions += _sessions_in(projdir, all_mains)
     return sessions
 
 
