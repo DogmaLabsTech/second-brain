@@ -446,13 +446,22 @@ def _find_by_name(subject, named, wants_folder, many, project_dirs):
     return [path], None
 
 
+def _kind_rules(subject):
+    """The (rule, endings) of the kinds of file named ("screenshot", "pdf")."""
+    return [(rule, exts) for rule, exts in desktop.KIND_EXT.items() if re.search(r"\b(" + rule + r")s?\b", subject)]
+
+
+def _named_words(subject, kind_rx):
+    """The words that name a file: not "latest", not plural words, not a kind word, not filler."""
+    return [w for w in desktop._words(subject)
+            if not LATEST.search(w) and not PLURAL.search(w) and w not in GENERIC and
+            not any(re.fullmatch(r"(" + rule + r")s?", w) for rule, _ in kind_rx)]
+
+
 def _from_subject(subject, project, many, latest, project_dirs):
     """Look for the files by kind, then by name: (paths, project_name, answer). An answer means stop and say it."""
-    kind_rx = [(rule, exts) for rule, exts in desktop.KIND_EXT.items()
-               if re.search(r"\b(" + rule + r")s?\b", subject)]
-    named = [w for w in desktop._words(subject)
-             if not LATEST.search(w) and not PLURAL.search(w) and w not in GENERIC and
-             not any(re.fullmatch(r"(" + rule + r")s?", w) for rule, _ in kind_rx)]
+    kind_rx = _kind_rules(subject)
+    named = _named_words(subject, kind_rx)
     wants_folder = bool(re.search(r"\b(folder|directory)\b", subject))
     has_ext = bool(re.search(r"\.[a-z0-9]{2,4}\b", subject))
     refusal = _refusal(subject, named, kind_rx, project, wants_folder, has_ext)
@@ -497,20 +506,28 @@ def _card(device, real, info, project_name):
     return {"device": device, "paths": real, "name": name, "label": label, "answer": answer}
 
 
-def plan(text, find_project=None, projects_root=None, project_dirs=()):
-    """Work out the send: {"device", "paths", "name", "label", "answer"} or {"answer": a plain reply}.
-    find_project(text) -> project folder name or None (jobs.find_project)."""
+def _understood(text, find_project):
+    """(answer, parts): an answer when the ask can't go on (no device, a key word), else
+    (device, subject, many, latest, project) as `parts`."""
     device = device_from(text)
     if not device:
-        return {"answer": WHICH}
+        return {"answer": WHICH}, None
     subject = subject_of(text)
     if KEY_WORDS.search(subject):
-        return {"answer": "That looks like a key or a password, so I won't send it."}
-    many = bool(PLURAL.search(subject))
-    latest = bool(LATEST.search(subject))
+        return {"answer": "That looks like a key or a password, so I won't send it."}, None
     project = find_project(subject) if find_project and subject else None
     if project == "desk":
         project = None
+    return None, (device, subject, bool(PLURAL.search(subject)), bool(LATEST.search(subject)), project)
+
+
+def plan(text, find_project=None, projects_root=None, project_dirs=()):
+    """Work out the send: {"device", "paths", "name", "label", "answer"} or {"answer": a plain reply}.
+    find_project(text) -> project folder name or None (jobs.find_project)."""
+    answer, parts = _understood(text, find_project)
+    if answer:
+        return answer
+    device, subject, many, latest, project = parts
     paths, project_name = [], None
     if project and (latest or many):
         paths = newest(project_files(project, _project_dir(project, projects_root)), many)
