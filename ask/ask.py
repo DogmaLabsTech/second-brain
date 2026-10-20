@@ -188,7 +188,9 @@ def decide(*args, timeout=INTENT_SECONDS):
     try:
         out = subprocess.run([DECIDE, *args], capture_output=True, text=True, timeout=timeout)
         return json.loads(out.stdout.strip().splitlines()[-1])
-    except (OSError, ValueError, IndexError, subprocess.TimeoutExpired):
+    except (OSError, ValueError, IndexError, subprocess.TimeoutExpired) as why:
+        # the label stays "timeout" for every failure (the steps and the log show it as before); the real error is said
+        print(f"brain ask: the decider failed ({type(why).__name__}: {why})", file=sys.stderr)
         return {"label": "unsure", "confidence": 0.0, "by": "timeout"}
 
 
