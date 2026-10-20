@@ -152,13 +152,7 @@ def private_list_problem(path=None):
     return None
 
 
-def main(argv):
-    days = int(argv[argv.index("--days") + 1]) if "--days" in argv else 7
-    problem = private_list_problem()
-    if problem:
-        print("!! " + problem + "\n")
-    rows = load("heldout.jsonl")
-    s = search_score(rows)
+def _print_search(s):
     print(f"Fair test (search, {s['n']} questions): right note first {s['top1']}/{s['n']}, "
           f"in top 3 {s['top3']}/{s['n']} ({100 * s['top3'] // max(1, s['n'])}%)")
     print("  by use: " + ", ".join(f"{u} {a}/{b}" for u, (a, b) in sorted(s["by_use"].items())))
@@ -166,13 +160,15 @@ def main(argv):
     for qid, q, got in s["misses"]:
         print(f"  miss {qid}: {q}\n        got {', '.join(os.path.basename(g) for g in got)}")
 
-    it = None if "--no-intent" in argv else intent_score()
-    if it:
-        print(f"Intent fair test (the local decider alone, {it['model']}, {'own sure-bars' if it['bars'] else 'one 0.6 bar'}): "
-              f"right {it['right']}/{it['n']}, sure and wrong {it['sure_wrong']}/{it['n']} ({it['sure_wrong_pct']}%)")
-        for m in it["mistakes"]:
-            print(f"  sure and wrong: {m}")
 
+def _print_intent(it):
+    print(f"Intent fair test (the local decider alone, {it['model']}, {'own sure-bars' if it['bars'] else 'one 0.6 bar'}): "
+          f"right {it['right']}/{it['n']}, sure and wrong {it['sure_wrong']}/{it['n']} ({it['sure_wrong_pct']}%)")
+    for m in it["mistakes"]:
+        print(f"  sure and wrong: {m}")
+
+
+def _print_tuning():
     seen = load("seen.jsonl") if os.path.exists(os.path.join(HERE, "seen.jsonl")) else []
     if seen:
         t = search_score(seen)
@@ -180,19 +176,25 @@ def main(argv):
         for qid, q, got in t["misses"]:
             print(f"  still missing {qid}: {q}")
 
-    asks, votes = week(days)
+
+def _print_questions(qs):
+    writers = {}
+    for a in qs:
+        writers[a.get("writer") or "?"] = writers.get(a.get("writer") or "?", 0) + 1
+    online = sum(1 for a in qs if (a.get("steps") or {}).get("haiku_started"))
+    print("  written by: " + ", ".join(f"{w} {n}" for w, n in sorted(writers.items(), key=lambda x: -x[1])))
+    print(f"  notes went to Haiku: {online}/{len(qs)}")
+    print(f"  time: middle {statistics.median(a.get('ms') or 0 for a in qs) / 1000:.1f} s, "
+          f"slowest {max(a.get('ms') or 0 for a in qs) / 1000:.1f} s")
+    print(f"  not found: {sum(1 for a in qs if a.get('found') is False)}")
+
+
+def _print_week(asks, votes, days):
+    """The week's asks: how many, who wrote them, speed, and the 👍/👎. Returns (the 👍 asks, the 👎 asks)."""
     qs = [a for a in asks if a.get("kind") == "answer"]
     print(f"\nLast {days} days: {len(asks)} asks ({len(qs)} questions, {len(asks) - len(qs)} jobs)")
     if qs:
-        writers = {}
-        for a in qs:
-            writers[a.get("writer") or "?"] = writers.get(a.get("writer") or "?", 0) + 1
-        online = sum(1 for a in qs if (a.get("steps") or {}).get("haiku_started"))
-        print("  written by: " + ", ".join(f"{w} {n}" for w, n in sorted(writers.items(), key=lambda x: -x[1])))
-        print(f"  notes went to Haiku: {online}/{len(qs)}")
-        print(f"  time: middle {statistics.median(a.get('ms') or 0 for a in qs) / 1000:.1f} s, "
-              f"slowest {max(a.get('ms') or 0 for a in qs) / 1000:.1f} s")
-        print(f"  not found: {sum(1 for a in qs if a.get('found') is False)}")
+        _print_questions(qs)
     up = [a for a in asks if votes.get(a["id"], {}).get("verdict") == "up"]
     down = [a for a in asks if votes.get(a["id"], {}).get("verdict") == "down"]
     print(f"  👍 {len(up)}   👎 {len(down)}   not rated {len(asks) - len(up) - len(down)}")
@@ -200,9 +202,10 @@ def main(argv):
         why = votes[a["id"]].get("why")
         print(f"  👎 {a['id']}: {a['q']}\n      said: {str(a.get('answer'))[:160]}"
               + (f"\n      why: {why}" if why else "") + f"\n      notes: {', '.join(os.path.basename(p) for p in a.get('sources', []))}")
+    return up, down
 
-    learned = None if "--no-learn" in argv else learn(days, "--no-train" not in argv)
 
+def _append_scores(s, it, asks, up, down, learned):
     line = "\t".join([time.strftime("%Y-%m-%d %H:%M"), f"{s['top1']}/{s['n']}", f"{s['top3']}/{s['n']}",
                       f"{s['newer_ok']}/{s['newer_n']}", str(len(asks)), str(len(up)), str(len(down)),
                       f"{it['right']}/{it['n']}" if it else "-", f"{it['sure_wrong']}/{it['n']}" if it else "-",
@@ -215,16 +218,42 @@ def main(argv):
             f.write("when\ttop1\ttop3\tnewer\tasks\tup\tdown\tintent\tsure_wrong\tlearned\tnote\n")
         f.write(line + "\n")
 
+
+def _save_answers(rows):
+    """Ask every fair-test question for real and save the answers for grading by hand."""
+    out = os.path.join(asklog.STATE, "checkup-answers-" + time.strftime("%Y-%m-%d") + ".jsonl")
+    os.environ["BRAIN_FROM"] = "checkup"
+    with open(out, "w") as f:
+        for r in rows:
+            res = ask.ask(r["q"])
+            f.write(json.dumps({"id": r["id"], "use": r["use"], "q": r["q"], "expect": r["expect_answer"],
+                                "answer": res["answer"], "writer": res["writer"], "ms": res["ms"]}) + "\n")
+            print(f"  {r['id']} {res['writer']:14} {res['ms']:>6} ms  {res['answer'][:90]}")
+    print(f"\nAnswers saved for grading: {tilde(out)}")
+
+
+def main(argv):
+    days = int(argv[argv.index("--days") + 1]) if "--days" in argv else 7
+    problem = private_list_problem()
+    if problem:
+        print("!! " + problem + "\n")
+    rows = load("heldout.jsonl")
+    s = search_score(rows)
+    _print_search(s)
+
+    it = None if "--no-intent" in argv else intent_score()
+    if it:
+        _print_intent(it)
+    _print_tuning()
+
+    asks, votes = week(days)
+    up, down = _print_week(asks, votes, days)
+
+    learned = None if "--no-learn" in argv else learn(days, "--no-train" not in argv)
+    _append_scores(s, it, asks, up, down, learned)
+
     if "--answers" in argv:
-        out = os.path.join(asklog.STATE, "checkup-answers-" + time.strftime("%Y-%m-%d") + ".jsonl")
-        os.environ["BRAIN_FROM"] = "checkup"
-        with open(out, "w") as f:
-            for r in rows:
-                res = ask.ask(r["q"])
-                f.write(json.dumps({"id": r["id"], "use": r["use"], "q": r["q"], "expect": r["expect_answer"],
-                                    "answer": res["answer"], "writer": res["writer"], "ms": res["ms"]}) + "\n")
-                print(f"  {r['id']} {res['writer']:14} {res['ms']:>6} ms  {res['answer'][:90]}")
-        print(f"\nAnswers saved for grading: {tilde(out)}")
+        _save_answers(rows)
     return 0
 
 
