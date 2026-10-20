@@ -1,0 +1,354 @@
+{
+"0: ''": [
+"",
+0
+],
+"10: 'tskey-auth-kABCDEFG1234'": [
+"[redacted]",
+1
+],
+"11: 'AIzaAb3dEf9hIj2LmN0pQr5tUv8xYz1abcdefg'": [
+"[redacted]",
+1
+],
+"12: 'hf_Ab3dEf9hIj2LmN0pQr5tUv8xYz1abcdefg'": [
+"[redacted]",
+1
+],
+"13: 'npm_Ab3dEf9hIj2LmN0pQr5tUv8xYz1abcdefg'": [
+"[redacted]",
+1
+],
+"14: 'pk_live_Ab3dEf9hIj2LmN0pQr5tUv8xYz1 sk_test_Ab3dEf'": [
+"[redacted] [redacted]",
+2
+],
+"15: 'bot 123456789:Ab3dEf9hIj2LmN0pQr5tUv8xYz1abcdefghi'": [
+"bot 123456789:[redacted]",
+1
+],
+"16: 'eyJhbGciOiAb3dEf9hIj2LmN0pQr5tUv8xYz1.eyJzdWIiOiAb'": [
+"[redacted]",
+1
+],
+"17: 'eyJAb3dEf9hIj2LmN0pQr5tUv8xYz1abcdefghijk'": [
+"[redacted]",
+1
+],
+"18: 'hook https://hooks.slack.com/services/T000/B000/XX'": [
+"hook [redacted]",
+1
+],
+"19: 'https://discord.com/api/webhooks/123456/abc_DEF-12'": [
+"[redacted]",
+1
+],
+"1: 'plain words only'": [
+"plain words only",
+0
+],
+"20: 'https://discordapp.com/api/webhooks/123456/abc_DEF'": [
+"[redacted]",
+1
+],
+"21: 'Authorization: Bearer abc.DEF_123-xyz789'": [
+"Authorization: Bearer [redacted]",
+1
+],
+"22: 'Bearer short'": [
+"Bearer short",
+0
+],
+"23: 'Bearer Ab3dEf9hIj2LmN0pQr5tUv8xYz1Ab3dEf9hIj2LmN0p'": [
+"Bearer [redacted]",
+1
+],
+"24: 'Basic dXNlcjpwYXNzMTIz'": [
+"Basic dXNlcjpwYXNzMTIz",
+0
+],
+"25: 'Token abc123def456'": [
+"Token [redacted]",
+1
+],
+"26: 'Bearer onlyletters'": [
+"Bearer onlyletters",
+0
+],
+"27: 'db postgres://user:p4ssw0rd@host:5432/db'": [
+"db postgres://user:[redacted]@host:5432/db",
+1
+],
+"28: 'https://user:secret@example.com/x'": [
+"https://user:[redacted]@example.com/x",
+1
+],
+"29: 'http://example.com/no-creds'": [
+"http://example.com/no-creds",
+0
+],
+"2: 'my key is sk-Ab3dEf9hIj2LmN0pQr5tUv8xYz1xx ok'": [
+"my key is [redacted] ok",
+1
+],
+"30: 'api_key=Ab3dEf9hIj2LmN0pQr5tUv8xYz1'": [
+"api_key=[redacted]",
+1
+],
+"31: \"API_KEY = 'Ab3dEf9hIj2LmN0pQr5tUv8xYz1'\"": [
+"API_KEY = '[redacted]'",
+1
+],
+"32: 'password: hunter2hunter2'": [
+"password: [redacted]",
+1
+],
+"33: 'password: true'": [
+"password: true",
+0
+],
+"34: 'secret=${SECRET}'": [
+"secret=${SECRET}",
+0
+],
+"35: 'token=<token>'": [
+"token=<token>",
+0
+],
+"36: 'auth=[redacted]'": [
+"auth=[redacted]",
+0
+],
+"37: 'key: some prose here'": [
+"key: some prose here",
+0
+],
+"38: 'Key: something longer than eight but with 1 digit'": [
+"Key: something longer than eight but with 1 digit",
+0
+],
+"39: 'cookie: sessionabc123xyz'": [
+"cookie: [redacted]",
+1
+],
+"3: 'export it: sk-ant-api03-Ab3dEf9hIj2LmN0pQr5tUv8xYz'": [
+"export it: [redacted]",
+1
+],
+"40: 'mykey=abc'": [
+"mykey=[redacted]",
+1
+],
+"41: 'session_id=abcd1234'": [
+"session_id=[redacted]",
+1
+],
+"42: 'private: ~/keys/id'": [
+"private: ~/keys/id",
+0
+],
+"43: 'passphrase: /home/me/pass1'": [
+"passphrase: /home/me/pass1",
+0
+],
+"44: 'secret: http://x/1234567'": [
+"secret: http://x/1234567",
+0
+],
+"45: 'export SOME_VALUE=abcdefghij123'": [
+"export SOME_VALUE=[redacted]",
+1
+],
+"46: '  FOO_BAR=\"longervalue123\"'": [
+"  FOO_BAR=\"[redacted]\"",
+1
+],
+"47: 'BAZ_QUX=/usr/local/bin/x'": [
+"BAZ_QUX=/usr/local/bin/x",
+0
+],
+"48: 'run X_Y_Z=abcdefghi1 now'": [
+"run X_Y_Z=[redacted] now",
+1
+],
+"49: 'PORT=4197'": [
+"PORT=4197",
+0
+],
+"4: 'token ghp_Ab3dEf9hIj2LmN0pQr5tUv8xYz1abcdefghij'": [
+"token [redacted]",
+1
+],
+"50: 'DATABASE_URL=http://localhost:5432/db'": [
+"DATABASE_URL=http://localhost:5432/db",
+0
+],
+"51: 'API_URL=http://127.0.0.1:8080/x'": [
+"API_URL=http://127.0.0.1:8080/x",
+0
+],
+"52: 'HOME_DIR=~/stuff/here'": [
+"HOME_DIR=~/stuff/here",
+0
+],
+"53: 'TOKEN_X=$VAR_LONG_NAME'": [
+"TOKEN_X=$VAR_LONG_NAME",
+0
+],
+"54: 'pairing code 123-456 for the tv'": [
+"pairing code [redacted] for the tv",
+1
+],
+"55: 'pair with 123456 now'": [
+"pair with [redacted] now",
+1
+],
+"56: '123 456 pairing'": [
+"[redacted] pairing",
+1
+],
+"57: 'paired 1234567 ok'": [
+"paired [redacted] ok",
+1
+],
+"58: 'pair at 10.0.0.1:123456'": [
+"pair at 10.0.0.1:123456",
+0
+],
+"59: 'commit 0123456789abcdef0123456789abcdef01234567'": [
+"commit 0123456789abcdef0123456789abcdef01234567",
+0
+],
+"5: 'gho_Ab3dEf9hIj2LmN0pQr5tUv8xYz1abcdefgh and ghs_Ab'": [
+"[redacted] and [redacted]",
+2
+],
+"60: 'sha256: 0123456789abcdef0123456789abcdef0123456789'": [
+"sha256: [redacted]",
+1
+],
+"61: 'git show 0123456789abcdef0123456789abcdef01234567'": [
+"git show 0123456789abcdef0123456789abcdef01234567",
+0
+],
+"62: 'the hash 0123456789abcdef0123456789abcdef012345678'": [
+"the hash [redacted] alone",
+1
+],
+"63: 'a hex 0123456789abcdef0123456789abcdef0123456789ab'": [
+"a hex [redacted]",
+1
+],
+"64: 'id 0123456789abcdef0123456789abcdef'": [
+"id [redacted]",
+1
+],
+"65: 'rev abcdef1234567890abcdef1234567890abcdef12 and m'": [
+"rev abcdef1234567890abcdef1234567890abcdef12 and more",
+0
+],
+"66: 'tree 0123456789abcdef0123456789abcdef01234567 blob'": [
+"tree 0123456789abcdef0123456789abcdef01234567 blob 0123456789abcdef0123456789abcdef01234567",
+0
+],
+"67: 'random Ab3dEf9hIj2LmN0pQr5tUv8xYz1Ab3dEf9hIj2LmN0p'": [
+"random [redacted]",
+1
+],
+"68: 'path ~/projects/some-long-p'": [
+"path ~/projects/some-long-project-name/file.md",
+0
+],
+"69: 'slug some-very-long-slug-name-with-many-words-in-i'": [
+"slug some-very-long-slug-name-with-many-words-in-it",
+0
+],
+"6: 'github_pat_11ABCDEFG0Ab3dEf9hIj2LmN0pQr5tUv8xYz1'": [
+"[redacted]",
+1
+],
+"70: 'a_long_snake_case_identifier_with_many_words'": [
+"a_long_snake_case_identifier_with_many_words",
+0
+],
+"71: 'LongCamelCaseIdentifierWithManyWordsInsideItAndMor'": [
+"LongCamelCaseIdentifierWithManyWordsInsideItAndMore",
+0
+],
+"72: 'digits 1234567890123456789012345678901234567890'": [
+"digits [redacted]",
+1
+],
+"73: 'mixed Ab3dEf9hIj2LmN0pQr5tUv8xYz1/Ab3dEf9hIj2LmN0p'": [
+"mixed [redacted].suffix",
+1
+],
+"74: 'word word word word word Ab3dEf9hIj2LmN0pQr5tUv8xY'": [
+"word word word word word Ab3dEf9hIj2LmN0pQr5tUv8xYz1Zz9 end",
+0
+],
+"75: '-----BEGIN RSA PRIVATE KEY-----\\nMIIabc123\\n-----END'": [
+"[redacted] after",
+1
+],
+"76: '-----BEGIN PRIVATE KEY-----\\nnever ends'": [
+"[redacted]",
+1
+],
+"77: 'mail agent-os@users.noreply.github.com and agent-os@users.noreply.github.com'": [
+"mail [email] and [email] and [email] in a table",
+3
+],
+"78: 'mail someone@else.com stays'": [
+"mail someone@else.com stays",
+0
+],
+"79: 'multi\\nline PASSWORD=Ab3dEf9hIj2LmN0pQr5tUv8xYz1\\nne'": [
+"multi\nline PASSWORD=[redacted]\nnext line TOKEN: [redacted]\nok",
+2
+],
+"7: 'glpat-Ab3dEf9hIj2LmN0pQr5tUv8xYz1'": [
+"[redacted]",
+1
+],
+"80: 'mix sk-Ab3dEf9hIj2LmN0pQr5tUv8xYz1xx and AKIAIOSFO'": [
+"mix [redacted] and [redacted] and api_key=[redacted] and [redacted] pairing and [redacted]",
+5
+],
+"81: 'tailscale up --authkey tskey-auth-kABCDEFG1234-xyz'": [
+"tailscale up --authkey [redacted]",
+1
+],
+"82: \"curl -H 'Authorization: Bearer Ab3dEf9hIj2LmN0pQr5\"": [
+"curl -H 'Authorization: Bearer [redacted]' https://x",
+1
+],
+"83: 'ssh://git:pw12345@host/repo.git'": [
+"ssh://git:[redacted]@host/repo.git",
+1
+],
+"84: 'unicode \u043a\u043b\u044e\u0447=Ab3dEf9hIj2LmN0pQr5tUv8xYz1'": [
+"unicode \u043a\u043b\u044e\u0447=Ab3dEf9hIj2LmN0pQr5tUv8xYz1",
+0
+],
+"85: 'Ab3dEf9hIj2LmN0pQr5tUv8xYz1Ab3dEf9hIj2LmN0pQr5tUv8'": [
+"[redacted]",
+1
+],
+"86: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": [
+"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+0
+],
+"87: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAb'": [
+"[redacted]",
+1
+],
+"8: 'aws AKIAIOSFODNN7EXAMPLE here and ASIAIOSFODNN7EXA'": [
+"aws [redacted] here and [redacted]",
+2
+],
+"9: 'xoxb-1234567890-abcdefghij xapp-1-A1B2C3D4E5F6'": [
+"[redacted] [redacted]",
+2
+]
+}
