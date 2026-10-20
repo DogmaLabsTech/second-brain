@@ -107,13 +107,18 @@ def loaded():
         return False
 
 
+def _timed_out(why):
+    return isinstance(why, TimeoutError) or isinstance(getattr(why, "reason", None), TimeoutError)
+
+
 def wake():
     try:
         req = urllib.request.Request(f"http://{OLLAMA}/api/generate", json.dumps({"model": MODEL, "keep_alive": "5m"}).encode(),
                                      {"content-type": "application/json"})
         urllib.request.urlopen(req, timeout=0.3)
-    except Exception:  # noqa: BLE001  (it keeps loading after we stop waiting)
-        pass
+    except Exception as why:  # noqa: BLE001
+        if not _timed_out(why):   # a timeout is the plan: it keeps loading after we stop waiting
+            print(f"details: could not wake the writer: {why}", file=sys.stderr)
 
 
 def fill(job_id, text, projects=(), timeout=SECONDS):

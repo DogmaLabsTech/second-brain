@@ -19,6 +19,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import time
 
 HOME = os.path.expanduser("~")
@@ -832,8 +833,8 @@ def next_theme():
     names, cur = themes(), ""
     try:
         cur = subprocess.run(["omarchy", "theme", "current"], capture_output=True, text=True, timeout=5).stdout.strip()
-    except (OSError, subprocess.TimeoutExpired):
-        pass
+    except (OSError, subprocess.TimeoutExpired) as why:   # no current theme: start from the first one
+        print(f"desktop: could not read the current theme: {why}", file=sys.stderr)
     cur = re.sub(r"\s+", "-", cur.lower())
     if not names:
         return None

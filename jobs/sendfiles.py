@@ -19,6 +19,7 @@ import difflib
 import json
 import os
 import re
+import sys
 import time
 
 import desktop
@@ -243,8 +244,8 @@ def _folder_info(path):
                                  "Pick fewer files")
             try:
                 size += os.path.getsize(os.path.join(dirpath, f))
-            except OSError:
-                pass
+            except OSError as why:   # counted but not sized: the size shown may be a little low
+                print(f"sendfiles: could not size {os.path.join(dirpath, f)}: {why}", file=sys.stderr)
     return count, size
 
 
