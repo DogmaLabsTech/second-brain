@@ -69,28 +69,31 @@ def read(path):
         return []
 
 
-def main(argv):
-    """brain rate <id|last> up|down [why]   ·   brain outcome <id> <what> [detail]   ·   brain log [n]"""
-    if argv and argv[0] == "outcome":
-        if len(argv) < 3 or argv[2] not in OUTCOME_KINDS:
-            print("brain outcome <id> " + "|".join(OUTCOME_KINDS) + " [detail]", file=sys.stderr)
-            return 2
-        outcome(argv[1], argv[2], " ".join(argv[3:]))
-        return 0
-    if argv and argv[0] == "rate":
-        if len(argv) < 3:
-            print("brain rate <id|last> up|down [why]", file=sys.stderr)
-            return 2
-        qid = argv[1]
-        if qid == "last":
-            rows = read(ASKS)
-            if not rows:
-                print("brain rate: nothing asked yet", file=sys.stderr)
-                return 1
-            qid = rows[-1]["id"]
-        rate(qid, argv[2], " ".join(argv[3:]))
-        print(f"noted {argv[2]} for {qid}")
-        return 0
+def _cmd_outcome(argv):
+    if len(argv) < 3 or argv[2] not in OUTCOME_KINDS:
+        print("brain outcome <id> " + "|".join(OUTCOME_KINDS) + " [detail]", file=sys.stderr)
+        return 2
+    outcome(argv[1], argv[2], " ".join(argv[3:]))
+    return 0
+
+
+def _cmd_rate(argv):
+    if len(argv) < 3:
+        print("brain rate <id|last> up|down [why]", file=sys.stderr)
+        return 2
+    qid = argv[1]
+    if qid == "last":
+        rows = read(ASKS)
+        if not rows:
+            print("brain rate: nothing asked yet", file=sys.stderr)
+            return 1
+        qid = rows[-1]["id"]
+    rate(qid, argv[2], " ".join(argv[3:]))
+    print(f"noted {argv[2]} for {qid}")
+    return 0
+
+
+def _cmd_log(argv):
     n = int(argv[1]) if len(argv) > 1 else 10
     votes = {r["id"]: r["verdict"] for r in read(RATINGS)}
     for r in read(ASKS)[-n:]:
@@ -98,6 +101,15 @@ def main(argv):
         print(f"{mark} {r['at'][5:16]} {r.get('from', '?'):8} {r.get('writer', ''):14} {r.get('ms', 0):>6} ms  {r['q']}")
         print(f"      → {str(r.get('answer'))[:150]}")
     return 0
+
+
+def main(argv):
+    """brain rate <id|last> up|down [why]   ·   brain outcome <id> <what> [detail]   ·   brain log [n]"""
+    if argv and argv[0] == "outcome":
+        return _cmd_outcome(argv)
+    if argv and argv[0] == "rate":
+        return _cmd_rate(argv)
+    return _cmd_log(argv)
 
 
 if __name__ == "__main__":

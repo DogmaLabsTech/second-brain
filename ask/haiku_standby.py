@@ -68,6 +68,32 @@ class Spare:
                 self.start()
 
 
+def _send(f, obj):
+    f.write(json.dumps(obj) + "\n")
+    f.flush()
+
+
+def _stream_answer(proc, f):
+    """Pass Claude's streamed answer on to the asker: the text so far, then the result (or an error)."""
+    text = ""
+    for line in proc.stdout:
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        ev = d.get("event") or {}
+        if d.get("type") == "stream_event" and ev.get("type") == "content_block_delta":
+            piece = (ev.get("delta") or {}).get("text", "")
+            if piece:
+                text += piece
+                _send(f, {"text": text})
+        elif d.get("type") == "result":
+            key = "error" if d.get("is_error") else "result"
+            _send(f, {key: d.get("result") or text, "ms_api": d.get("duration_api_ms")})
+            return
+    _send(f, {"error": "haiku stopped without an answer"})
+
+
 def serve(conn, spare):
     f = conn.makefile("rw")
     proc = None
@@ -76,27 +102,7 @@ def serve(conn, spare):
         proc = spare.take()
         proc.stdin.write(json.dumps({"type": "user", "message": {"role": "user", "content": req["prompt"]}}) + "\n")
         proc.stdin.flush()
-        text = ""
-        for line in proc.stdout:
-            try:
-                d = json.loads(line)
-            except ValueError:
-                continue
-            ev = d.get("event") or {}
-            if d.get("type") == "stream_event" and ev.get("type") == "content_block_delta":
-                piece = (ev.get("delta") or {}).get("text", "")
-                if piece:
-                    text += piece
-                    f.write(json.dumps({"text": text}) + "\n")
-                    f.flush()
-            elif d.get("type") == "result":
-                key = "error" if d.get("is_error") else "result"
-                f.write(json.dumps({key: d.get("result") or text, "ms_api": d.get("duration_api_ms")}) + "\n")
-                f.flush()
-                break
-        else:
-            f.write(json.dumps({"error": "haiku stopped without an answer"}) + "\n")
-            f.flush()
+        _stream_answer(proc, f)
     except (OSError, ValueError, KeyError) as why:
         if not isinstance(why, (BrokenPipeError, ConnectionResetError)):   # those two: the asker hung up, its answer wasn't needed
             print(f"haiku standby: dropped a request: {type(why).__name__}", file=sys.stderr)

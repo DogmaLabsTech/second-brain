@@ -206,17 +206,26 @@ class Proxy(BaseHTTPRequestHandler):
         self._to_caller(self.end_headers)
         self._to_caller(self.wfile.write, data)
 
-    def _handle(self):
+    def _read_body(self):
         n = int(self.headers.get("Content-Length") or 0)
-        body = self.rfile.read(n) if n else (None if self.command in ("GET", "HEAD", "DELETE") else b"")
+        return self.rfile.read(n) if n else (None if self.command in ("GET", "HEAD", "DELETE") else b"")
+
+    def _is_query_post(self, body):
+        """The parsed /mcp message when this POST holds a `query` tool call, else None."""
+        if self.command == "POST" and self.path.split("?")[0] == "/mcp" and body:
+            msg = json.loads(body)
+            if any(is_query_call(m) for m in (msg if isinstance(msg, list) else [msg])):
+                return msg
+        return None
+
+    def _handle(self):
+        body = self._read_body()
         try:
-            if self.command == "POST" and self.path.split("?")[0] == "/mcp" and body:
-                msg = json.loads(body)
-                if any(is_query_call(m) for m in (msg if isinstance(msg, list) else [msg])):
-                    try:
-                        return self._query(json.loads(body))
-                    except (ValueError, KeyError, TypeError, AttributeError) as why:
-                        print(f"query rewrite failed, sent as it was: {why}", file=sys.stderr)
+            if self._is_query_post(body) is not None:
+                try:
+                    return self._query(json.loads(body))
+                except (ValueError, KeyError, TypeError, AttributeError) as why:
+                    print(f"query rewrite failed, sent as it was: {why}", file=sys.stderr)
             return self._relay(body)
         except ValueError:
             return self._relay(body)
