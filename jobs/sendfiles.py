@@ -151,6 +151,24 @@ def _sources():
     return {k: v for k, v in data.items() if isinstance(v, list)} if isinstance(data, dict) else {}
 
 
+def _carries_name(path, root, pn, words):
+    """Is this file in a folder named like the project, or does its own name carry the project's name (or all
+    its words)? `pn` is the project's name without spaces and dashes."""
+    parts = os.path.relpath(path, root).lower().split(os.sep)
+    name = parts[-1]
+    in_named_folder = any(pn and pn in desktop._norm(p) for p in parts[:-1])
+    return bool(in_named_folder or (pn and pn in desktop._norm(os.path.splitext(name)[0])) or
+                (len(words) > 1 and all(w in name for w in words)))
+
+
+def _project_folder_paths(project_dir, budget, deadline):
+    """The files in the project's own folder (two levels deep), leaving out build and dependency folders."""
+    for path in _walk(project_dir, 2, budget, deadline):
+        rel_parts = os.path.relpath(path, project_dir).lower().split(os.sep)[:-1]
+        if not any(p in SKIP_PROJECT_DIRS for p in rel_parts):
+            yield path
+
+
 def project_files(project, project_dir=None, seconds=2.5):
     """Shareable files that belong to a project, newest first:
     folders named like it in Downloads, Documents, Media and _inbox; files there that carry its name;
@@ -169,26 +187,18 @@ def project_files(project, project_dir=None, seconds=2.5):
 
     for area in desktop.USER_AREAS:
         root = os.path.join(home, area)
-        if not os.path.isdir(root):
-            continue
-        for path in _walk(root, 4, budget, deadline):
-            rel = os.path.relpath(path, root).lower()
-            parts = rel.split(os.sep)
-            in_named_folder = any(pn and pn in desktop._norm(p) for p in parts[:-1])
-            name = parts[-1]
-            if in_named_folder or (pn and pn in desktop._norm(os.path.splitext(name)[0])) or \
-                    (len(words) > 1 and all(w in name for w in words)):
-                add(path)
+        if os.path.isdir(root):
+            for path in _walk(root, 4, budget, deadline):
+                if _carries_name(path, root, pn, words):
+                    add(path)
     for folder in _sources().get(project, []):
         root = os.path.expanduser(str(folder))
         if os.path.isdir(root):
             for path in _walk(root, 2, budget, deadline):
                 add(path)
     if project_dir and os.path.isdir(project_dir):
-        for path in _walk(project_dir, 2, budget, deadline):
-            rel_parts = os.path.relpath(path, project_dir).lower().split(os.sep)[:-1]
-            if not any(p in SKIP_PROJECT_DIRS for p in rel_parts):
-                add(path)
+        for path in _project_folder_paths(project_dir, budget, deadline):
+            add(path)
     return sorted(found, key=lambda p: (-found[p], p))
 
 
