@@ -105,29 +105,42 @@ def fmt_size(n):
 
 # ---------- finding the files ----------
 
+def _list_dir(d):
+    try:
+        return list(os.scandir(d))
+    except OSError:
+        return []
+
+
+def _entry_kind(e):
+    """"dir" or "file" for a real folder or file; None for a link, an odd thing or one that can't be read."""
+    try:
+        if e.is_dir(follow_symlinks=False):
+            return "dir"
+        if e.is_file(follow_symlinks=False):
+            return "file"
+    except OSError:
+        pass
+    return None
+
+
 def _walk(root, depth, budget, deadline):
     """Files under root, at most `depth` folders down, never into hidden or build folders or symlinked folders."""
     stack = [(root, 0)]
     while stack:
         d, lvl = stack.pop()
-        try:
-            entries = list(os.scandir(d))
-        except OSError:
-            continue
-        for e in entries:
+        for e in _list_dir(d):
             budget[0] -= 1
             if budget[0] <= 0 or time.monotonic() > deadline:
                 return
             if e.name.startswith(".") or e.name in desktop.SKIP_DIRS:
                 continue
-            try:
-                if e.is_dir(follow_symlinks=False):
-                    if lvl < depth:
-                        stack.append((e.path, lvl + 1))
-                elif e.is_file(follow_symlinks=False):
-                    yield e.path
-            except OSError:
-                continue
+            kind = _entry_kind(e)
+            if kind == "dir":
+                if lvl < depth:
+                    stack.append((e.path, lvl + 1))
+            elif kind == "file":
+                yield e.path
 
 
 def _shareable(path):
@@ -172,36 +185,36 @@ def _project_folder_paths(project_dir, budget, deadline):
             yield path
 
 
-def project_files(project, project_dir=None, seconds=2.5):
-    """Shareable files that belong to a project, newest first:
-    folders named like it in Downloads, Documents, Media and _inbox; files there that carry its name;
-    folders listed in config/send-sources.json; and its own folder (two levels deep)."""
+def _project_paths(project, project_dir, budget, deadline):
+    """Every file that might belong to the project, from its three kinds of place, in the order they are tried."""
     home = desktop.HOME
     pn = desktop._norm(project)
     words = [w for w in re.split(r"[-_ ]+", project.lower()) if len(w) > 1]
-    deadline = time.monotonic() + seconds
-    budget = [60000]
-    found = {}
-
-    def add(path):
-        real = os.path.realpath(path)
-        if _shareable(real) and desktop.allowed_path(real):
-            found[real] = _mtime(real)
-
     for area in desktop.USER_AREAS:
         root = os.path.join(home, area)
         if os.path.isdir(root):
             for path in _walk(root, 4, budget, deadline):
                 if _carries_name(path, root, pn, words):
-                    add(path)
+                    yield path
     for folder in _sources().get(project, []):
         root = os.path.expanduser(str(folder))
         if os.path.isdir(root):
-            for path in _walk(root, 2, budget, deadline):
-                add(path)
+            yield from _walk(root, 2, budget, deadline)
     if project_dir and os.path.isdir(project_dir):
-        for path in _project_folder_paths(project_dir, budget, deadline):
-            add(path)
+        yield from _project_folder_paths(project_dir, budget, deadline)
+
+
+def project_files(project, project_dir=None, seconds=2.5):
+    """Shareable files that belong to a project, newest first:
+    folders named like it in Downloads, Documents, Media and _inbox; files there that carry its name;
+    folders listed in config/send-sources.json; and its own folder (two levels deep)."""
+    deadline = time.monotonic() + seconds
+    budget = [60000]
+    found = {}
+    for path in _project_paths(project, project_dir, budget, deadline):
+        real = os.path.realpath(path)
+        if _shareable(real) and desktop.allowed_path(real):
+            found[real] = _mtime(real)
     return sorted(found, key=lambda p: (-found[p], p))
 
 
@@ -232,25 +245,36 @@ def newest(paths, many):
 
 # ---------- the safety check ----------
 
+def _refuse_links(path, dirpath, names):
+    for name in names:
+        # A link inside the folder could point anywhere (a hidden folder, a key, something huge), and the
+        # copy and the zip would follow it. So a folder with links in it isn't sent.
+        if os.path.islink(os.path.join(dirpath, name)):
+            raise ValueError(f"the folder {os.path.basename(path)} has shortcuts (links) in it, so I won't "
+                             "send it. Tell me which files you want")
+
+
+def _refuse_dirs(path, dirs):
+    for d in dirs:
+        if d.startswith(".") or d in desktop.SKIP_DIRS or DENY_NAME.search(d):
+            raise ValueError(f"the folder {os.path.basename(path)} has hidden or program folders in it, "
+                             "so I won't send it. Tell me which files you want")
+
+
+def _refuse_file(path, f):
+    if f.startswith(".") or DENY_NAME.search(f) or os.path.splitext(f)[1].lower() in desktop.BAD_EXT:
+        raise ValueError(f"the folder {os.path.basename(path)} has files in it I won't send ({f}). "
+                         "Tell me which files you want")
+
+
 def _folder_info(path):
     """(file count, bytes) of a folder; ValueError if it holds hidden, program or key-like things."""
     count, size = 0, 0
     for dirpath, dirs, files in os.walk(path, followlinks=False):
-        for name in dirs + files:
-            # A link inside the folder could point anywhere (a hidden folder, a key, something huge), and the
-            # copy and the zip would follow it. So a folder with links in it isn't sent.
-            if os.path.islink(os.path.join(dirpath, name)):
-                raise ValueError(f"the folder {os.path.basename(path)} has shortcuts (links) in it, so I won't "
-                                 "send it. Tell me which files you want")
-        for d in dirs:
-            if d.startswith(".") or d in desktop.SKIP_DIRS or DENY_NAME.search(d):
-                raise ValueError(f"the folder {os.path.basename(path)} has hidden or program folders in it, "
-                                 "so I won't send it. Tell me which files you want")
+        _refuse_links(path, dirpath, dirs + files)
+        _refuse_dirs(path, dirs)
         for f in files:
-            if f.startswith(".") or DENY_NAME.search(f) or \
-                    os.path.splitext(f)[1].lower() in desktop.BAD_EXT:
-                raise ValueError(f"the folder {os.path.basename(path)} has files in it I won't send ({f}). "
-                                 "Tell me which files you want")
+            _refuse_file(path, f)
             count += 1
             if count > MAX_FOLDER_FILES:
                 raise ValueError(f"the folder {os.path.basename(path)} has more than {MAX_FOLDER_FILES} files. "
@@ -262,41 +286,58 @@ def _folder_info(path):
     return count, size
 
 
-def check_send(device, paths):
-    """(device, [real paths], {"count", "bytes", "dirs"}) for a send that is allowed; ValueError with a plain
-    reason otherwise. The one check used when building the card, before running, and inside bin/send."""
+def _check_args(device, paths):
     if device not in DEVICES:
         raise ValueError("I only know the laptop, the test machine and your iPhone")
-    dev = DEVICES[device]
     if not isinstance(paths, list) or not paths or not all(isinstance(p, str) for p in paths):
         raise ValueError("there was no file to send")
     if len(paths) > MAX_PATHS:
-        raise ValueError(f"that's {len(paths)} files and I can send {dev['max_files']} at a time")
-    real, dirs, total, count = [], 0, 0, 0
-    for p in paths:
-        r = desktop.allowed_path(p)
-        if not r:
-            raise ValueError(f"I'm not allowed to send {os.path.basename(str(p)) or 'that'}: it has to be a plain "
-                             "file in your home folder, not hidden and not a program")
-        if DENY_NAME.search(os.path.basename(r)):
-            raise ValueError(f"{os.path.basename(r)} looks like a key or a password, so I won't send it")
-        if r in real:
-            continue
-        real.append(r)
-        if os.path.isdir(r):
-            n, size = _folder_info(r)
-            dirs += 1
-            count += n
-            total += size
-        else:
-            count += 1
-            total += os.path.getsize(r)
+        raise ValueError(f"that's {len(paths)} files and I can send {DEVICES[device]['max_files']} at a time")
+
+
+def _allowed_real(p):
+    """The real path of one thing to send, or ValueError saying why not."""
+    r = desktop.allowed_path(p)
+    if not r:
+        raise ValueError(f"I'm not allowed to send {os.path.basename(str(p)) or 'that'}: it has to be a plain "
+                         "file in your home folder, not hidden and not a program")
+    if DENY_NAME.search(os.path.basename(r)):
+        raise ValueError(f"{os.path.basename(r)} looks like a key or a password, so I won't send it")
+    return r
+
+
+def _size_of(r):
+    """(is a folder, file count, bytes) of one real path."""
+    if os.path.isdir(r):
+        n, size = _folder_info(r)
+        return True, n, size
+    return False, 1, os.path.getsize(r)
+
+
+def _check_totals(dev, real, total):
     if len(real) > dev["max_files"]:
         raise ValueError(f"that's {len(real)} files and I can send {dev['max_files']} at a time to "
                          f"{dev['say']}. Pick fewer files")
     if total > dev["max_mb"] * 1024 * 1024:
         raise ValueError(f"that's {fmt_size(total)}. I can send up to {dev['max_mb']} MB at a time to "
                          f"{dev['say']}. Pick fewer files")
+
+
+def check_send(device, paths):
+    """(device, [real paths], {"count", "bytes", "dirs"}) for a send that is allowed; ValueError with a plain
+    reason otherwise. The one check used when building the card, before running, and inside bin/send."""
+    _check_args(device, paths)
+    real, dirs, total, count = [], 0, 0, 0
+    for p in paths:
+        r = _allowed_real(p)
+        if r in real:
+            continue
+        real.append(r)
+        is_dir, n, size = _size_of(r)
+        dirs += is_dir
+        count += n
+        total += size
+    _check_totals(DEVICES[device], real, total)
     return device, real, {"count": count, "bytes": total, "dirs": dirs}
 
 
