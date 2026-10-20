@@ -118,8 +118,9 @@ def read_jsonl(path):
                     continue
                 if isinstance(obj, dict):
                     out.append(obj)
-    except OSError:
-        pass
+    except OSError as why:
+        if not isinstance(why, FileNotFoundError):   # no file yet just means nothing was written
+            print(f"day: could not read {path}: {why}", file=sys.stderr)
     return out
 
 
@@ -364,8 +365,8 @@ def say(text, wait=True):
     if wait:
         try:
             subprocess.run(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
-        except (OSError, subprocess.TimeoutExpired):
-            pass
+        except (OSError, subprocess.TimeoutExpired) as why:
+            print(f"day: could not say the line: {why}", file=sys.stderr)
     else:
         subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
 
@@ -377,8 +378,8 @@ def notify_open(title, body, path):
     try:
         subprocess.Popen(["sh", "-c", script, "sh", title, body, path], stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL, start_new_session=True)
-    except OSError:
-        pass
+    except OSError as why:
+        print(f"day: could not show the notification: {why}", file=sys.stderr)
 
 
 def _script_module(name):
