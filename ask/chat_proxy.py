@@ -33,21 +33,33 @@ HOP = {"connection", "keep-alive", "transfer-encoding", "content-length", "host"
 
 # ---------- the rewrite (no network; tested in ask/test_chat_proxy.py) ----------
 
-def rewrite_args(args):
-    """A `query` call's arguments -> (new arguments, the limit the caller wanted)."""
-    args = dict(args)
-    want = int(args.get("limit") or 10)
+def _plain_query_to_searches(args):
+    """A plain `query` (no `searches`) becomes the island's key words + question lines, rerank off."""
     if args.get("query") and not args.get("searches"):
         q = str(args.pop("query"))
         args["searches"] = [dict(zip(("type", "query"), l.split(": ", 1))) for l in expanded_document(q).splitlines()]
         args.setdefault("rerank", False)
-    searches = [dict(s) for s in args.get("searches") or []]
+
+
+def _notes_words_line(searches):
+    """The one more meaning-search line with the notes' words for <user>'s words, or None when none are new."""
     vec = next((s["query"] for s in searches if s.get("type") == "vec"), None)
     said = " ".join(s.get("query", "") for s in searches if s.get("type") in ("lex", "vec"))
     words = [w for w in extra_words(said) if w.lower() not in said.lower()]
-    base = vec or said
-    line = f"{base} {' '.join(words)}".strip()
+    line = f"{vec or said} {' '.join(words)}".strip()
     if words and len(searches) < MAX_SEARCHES and all(s.get("query") != line for s in searches):
+        return line
+    return None
+
+
+def rewrite_args(args):
+    """A `query` call's arguments -> (new arguments, the limit the caller wanted)."""
+    args = dict(args)
+    want = int(args.get("limit") or 10)
+    _plain_query_to_searches(args)
+    searches = [dict(s) for s in args.get("searches") or []]
+    line = _notes_words_line(searches)
+    if line:
         searches.append({"type": "vec", "query": line})
     args["searches"] = searches
     if ask.NEWER_DAYS > 0:
