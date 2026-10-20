@@ -187,10 +187,17 @@ def public_sources(hits):
 def decide(*args, timeout=INTENT_SECONDS):
     try:
         out = subprocess.run([DECIDE, *args], capture_output=True, text=True, timeout=timeout)
+        # brain-decide's own warnings (an unreadable private.json) would be lost here; its other stderr (the
+        # decider app's) might hold the question, so only its own lines are passed on
+        for line in out.stderr.splitlines():
+            if line.startswith("brain-decide:"):
+                print(line, file=sys.stderr)
         return json.loads(out.stdout.strip().splitlines()[-1])
     except (OSError, ValueError, IndexError, subprocess.TimeoutExpired) as why:
-        # the label stays "timeout" for every failure (the steps and the log show it as before); the real error is said
-        print(f"brain ask: the decider failed ({type(why).__name__}: {why})", file=sys.stderr)
+        # the label stays "timeout" for every failure (the steps and the log show it as before); the real error is
+        # said, by type only: a timeout's text holds the whole command, question and private notes included
+        detail = f"after {why.timeout:g} s" if isinstance(why, subprocess.TimeoutExpired) else str(why)
+        print(f"brain ask: the decider failed ({type(why).__name__} {detail})", file=sys.stderr)
         return {"label": "unsure", "confidence": 0.0, "by": "timeout"}
 
 

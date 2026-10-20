@@ -30,7 +30,7 @@ class Decide(unittest.TestCase):
     def test_a_missing_decider_is_said_and_keeps_the_old_label(self):
         got, said = self.decide(side_effect=FileNotFoundError("brain-decide"))
         self.assertEqual(got, UNSURE)
-        self.assertIn("the decider failed (FileNotFoundError: brain-decide)", said)
+        self.assertIn("the decider failed (FileNotFoundError brain-decide)", said)
 
     def test_nonsense_output_is_said_and_keeps_the_old_label(self):
         got, said = self.decide(return_value=subprocess.CompletedProcess([], 0, "not json\n", ""))
@@ -42,10 +42,20 @@ class Decide(unittest.TestCase):
         self.assertEqual(got, UNSURE)
         self.assertIn("the decider failed (IndexError", said)
 
-    def test_a_real_timeout_is_said_too(self):
-        got, said = self.decide(side_effect=subprocess.TimeoutExpired("brain-decide", 2.5))
+    def test_a_real_timeout_is_said_by_length_only_never_with_the_command(self):
+        secret = ["brain-decide", "grounded", "what is the Smith invoice", "private note snippet"]
+        got, said = self.decide(side_effect=subprocess.TimeoutExpired(secret, 2.5))
         self.assertEqual(got, UNSURE)
-        self.assertIn("TimeoutExpired", said)
+        self.assertIn("the decider failed (TimeoutExpired after 2.5 s)", said)
+        self.assertNotIn("Smith", said)
+        self.assertNotIn("snippet", said)
+
+    def test_brain_decides_own_warning_reaches_our_stderr_but_the_rest_does_not(self):
+        out = subprocess.CompletedProcess([], 0, json.dumps({"label": "question", "confidence": 0.9}) + "\n",
+                                          "brain-decide: private.json is unreadable (x)\nTraceback: the Smith invoice\n")
+        got, said = self.decide(return_value=out)
+        self.assertEqual(got["label"], "question")
+        self.assertEqual(said, "brain-decide: private.json is unreadable (x)\n")
 
 
 if __name__ == "__main__":
