@@ -538,18 +538,47 @@ def run_one(text, day):
     append_jsonl(OVERNIGHT, {"t": int(time.time()), "day": day, "text": text, "result": got[0], "where": got[1]})
 
 
+def _start_detached():
+    """The island's job runner gives a job 60 s, and the menu waits on <user>: go on in our own unit."""
+    argv = [sys.executable, "-I", os.path.abspath(__file__), "eod", "--run"]
+    unit = ["systemd-run", "--user", "--collect", "--quiet", f"--unit=second-brain-eod-{int(time.time())}"]
+    unit += [f"--setenv={k}" for k in sorted(os.environ) if k.startswith("BRAIN_")]   # the unit starts clean
+    try:
+        subprocess.run(unit + argv, check=True, timeout=15, capture_output=True)
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    print(json.dumps({"message": "Closing out the day. Pick what may run tonight."}))
+    return 0
+
+
+def _tidy_phrase(cleared, filed):
+    tidy = []
+    if cleared:
+        tidy.append(f"{len(cleared)} ticked item{'s' if len(cleared) != 1 else ''} cleared")
+    if filed:
+        tidy.append(f"{len(filed)} finished job{'s' if len(filed) != 1 else ''} filed away")
+    return " " + " and ".join(tidy) + "." if tidy else ""
+
+
+def _eod_page_extra(cleared, filed):
+    return ([""] if cleared or filed else []) + ([f"- Cleared from the remember list: {', '.join(cut(t, 60) for t in cleared)}"] if cleared else []) + \
+        ([f"- Jobs filed away: {', '.join(filed)}"] if filed else [])
+
+
+def _run_overnight(d, running):
+    """Keep the computer from sleeping while the ticks run; with helpers already busy, until 7:00 at least."""
+    hold_until = dt.datetime.combine(d + dt.timedelta(days=1), dt.time(7)).timestamp() if running else 0
+    argv = ["systemd-inhibit", "--what=sleep:idle", "--who=Second brain", "--why=Overnight work",
+            sys.executable, "-I", os.path.abspath(__file__), "overnight-run", d.isoformat(), str(int(hold_until))]
+    try:
+        return subprocess.run(argv).returncode
+    except OSError:
+        return cmd_overnight_run([d.isoformat(), str(int(hold_until))])
+
+
 def cmd_eod(args):
     if "--run" not in args:
-        # The island's job runner gives a job 60 s, and the menu waits on <user>: go on in our own unit.
-        argv = [sys.executable, "-I", os.path.abspath(__file__), "eod", "--run"]
-        unit = ["systemd-run", "--user", "--collect", "--quiet", f"--unit=second-brain-eod-{int(time.time())}"]
-        unit += [f"--setenv={k}" for k in sorted(os.environ) if k.startswith("BRAIN_")]   # the unit starts clean
-        try:
-            subprocess.run(unit + argv, check=True, timeout=15, capture_output=True)
-        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-            subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-        print(json.dumps({"message": "Closing out the day. Pick what may run tonight."}))
-        return 0
+        return _start_detached()
     now = time.time()
     d = day_of(now)
     save_snapshot(d)
@@ -559,35 +588,21 @@ def cmd_eod(args):
     mod = remind_list()
     cleared = clear_ticked(mod.PATH, DONE_FILE, d)
     filed = file_finished_jobs(JOBS_DIR, now)
-    tidy = []
-    if cleared:
-        tidy.append(f"{len(cleared)} ticked item{'s' if len(cleared) != 1 else ''} cleared")
-    if filed:
-        tidy.append(f"{len(filed)} finished job{'s' if len(filed) != 1 else ''} filed away")
-    say(summary + (" " + " and ".join(tidy) + "." if tidy else ""), wait=True)
+    say(summary + _tidy_phrase(cleared, filed), wait=True)
     picked = pick_overnight(mod)
     for line_no, _, _ in picked:
         mark_overnight(line_no, mod.PATH)
     running = busy()
     append_jsonl(CLOSEOUTS, {"t": int(now), "day": d.isoformat(), "picked": [t for _, _, t in picked],
                              "running": running, "cleared": cleared, "filed": filed})
-    extra = ([""] if cleared or filed else []) + ([f"- Cleared from the remember list: {', '.join(cut(t, 60) for t in cleared)}"] if cleared else []) + \
-        ([f"- Jobs filed away: {', '.join(filed)}"] if filed else [])
     write(os.path.join(PAGES, d.isoformat() + ".md"),
-          page(f"{day_name(d)} ({clock(start)} to {clock(now)}, closed out)", g, extra))
+          page(f"{day_name(d)} ({clock(start)} to {clock(now)}, closed out)", g, _eod_page_extra(cleared, filed)))
     n = len(picked)
     say("The day is closed. " + (f"{n} thing{'s' if n != 1 else ''} will run tonight. " if n else
                                  "Nothing new runs tonight. ") + "I'll tell you how it went at the standup.", wait=True)
     if not picked and not running:
         return 0
-    # Keep the computer from sleeping while the ticks run; with helpers already busy, until 7:00 at least.
-    hold_until = dt.datetime.combine(d + dt.timedelta(days=1), dt.time(7)).timestamp() if running else 0
-    argv = ["systemd-inhibit", "--what=sleep:idle", "--who=Second brain", "--why=Overnight work",
-            sys.executable, "-I", os.path.abspath(__file__), "overnight-run", d.isoformat(), str(int(hold_until))]
-    try:
-        return subprocess.run(argv).returncode
-    except OSError:
-        return cmd_overnight_run([d.isoformat(), str(int(hold_until))])
+    return _run_overnight(d, running)
 
 
 cmd_goodnight = cmd_eod   # "goodnight" is the same command
@@ -615,6 +630,43 @@ def result_words(r):
     return RESULTS.get(r) or ("build failed" if r.startswith("built:") else r)
 
 
+def _overnight_lines(c, ran):
+    """The overnight section: what was ticked and how each came out."""
+    if not c:
+        return ["- No goodnight last night, so nothing was queued."]
+    lines = []
+    for t in c.get("picked", []):
+        r = next((x for x in ran if x.get("text") == t), None)
+        lines.append(f"- {cut(t, 90)}: " + (f"{result_words(r['result'])} ({cut(str(r.get('where', '')), 120)})"
+                                             if r else "still running"))
+    if c.get("running"):
+        lines.append("- Helpers that were busy at bedtime: " + ", ".join(c["running"]))
+    if not c.get("picked") and not c.get("running"):
+        lines.append("- Nothing was ticked to run.")
+    return lines
+
+
+def _open_item_count():
+    try:
+        return len(remind_list().items())
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def _standup_spoken(g, c, ran, night, waiting):
+    spoken = ["Good morning. " + say_line("yesterday", g)]
+    if c and c.get("picked"):
+        ok = sum(1 for r in ran if str(r.get("result", "")).startswith("built:done"))
+        spoken.append(f"Overnight, {len(c['picked'])} ticked thing{'s' if len(c['picked']) != 1 else ''} ran, "
+                      f"{ok} built.")
+    n_night = sum(len(x) for x in night["commits"].values())
+    if n_night:
+        spoken.append(f"Since bedtime: {n_night} saved change{'s' if n_night != 1 else ''}.")
+    if waiting:
+        spoken.append(waiting)
+    return " ".join(spoken)
+
+
 def standup(now=None):
     """(page text, spoken text) for this morning."""
     now = now or time.time()
@@ -629,42 +681,16 @@ def standup(now=None):
     night = gather(night_start, now)
     ran = [r for r in read_jsonl(OVERNIGHT) if c and r.get("day") == c.get("day")]
     waiting = waiting_line()
-    try:
-        open_items = len(remind_list().items())
-    except Exception:  # noqa: BLE001
-        open_items = 0
+    open_items = _open_item_count()
 
     lines = [f"# Standup, {day_name(today)}", ""]
     lines += ["## Yesterday", ""] + page(f"{day_name(y)}", g).splitlines()[2:]
-    lines += ["", f"## Overnight (since {clock(night_start)})", ""]
-    if c:
-        for t in c.get("picked", []):
-            r = next((x for x in ran if x.get("text") == t), None)
-            lines.append(f"- {cut(t, 90)}: " + (f"{result_words(r['result'])} ({cut(str(r.get('where', '')), 120)})"
-                                                 if r else "still running"))
-        if c.get("running"):
-            lines.append("- Helpers that were busy at bedtime: " + ", ".join(c["running"]))
-        if not c.get("picked") and not c.get("running"):
-            lines.append("- Nothing was ticked to run.")
-    else:
-        lines.append("- No goodnight last night, so nothing was queued.")
+    lines += ["", f"## Overnight (since {clock(night_start)})", ""] + _overnight_lines(c, ran)
     lines += ["", "Since bedtime:"] + page("x", night).splitlines()[2:]
     lines += ["", "## Waiting on you", ""]
     lines.append(f"- {waiting or 'Could not check.'}")
     lines.append(f"- Remember list: {open_items} open item{'s' if open_items != 1 else ''}.")
-    text = "\n".join(lines) + "\n"
-
-    spoken = ["Good morning. " + say_line("yesterday", g)]
-    if c and c.get("picked"):
-        ok = sum(1 for r in ran if str(r.get("result", "")).startswith("built:done"))
-        spoken.append(f"Overnight, {len(c['picked'])} ticked thing{'s' if len(c['picked']) != 1 else ''} ran, "
-                      f"{ok} built.")
-    n_night = sum(len(x) for x in night["commits"].values())
-    if n_night:
-        spoken.append(f"Since bedtime: {n_night} saved change{'s' if n_night != 1 else ''}.")
-    if waiting:
-        spoken.append(waiting)
-    return text, " ".join(spoken)
+    return "\n".join(lines) + "\n", _standup_spoken(g, c, ran, night, waiting)
 
 
 def cmd_standup(args):
