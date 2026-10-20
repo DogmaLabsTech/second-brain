@@ -113,25 +113,28 @@ def match_rule(text, jobs=None):
     function says yes. Used when the decider is unsure, and to correct it (route_label)."""
     text = clean_text(text).lower()
     for job in sorted((jobs or load()).values(), key=lambda j: j.get("order", 50)):
-        m = job.get("match")
-        if m == "@desktop.find_action":
-            if desktop.is_window_move(text):   # "move spotify to the left screen" is a window move, not music
-                return job["id"]
-            if not NOT_DESKTOP.search(text) and desktop.find_action(text)[0]:
-                return job["id"]
-        elif m == "@servers.is_request":
-            if servers.is_request(text):
-                return job["id"]
-        elif m == "@sendfiles.is_send_request":
-            if sendfiles.is_send_request(text):
-                return job["id"]
-        elif m and re.search(m, text, re.I):
-            if job["id"] in AGENT_JOBS and (two_asks(text, job["id"]) or is_how_question(text)):
-                continue
-            if job["id"] == "start-job" and not all(job_project(text)):
-                continue   # "start a run on tuesday" names no project: not this job
+        if _rule_fits(job, text):
             return job["id"]
     return None
+
+
+def _rule_fits(job, text):
+    """Does this one job's `match` (a regex or an `@module.function` check) fit the text?"""
+    m = job.get("match")
+    if m == "@desktop.find_action":
+        # "move spotify to the left screen" is a window move, not music
+        return bool(desktop.is_window_move(text) or (not NOT_DESKTOP.search(text) and desktop.find_action(text)[0]))
+    if m == "@servers.is_request":
+        return bool(servers.is_request(text))
+    if m == "@sendfiles.is_send_request":
+        return bool(sendfiles.is_send_request(text))
+    if not (m and re.search(m, text, re.I)):
+        return False
+    if job["id"] in AGENT_JOBS and (two_asks(text, job["id"]) or is_how_question(text)):
+        return False
+    if job["id"] == "start-job" and not all(job_project(text)):
+        return False   # "start a run on tuesday" names no project: not this job
+    return True
 
 
 # ---------- arguments ----------
