@@ -240,21 +240,23 @@ def gather(start, end, d=None, live=False):
     return {"commits": all_commits(start, end), "notes": notes, "appeared": appeared, "gone": gone}
 
 
-def page(title, g, extra=()):
-    commits = g["commits"]
+def _commit_lines(commits):
     n = sum(len(c) for c in commits.values())
-    lines = [f"# {title}", ""]
-    if n:
-        lines.append(f"Saved changes: {n} in {len(commits)} project{'s' if len(commits) != 1 else ''}")
-        items = list(commits.items())
-        for repo, rows in items[:MAX_PROJECTS]:
-            newest = [cut(s) for _, s in reversed(rows)][:PER_PROJECT]
-            more = f" (+{len(rows) - len(newest)} more)" if len(rows) > len(newest) else ""
-            lines.append(f"- {repo} ({len(rows)}): " + "; ".join(newest) + more)
-        if len(items) > MAX_PROJECTS:
-            lines.append("- also: " + ", ".join(f"{r} ({len(c)})" for r, c in items[MAX_PROJECTS:]))
-    else:
-        lines.append("Saved changes: none")
+    if not n:
+        return ["Saved changes: none"]
+    lines = [f"Saved changes: {n} in {len(commits)} project{'s' if len(commits) != 1 else ''}"]
+    items = list(commits.items())
+    for repo, rows in items[:MAX_PROJECTS]:
+        newest = [cut(s) for _, s in reversed(rows)][:PER_PROJECT]
+        more = f" (+{len(rows) - len(newest)} more)" if len(rows) > len(newest) else ""
+        lines.append(f"- {repo} ({len(rows)}): " + "; ".join(newest) + more)
+    if len(items) > MAX_PROJECTS:
+        lines.append("- also: " + ", ".join(f"{r} ({len(c)})" for r, c in items[MAX_PROJECTS:]))
+    return lines
+
+
+def page(title, g, extra=()):
+    lines = [f"# {title}", ""] + _commit_lines(g["commits"])
     if g["notes"]:
         lines += ["", f"Logged changes ({len(g['notes'])}):"]
         lines += [f"- {clock(c['t'])} {c.get('kind', 'change')}: {cut(str(c.get('what', '')), 120)}" for c in g["notes"]]
@@ -269,21 +271,24 @@ def spoken_name(repo):
     return re.sub(r"[-_]+", " ", repo)
 
 
+def _commit_sentence(when, commits):
+    n = sum(len(c) for c in commits.values())
+    if not n:
+        return f"{when.capitalize()}: no saved changes."
+    names = list(commits)
+    top = f"most in {spoken_name(names[0])} ({len(commits[names[0]])})" if len(names) > 1 else \
+        f"all in {spoken_name(names[0])}"
+    rest = ", ".join(spoken_name(r) for r in names[1:4])
+    return (f"{when.capitalize()}: {n} saved change{'s' if n != 1 else ''} in {len(names)} "
+            f"project{'s' if len(names) != 1 else ''}, {top}" + (f", then {rest}" if rest else "") + ".")
+
+
 def say_line(when, g):
     commits = g["commits"]
     n = sum(len(c) for c in commits.values())
     if not n and not g["notes"] and not g["appeared"] and not g["gone"]:
         return f"Nothing moved {when}."
-    parts = []
-    if n:
-        names = list(commits)
-        top = f"most in {spoken_name(names[0])} ({len(commits[names[0]])})" if len(names) > 1 else \
-            f"all in {spoken_name(names[0])}"
-        rest = ", ".join(spoken_name(r) for r in names[1:4])
-        parts.append(f"{when.capitalize()}: {n} saved change{'s' if n != 1 else ''} in {len(names)} "
-                     f"project{'s' if len(names) != 1 else ''}, {top}" + (f", then {rest}" if rest else "") + ".")
-    else:
-        parts.append(f"{when.capitalize()}: no saved changes.")
+    parts = [_commit_sentence(when, commits)]
     if g["notes"]:
         k = len(g["notes"])
         parts.append(f"{k} logged change{'s' if k != 1 else ''}, the last: {cut(str(g['notes'][-1].get('what', '')), 80)}.")
