@@ -12,6 +12,7 @@
 #   brain day [today|yesterday|overnight|DATE] [--say]   what moved (a day runs 5 am to 5 am, or to goodnight)
 #   brain changed <kind> "<what>"   log a change by hand (moves, renames), so the day page shows it
 #   brain eod (or goodnight)  end of day: summary, clear ticked items and finished jobs, pick what runs overnight
+#                             (--run --silent --picks=<line numbers>: the example-remote's Good night button, no voice or menu)
 #   brain standup [--print]   the morning standup (the 9:00 reminder does this by itself)
 #   brain alarm list|history|cancel <id|all>   your reminders (set them by asking: "remind me at 2pm to …")
 set -euo pipefail
