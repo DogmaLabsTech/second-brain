@@ -2,6 +2,7 @@
 import datetime as dt
 import json
 import os
+import types
 import subprocess
 import sys
 import tempfile
@@ -211,6 +212,40 @@ class Goodnight(Base):
         self.assertEqual(len(os.listdir(day.PAGES)), 1)
         self.assertIn("Cleared from the remember list: dentist friday", open(
             os.path.join(day.PAGES, os.listdir(day.PAGES)[0])).read())
+
+    def test_flag_value_and_picks_from_flag(self):
+        self.assertEqual(day._flag_value(["--run", "--picks=3,7"], "--picks"), "3,7")
+        self.assertEqual(day._flag_value(["--run", "--picks="], "--picks"), "")
+        self.assertIsNone(day._flag_value(["--run"], "--picks"))
+        mod = types.SimpleNamespace(items=lambda: [(2, "d", "a"), (5, "d", "b"), (9, "d", "c")])
+        self.assertEqual(day.picks_from_flag(mod, "5, 9,x"), [(5, "d", "b"), (9, "d", "c")])
+        self.assertEqual(day.picks_from_flag(mod, ""), [])
+        self.assertEqual(day.picks_from_flag(mod, "4"), [])        # a line that is not an open item is ignored
+
+    def test_eod_run_with_picks_and_silent_asks_nothing_and_says_nothing(self):
+        path = os.path.join(self.tmp.name, "remembered.md")
+        day.write(path, "- [ ] 2026-10-15: build the thing\n- [ ] 2026-10-15: research x\n")
+        real = day.remind_list()
+        real.PATH = path
+        real.items = lambda p=path, f=real.items: f(p)
+        real.menu = lambda prompt, options: self.fail("the menu must not open when picks are given")
+        calls = []
+        saved = (day.remind_list, day.say, day.busy, day.save_snapshot, day.all_commits, day.subprocess.run)
+        day.remind_list, day.say = (lambda: real), (lambda text, wait=True: calls.append(("say", text)))
+        day.busy = lambda: ["example-game"]
+        day.save_snapshot, day.all_commits = (lambda d, overwrite=True: None), (lambda s, e: {})
+        day.subprocess.run = lambda argv, **k: calls.append(("run", argv[:2])) or subprocess.CompletedProcess(argv, 0)
+        try:
+            self.assertEqual(day.cmd_eod(["--run", "--silent", "--picks=1"]), 0)
+        finally:
+            (day.remind_list, day.say, day.busy, day.save_snapshot, day.all_commits, day.subprocess.run) = saved
+        self.assertEqual([c for c in calls if c[0] == "say"], [])            # silent
+        self.assertEqual(calls, [("run", ["systemd-inhibit", "--what=sleep:idle"])])   # busy helpers keep running
+        c = day.read_jsonl(day.CLOSEOUTS)[-1]
+        self.assertEqual((c["picked"], c["running"]), (["research x"], ["example-game"]))
+        lines = open(path).read().splitlines()
+        self.assertEqual(lines[0], "- [ ] 2026-10-15: build the thing")      # not picked: stays on the list
+        self.assertIn("→ started with Claude overnight", lines[1])
 
     def test_goodnight_is_eod(self):
         self.assertIs(day.cmd_goodnight, day.cmd_eod)

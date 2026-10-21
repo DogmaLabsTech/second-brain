@@ -581,9 +581,24 @@ def _run_overnight(d, running):
         return cmd_overnight_run([d.isoformat(), str(int(hold_until))])
 
 
+def _flag_value(args, name):
+    """The text after `name=` in the arguments, or None."""
+    for a in args:
+        if a.startswith(name + "="):
+            return a.split("=", 1)[1]
+    return None
+
+
+def picks_from_flag(mod, value):
+    """--picks=3,7: the open items on those line numbers (the Fire's tick list); an empty value is nothing tonight."""
+    want = {int(n) for n in value.split(",") if n.strip().isdigit()}
+    return [item for item in mod.items() if item[0] in want]
+
+
 def cmd_eod(args):
     if "--run" not in args:
         return _start_detached()
+    speak = (lambda text, wait=True: None) if "--silent" in args else say   # --silent: no voice (the Fire's button)
     now = time.time()
     d = day_of(now)
     save_snapshot(d)
@@ -593,8 +608,9 @@ def cmd_eod(args):
     mod = remind_list()
     cleared = clear_ticked(mod.PATH, DONE_FILE, d)
     filed = file_finished_jobs(JOBS_DIR, now)
-    say(summary + _tidy_phrase(cleared, filed), wait=True)
-    picked = pick_overnight(mod)
+    speak(summary + _tidy_phrase(cleared, filed), wait=True)
+    value = _flag_value(args, "--picks")   # given: the ticks come with the call, no menu to answer
+    picked = pick_overnight(mod) if value is None else picks_from_flag(mod, value)
     for line_no, _, _ in picked:
         mark_overnight(line_no, mod.PATH)
     running = busy()
@@ -603,8 +619,8 @@ def cmd_eod(args):
     write(os.path.join(PAGES, d.isoformat() + ".md"),
           page(f"{day_name(d)} ({clock(start)} to {clock(now)}, closed out)", g, _eod_page_extra(cleared, filed)))
     n = len(picked)
-    say("The day is closed. " + (f"{n} thing{'s' if n != 1 else ''} will run tonight. " if n else
-                                 "Nothing new runs tonight. ") + "I'll tell you how it went at the standup.", wait=True)
+    speak("The day is closed. " + (f"{n} thing{'s' if n != 1 else ''} will run tonight. " if n else
+                                   "Nothing new runs tonight. ") + "I'll tell you how it went at the standup.", wait=True)
     if not picked and not running:
         return 0
     return _run_overnight(d, running)
