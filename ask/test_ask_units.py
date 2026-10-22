@@ -23,6 +23,21 @@ class Expand(unittest.TestCase):
         self.assertLessEqual(len(lines), 3)
 
 
+class SearchCli(unittest.TestCase):
+    HITS = [{"path": "/x/a.md", "snippet": "first", "score": 1.4432}, {"path": "/x/b.md", "snippet": "second"}]
+
+    def test_lines_have_no_score_by_default(self):
+        import search_cli
+        self.assertTrue(all("\t" not in line and " — " in line for line in search_cli.lines(self.HITS)))
+
+    def test_lines_start_with_the_score_when_asked(self):
+        import search_cli
+        out = search_cli.lines(self.HITS, scores=True)
+        self.assertEqual(out[0].split("\t")[0], "1.443")
+        self.assertEqual(out[1].split("\t")[0], "0.000")        # no score: 0, never a crash
+        self.assertTrue(out[0].endswith("a.md — first"))
+
+
 class Collections(unittest.TestCase):
     def test_every_indexed_collection_has_a_folder(self):
         """A collection missing here comes back as a qmd:// link, not a note (agent-os and codex, 2026-10-18)."""

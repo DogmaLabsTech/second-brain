@@ -1,6 +1,7 @@
 """brain checkup: the weekly check-up (eval/README.md, docs/checkup.md).
 
   brain checkup              fair test score (search) + this week's questions, 👍/👎, speed, who wrote
+                             (first: is the index keeping up? warns when a collection is 24 h+ behind its folder or the test machine Codex embed failed)
   brain checkup --answers    also asks every fair-test question for real (slow; Haiku may help) and
                              saves the answers for grading by hand in the check-up
   brain checkup --days N     look back N days instead of 7
@@ -21,8 +22,10 @@ sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, "ask"))
+sys.path.insert(0, os.path.join(ROOT, "index"))
 import ask  # noqa: E402
 import asklog  # noqa: E402
+import freshness  # noqa: E402
 
 HOME = os.path.expanduser("~")
 DECIDERS = os.path.join(ROOT, "deciders")
@@ -152,6 +155,15 @@ def private_list_problem(path=None):
     return None
 
 
+def freshness_lines(report=None):
+    """The index freshness part of the check-up (index/freshness.py): warnings when a collection is more than 24 h
+    behind its folder or the test machine Codex embed failed, and the collections to retire. [] when all is well."""
+    report = report or freshness.check()
+    lines = ["!! " + w for w in report["warnings"]]
+    lines += [f"-- to retire (not deleted): {n}: {why}" for n, why in report["retire"]]
+    return lines
+
+
 def _print_search(s):
     print(f"Fair test (search, {s['n']} questions): right note first {s['top1']}/{s['n']}, "
           f"in top 3 {s['top3']}/{s['n']} ({100 * s['top3'] // max(1, s['n'])}%)")
@@ -237,6 +249,9 @@ def main(argv):
     problem = private_list_problem()
     if problem:
         print("!! " + problem + "\n")
+    fresh = freshness_lines()
+    if fresh:
+        print("Index freshness:\n  " + "\n  ".join(fresh) + "\n")
     rows = load("heldout.jsonl")
     s = search_score(rows)
     _print_search(s)

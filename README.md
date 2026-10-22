@@ -1,7 +1,7 @@
 # Second brain
 
 A search engine for everything you've written down. It reads your computer notes, your business
-notes, your project guides and (soon) your old Claude chats, and finds the right note by what you
+notes, your project guides and your old Claude chats, and finds the right note by what you
 *mean*, not only by the exact words. Everything runs on this computer; nothing is sent anywhere.
 
 ## What it reads
@@ -23,13 +23,15 @@ In a terminal:
 brain search "why does the bar get killed"
 ```
 
-You get the 5 best notes, each with a short piece of text, in under a second. The first search
+You get the 5 best notes, each with a short piece of text, in under a second. (`BRAIN_SEARCH_SCORES=1 brain search …` puts each note's score and a tab in front of its line; agent-os `think` uses that to drop weak hits. The score follows the note's rank, it is not a fit measure.) The first search
 after 5 quiet minutes takes about 6 seconds (it wakes the models up).
 
 In any Claude chat: just ask. Claude has the `brain` tool and is told to look there before asking
 you about past work.
 
-How good is it? On 10 test questions the right note was in the top 3 for 8 (`docs/search-test.md`).
+How good is it? On the fair test (38 questions; 34 of them have a right note, 4 must say "not found"),
+the right note was first for 7 of 34 (21%) and in the top 3 for 18 of 34 (53%), last checked 2026-10-18
+(`eval/scores.tsv`; the questions stay on this computer, `eval/README.md`).
 Before searching, a small list of your words and the notes' words (`ask/synonyms.tsv`: "reload" →
 "restart", "lore" → "world bible") adds the notes' words to the question. Add a line there when a
 search misses because you and your notes say it differently.
@@ -232,6 +234,14 @@ memory, http://127.0.0.1:8183, this computer only): about 0.3 s a question inste
 
 Every hour the computer re-reads notes that changed (only those). To do it right now:
 `brain reindex`. To see when it last ran: `systemctl --user list-timers | grep second-brain`.
+
+**Is it keeping up?** `brain status` (add `--json` for a machine reading) lists each group of notes with how many
+notes the index has, the newest note on disk against the newest the index has seen, and flags: `BEHIND` (more than
+24 hours behind its folder), `without vectors` (older notes with no meaning-search yet), `FOLDER MISSING`, `RETIRE`.
+It also says whether the Codex vectors made on the test machine worked: `index/codex-testbox.sh` leaves a one-line record in
+`~/.local/share/second-brain/codex-testbox.status` after every run. It only reads; it never re-indexes. The weekly
+`brain checkup` prints the same warnings first (lines starting `!!`). `hermes` is named there as a group to retire
+(the agent stopped in September 2026); nothing is removed until <user> says so.
 
 ## How it works (the short version)
 
