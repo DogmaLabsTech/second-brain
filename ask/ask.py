@@ -19,7 +19,8 @@ Steps (docs and timings: README.md, docs/writer-race.md):
 Writers: local = Ollama (second-brain-ollama.service) qwen2.5 3B by default; haiku = `claude -p`
 (Claude Haiku, tools and MCP off); auto (default) = local alone for BRAIN_HAIKU_WAIT (2 s), then Haiku
 joins if needed; a good local answer within BRAIN_LOCAL_SECONDS (4 s) still wins. Every answer says who wrote it (`writer`). Private text never goes to the second decider
-(brain-decide handles that); Haiku is the documented backup.
+(brain-decide handles that); Haiku is the documented backup, and it never gets a private name: they are swapped for
+[NAME1]... first (decider/names.py) and put back into the answer here, or nothing is sent.
 
 --json prints one object, the island's contract (user.brain-island README):
   {kind, answer, sources[{path,title,snippet}], job, writer, ms} (+ timings in `steps`).
@@ -56,6 +57,8 @@ LOCAL_MODEL = os.environ.get("BRAIN_LOCAL_MODEL", "qwen2.5:3b")
 LOCAL_SECONDS = float(os.environ.get("BRAIN_LOCAL_SECONDS", "4"))
 HAIKU_WAIT = float(os.environ.get("BRAIN_HAIKU_WAIT", "2"))   # Haiku starts only after this, if local isn't done
 HAIKU_MODEL = os.environ.get("BRAIN_HAIKU_MODEL", "claude-haiku-5-5")
+DECIDER_REPO = os.path.expanduser(os.environ.get("DECIDER_REPO", "~/projects/decider"))
+NAMES_NOTE = "\n\n(Some names are hidden as [NAME1], [NAME2] and so on. Write those marks exactly as they are.)"
 RERANK = os.environ.get("BRAIN_RERANK", "0") == "1"   # the re-ranker re-reads the top RERANK_POOL notes
 RERANK_POOL = int(os.environ.get("BRAIN_RERANK_POOL", "20"))
 NEWER_DAYS = float(os.environ.get("BRAIN_NEWER_DAYS", "30"))   # 0 = no newer-first boost
@@ -392,10 +395,43 @@ def _read_haiku_stream(proc, t0, on_text):
     return first, text, final
 
 
+def _names():
+    if DECIDER_REPO not in sys.path:
+        sys.path.append(DECIDER_REPO)
+    from decider import names
+    return names
+
+
+def private_names_out(prompt, system):
+    """(prompt, system, back): the text for an online model with every private name (decider/names.py, the same list
+    brain-decide uses) swapped for [NAME1], [NAME2]..., and the map that puts them back into the answer here.
+    Raises RuntimeError, and nothing may be sent, when the names can't be removed for sure or the filter is missing."""
+    try:
+        names = _names()
+        clean, back = names.scrub_keyed(prompt)
+        if system != SYSTEM:
+            system = names.scrub(system)
+    except Exception as why:  # noqa: BLE001 - names.Unsafe, or no filter: never send
+        raise RuntimeError(f"haiku: not sent, private names could not be removed ({type(why).__name__})") from None
+    return (clean + NAMES_NOTE if back else clean), system, back
+
+
 def haiku_write(prompt, system=SYSTEM, timeout=30, on_text=None):
     """Claude Haiku: the pre-started one when it's running (and the rules are the usual ones), else
     `claude -p` started now: no tools, no MCP, no settings, no saved session.
+    Private names never go out: they are swapped for marks first and put back into the answer here
+    (private_names_out); when that can't be done for sure, nothing is sent and it raises RuntimeError.
     Returns (text, first_ms, total_ms)."""
+    prompt, system, back = private_names_out(prompt, system)
+    if back:
+        restore, shown = _names().restore, on_text
+        on_text = shown and (lambda t: shown(restore(t, back)))
+        text, first_ms, total_ms = _haiku_write(prompt, system, timeout, on_text)
+        return restore(text, back), first_ms, total_ms
+    return _haiku_write(prompt, system, timeout, on_text)
+
+
+def _haiku_write(prompt, system, timeout, on_text):
     if system == SYSTEM and os.path.exists(HAIKU_SOCK):
         try:
             return haiku_standby_write(prompt, timeout, on_text)
