@@ -23,7 +23,7 @@ In a terminal:
 brain search "why does the bar get killed"
 ```
 
-You get the 5 best notes, each with a short piece of text, in under a second. The first search
+You get the 5 best notes, each with a short piece of text, in under a second. (`BRAIN_SEARCH_SCORES=1 brain search …` puts each note's score and a tab in front of its line; agent-os `think` uses that to drop weak hits. The score follows the note's rank, it is not a fit measure.) The first search
 after 5 quiet minutes takes about 6 seconds (it wakes the models up).
 
 In any Claude chat: just ask. Claude has the `brain` tool and is told to look there before asking
