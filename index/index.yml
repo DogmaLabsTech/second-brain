@@ -158,6 +158,8 @@ collections:
     pattern: "**/*.md"
     context:
       "/": "<user>'s content library: one numbered folder per content idea, with its read-me and copy (the words used)."
+  # Marked for retirement (t10b, 2026-10-22): the Hermes agent stopped in September 2026. `brain status` and the
+  # check-up name it; remove it only when <user> says so (qmd collection remove hermes, then delete this block).
   hermes:
     includeByDefault: false
     path: ~/.hermes
