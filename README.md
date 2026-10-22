@@ -235,6 +235,14 @@ memory, http://127.0.0.1:8183, this computer only): about 0.3 s a question inste
 Every hour the computer re-reads notes that changed (only those). To do it right now:
 `brain reindex`. To see when it last ran: `systemctl --user list-timers | grep second-brain`.
 
+**Is it keeping up?** `brain status` (add `--json` for a machine reading) lists each group of notes with how many
+notes the index has, the newest note on disk against the newest the index has seen, and flags: `BEHIND` (more than
+24 hours behind its folder), `without vectors` (older notes with no meaning-search yet), `FOLDER MISSING`, `RETIRE`.
+It also says whether the Codex vectors made on the test machine worked: `index/codex-testbox.sh` leaves a one-line record in
+`~/.local/share/second-brain/codex-testbox.status` after every run. It only reads; it never re-indexes. The weekly
+`brain checkup` prints the same warnings first (lines starting `!!`). `hermes` is named there as a group to retire
+(the agent stopped in September 2026); nothing is removed until <user> says so.
+
 ## How it works (the short version)
 
 The engine is **qmd** (by Tobi Lütke). It mixes word search and meaning search. Its models run on
