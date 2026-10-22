@@ -8,6 +8,7 @@
   brain checkup --no-intent  skip the intent fair test (the local decider, through the decider service, ~15 s)
   brain checkup --no-learn   skip learning from the week's likely misses (Haiku and the second decider label them)
   brain checkup --no-train   find misses, but don't start a training round even with 30+ new examples
+  brain checkup --no-drafts  skip the drafts for <user> (test questions and lore stories from the week's signals)
 
 Scores are written to eval/scores.tsv (one line per run), so each week can be compared with the last.
 """
@@ -26,6 +27,7 @@ sys.path.insert(0, os.path.join(ROOT, "index"))
 import ask  # noqa: E402
 import asklog  # noqa: E402
 import freshness  # noqa: E402
+import drafts  # noqa: E402
 
 HOME = os.path.expanduser("~")
 DECIDERS = os.path.join(ROOT, "deciders")
@@ -164,6 +166,15 @@ def freshness_lines(report=None):
     return lines
 
 
+def drafts_lines(days):
+    """The drafts part of the check-up (eval/drafts.py): draft test questions and lore stories from the week's
+    signals, for <user> to keep or drop, and up to 3 asks worth rating. Writes only inside the drafts folders."""
+    try:
+        return drafts.lines(drafts.run(days))
+    except (OSError, ValueError) as why:
+        return [f"Drafts for <user>: couldn't make them ({why})"]
+
+
 def _print_search(s):
     print(f"Fair test (search, {s['n']} questions): right note first {s['top1']}/{s['n']}, "
           f"in top 3 {s['top3']}/{s['n']} ({100 * s['top3'] // max(1, s['n'])}%)")
@@ -265,6 +276,10 @@ def main(argv):
     up, down = _print_week(asks, votes, days)
 
     learned = None if "--no-learn" in argv else learn(days, "--no-train" not in argv)
+    if "--no-drafts" not in argv:   # after learning, so this week's new likely misses are in misses.jsonl
+        block = drafts_lines(days)
+        if block:
+            print("\n" + "\n".join(block))
     _append_scores(s, it, asks, up, down, learned)
 
     if "--answers" in argv:

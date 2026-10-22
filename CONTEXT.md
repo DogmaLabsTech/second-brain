@@ -12,8 +12,11 @@ When you add, move or retire a file here, update this file in the same commit.
 - `AGENTS.md`: rules and the folder map.
 - `index/index.yml`: which folders are searched, and the search advice that the search server shows
   Claude. The live copy is `~/.config/qmd/index.yml`; it changes only when `index/setup.sh` runs.
+- `eval/drafts.py` (`brain drafts`): the check-up's drafts for <user> to keep or drop (test questions for the tuning set,
+  lore stories for agent-os `lore/drafts/`). Tests: `eval/test_drafts.py`.
 - `eval/README.md`: the fair test rules. `eval/scores.tsv`: the score log (add a row, newest last).
   `eval/heldout.example.jsonl` shows the format; the real `eval/heldout.jsonl` stays on this computer.
+  `eval/seen.jsonl` is the tuning set (kept drafts land here, never in heldout).
 - `docs/checkup.md`: the weekly check-up routine.
 - `docs/writer-race.md`: the writer race (2026-10-15). The numbers in the README come from it.
 

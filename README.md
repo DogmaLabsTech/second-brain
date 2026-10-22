@@ -295,7 +295,9 @@ Every answer is saved (`brain log`), <user> taps 👍/👎 on the island (or `br
 notes when he says No, presses Esc partway or a job fails (`brain outcome`), and `brain checkup` scores the fair
 test (`eval/heldout.jsonl`), the local decider's "sure and wrong" on the intent fair test, the week, and the week's likely
 misses (`deciders/tools/learn_misses.py`): it learns from them and starts a the local decider training round on the test machine once
-30+ new real examples have built up. The routine: `docs/checkup.md`;
+30+ new real examples have built up. It also leaves **drafts** for you: a test question for each 👎, likely miss or
+question asked again, and a short lore story when the same cause shows up twice. Nothing is a lesson or a test until
+you keep it: `brain drafts` lists them, `brain drafts keep <id>` / `brain drafts drop <id>` decides. The routine: `docs/checkup.md`;
 in Claude Code: `/brain-checkup`. Unit tests: `python3 ask/test_ask_units.py` (through Crabbox).
 
 ## What's not in this repo
