@@ -1,6 +1,6 @@
 # qmd config for <user>'s second brain. Installed to ~/.config/qmd/index.yml by index/setup.sh.
 # qmd always skips node_modules, .git, .cache, vendor, dist, build on its own.
-global_context: "<user>'s second brain: notes about his Omarchy Linux computer (desktop), his business the business, his code projects and their project manager (plans, build runs, reports), Claude's saved plans, experiments, his content library, and summaries of his old Claude Code chats."
+global_context: "<user>'s second brain: notes about his Omarchy Linux computer (desktop), his business the business, his code projects and their project manager (plans, build runs, reports), Claude's saved plans, experiments, his content library, and summaries of his old Claude Code chats. Search advice: in each `query` call send one lex search and one vec search (no more), set rerank to false, and always give an intent."
 # includeByDefault: false on every collection is on purpose. When a search names no collection,
 # qmd then searches all notes as one list. With the default (true) it ran one list per collection
 # and took turns between them, so the 2nd and 3rd results were the best of *other* collections,
