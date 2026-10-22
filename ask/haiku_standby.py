@@ -68,6 +68,16 @@ class Spare:
                 self.start()
 
 
+def names_clear(prompt):
+    """True only when the shared names filter (decider/names.py) finds no private name. `brain ask` removes them
+    before it sends; this is the second check, so no other caller can push a name out through the standby."""
+    try:
+        import ask
+        return ask._names().find(prompt) == 0
+    except Exception:  # noqa: BLE001 - names.Unsafe, or no filter: not sure, so not clear
+        return False
+
+
 def _send(f, obj):
     f.write(json.dumps(obj) + "\n")
     f.flush()
@@ -100,6 +110,9 @@ def serve(conn, spare):
     try:
         req = json.loads(f.readline() or "{}")
         proc = spare.take()
+        if not names_clear(req["prompt"]):   # the waiting Claude is stopped below, it never sees the prompt
+            _send(f, {"error": "not sent: a private name is in the prompt, or the names filter is not sure"})
+            return
         proc.stdin.write(json.dumps({"type": "user", "message": {"role": "user", "content": req["prompt"]}}) + "\n")
         proc.stdin.flush()
         _stream_answer(proc, f)
