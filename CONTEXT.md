@@ -1,0 +1,50 @@
+# second-brain: what is here
+
+The code, settings and guides for <user>'s second brain: search, short answers, jobs, the day page,
+speech to text and the weekly check-up. Start with `README.md` (the plain guide for <user>).
+`AGENTS.md` has the folder map and the rules for helpers. The notes themselves are not in this folder.
+
+When you add, move or retire a file here, update this file in the same commit.
+
+## Current (use these)
+
+- `README.md`: the plain guide. Keep it true when behaviour changes.
+- `AGENTS.md`: rules and the folder map.
+- `index/index.yml`: which folders are searched, and the search advice that the search server shows
+  Claude. The live copy is `~/.config/qmd/index.yml`; it changes only when `index/setup.sh` runs.
+- `eval/README.md`: the fair test rules. `eval/scores.tsv`: the score log (add a row, newest last).
+  `eval/heldout.example.jsonl` shows the format; the real `eval/heldout.jsonl` stays on this computer.
+- `docs/checkup.md`: the weekly check-up routine.
+- `docs/writer-race.md`: the writer race (2026-10-15). The numbers in the README come from it.
+
+## History (dated; kept for the record, may be out of date)
+
+Not moved into `history/` folders yet. Do not use these for current numbers.
+
+- `docs/search-test.md` (2026-10-15): the old 10-question search test. Replaced by `eval/heldout.jsonl`.
+  Its questions are `index/search-questions.tsv`.
+- `docs/index-report.md` (2026-10-15): numbers from the first index build.
+- `docs/router-upgrades-plan.md`, `docs/handoff-upgrade2-finish.md`, `docs/upgrade2-report.md`
+  (2026-10-15 and 16): the router upgrades plan, its handoff and its report. Finished.
+- `docs/plan-day-journal.md` (2026-10-16): the plan for the day page, goodnight and the standup.
+  Built; the code is in `day/`.
+- `docs/wake-false-wake-test.json`: the output of one wake-word false-wake test.
+- `deciders/results/`: result files from past training and test rounds (v1 to v6, testbox and second_decider runs).
+  Check the decider files before you treat any one of them as current.
+
+## Folders
+
+| Folder | What |
+|---|---|
+| `bin/` | `brain` and its helpers |
+| `index/` | search setup: collections, reindex script, timers, search test |
+| `chats/` | converters for old Claude and Codex chats, with redaction rules and tests |
+| `ask/` | the answer helper: search, decide, write, sources |
+| `deciders/` | task files and example sets for the decider models |
+| `day/` | the per-day page and its timer |
+| `eval/` | the fair test, the check-up and its scores |
+| `stt/` | the speech-to-text server |
+| `obsidian/` | the Obsidian plugin and vault settings copy |
+| `wake/` | the wake-word model, training and tests |
+| `jobs/` | one small file per job |
+| `docs/` | results, plans and reports (see the lists above) |

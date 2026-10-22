@@ -1,7 +1,7 @@
 # Second brain
 
 A search engine for everything you've written down. It reads your computer notes, your business
-notes, your project guides and (soon) your old Claude chats, and finds the right note by what you
+notes, your project guides and your old Claude chats, and finds the right note by what you
 *mean*, not only by the exact words. Everything runs on this computer; nothing is sent anywhere.
 
 ## What it reads
@@ -29,7 +29,9 @@ after 5 quiet minutes takes about 6 seconds (it wakes the models up).
 In any Claude chat: just ask. Claude has the `brain` tool and is told to look there before asking
 you about past work.
 
-How good is it? On 10 test questions the right note was in the top 3 for 8 (`docs/search-test.md`).
+How good is it? On the fair test (38 questions; 34 of them have a right note, 4 must say "not found"),
+the right note was first for 7 of 34 (21%) and in the top 3 for 18 of 34 (53%), last checked 2026-10-18
+(`eval/scores.tsv`; the questions stay on this computer, `eval/README.md`).
 Before searching, a small list of your words and the notes' words (`ask/synonyms.tsv`: "reload" →
 "restart", "lore" → "world bible") adds the notes' words to the question. Add a line there when a
 search misses because you and your notes say it differently.
