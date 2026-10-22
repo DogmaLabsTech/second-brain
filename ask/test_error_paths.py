@@ -15,6 +15,7 @@ from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import fake_names  # noqa: E402,F401  (made-up names for the names filter)
 import ask  # noqa: E402
 import asklog  # noqa: E402
 import chat_proxy as cp  # noqa: E402
