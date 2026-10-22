@@ -161,7 +161,7 @@ def freshness_lines(report=None):
     report = report or freshness.check()
     lines = ["!! " + w for w in report["warnings"]]
     lines += [f"-- to retire (not deleted): {n}: {why}" for n, why in report["retire"]]
-    return lines or ["Index is keeping up with the notes."]
+    return lines
 
 
 def _print_search(s):
@@ -249,7 +249,9 @@ def main(argv):
     problem = private_list_problem()
     if problem:
         print("!! " + problem + "\n")
-    print("Index freshness:\n  " + "\n  ".join(freshness_lines()) + "\n")
+    fresh = freshness_lines()
+    if fresh:
+        print("Index freshness:\n  " + "\n  ".join(fresh) + "\n")
     rows = load("heldout.jsonl")
     s = search_score(rows)
     _print_search(s)

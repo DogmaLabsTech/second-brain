@@ -248,7 +248,7 @@ class Commands(Folders):
         lines = checkup.freshness_lines()
         self.assertEqual(sum(l.startswith("!! ") for l in lines), 3)
         self.assertTrue(any("to retire (not deleted): hermes" in l for l in lines))
-        self.assertEqual(checkup.freshness_lines({"warnings": [], "retire": []}), ["Index is keeping up with the notes."])
+        self.assertEqual(checkup.freshness_lines({"warnings": [], "retire": []}), [])
 
     def test_a_missing_index_file_is_a_warning_not_a_crash(self):
         env = dict(self.env, BRAIN_LIVE_INDEX=os.path.join(self.dir, "none.sqlite"))
