@@ -76,8 +76,8 @@ One small file per job in `jobs/` (what to say, whether it asks first, the comma
 | `what-changed` | "what moved today?", "what about yesterday?", "what happened overnight?" | no | `brain day … --say`: two spoken sentences from the day page (below) |
 | `goodnight` | "end of day", "goodnight", "I'm going to bed", "close out the day" | yes | `brain eod` (below; `/eod` in the desk is the same) |
 | `start-claude` | "start a Claude on Example Game"; with a task, "start a claude on example: tidy the logs" | yes ("Start a Claude on Example Game?"; with a task "Start a team on Example?") | no task: asks "What should the team do on <project>?" (per-project PM chats were retired 2026-10-19; only "the desk" still opens the whole-desk PM). With a task: `jobs/bin/agent-os-boss`, which prepares a team job (below) |
-| `remember-fix` | "fix the thing on my remember list tonight" | yes ("Start a fix from your remember list?") | hands your words to agent-os (below) |
-| `start-job` | "start a job on agent-os: make the report shorter" | yes ("Start a job on Agent Os?") | hands your words to agent-os (below) |
+| `remember-fix` | "fix the thing on my remember list tonight" | yes ("Start a fix from your remember list?") | prepares a team job for that item with agent-os (below) |
+| `start-job` | "start a job on agent-os: make the report shorter" | yes ("Start a job on Agent Os?") | prepares a team job on that project with agent-os (below) |
 | `music` | "pause", "next song" | no | the music app (MPRIS over D-Bus) |
 | `tv` | "turn the TV down" | no | the deck's TV remote scripts, volume up / down / mute only |
 | `remember` | "remember that …" | yes | adds a dated line to `~/OMARCHY-BRAIN/inbox/remembered.md` |
@@ -102,19 +102,20 @@ last ones that went off and when Done was pressed (button, key or shell). Tests:
 A how/why question ("how do I turn on the night light") is answered from the notes, not run.
 Tests: `python3 jobs/test_desktop_jobs.py` and `python3 jobs/test_send_move.py`.
 
-**Handing a job to agent-os.** "Fix the thing on my remember list tonight" and "start a job on <project>: <what>"
-show a Yes / No card. Yes hands your words to agent-os (`jobs/bin/agent-os-start`): it makes a job folder with
-`ask.md` (what you said, how, when), starts agent-os in the background and says "Started. It will wait for your go."
-agent-os then works out the fix and stops at `go.md` in that folder, a file only you write: nothing is built or
-pushed until you say go there (by voice is not possible yet; the PM or a terminal does it). No on the card starts
-nothing. These two only fire when the sentence starts that way: "what's on my remembered list?", "remember that
-..." and "what should I fix on my remember list?" stay what they were, and a sentence with two asks in it ("fix
-the thing on my remember list and then open Spotify") is asked again. The island can't yet tell spoken from typed
-words, so `ask.md` says `how: typed` for now (`brain ask --how voice` is ready for when it can). For now agent-os
-only builds fixes from the remember list, so "start a job on ..." says so plainly: "Handed to agent-os. For now it
-only builds fixes from your remember list, so this one is saved for later." The folder and `ask.md` are made, and
-agent-os stops at "nothing to build" until it learns other jobs. Tests: `CRABBOX_LOCAL=1 python3 -I jobs/test_agent_jobs.py` (a fake agent-os; the
-real one never runs).
+**Handing a job to agent-os (since 2026-10-23).** "Fix the thing on my remember list tonight" and "start a job on
+<project>: <what>" show a Yes / No card. Yes prepares an ordinary team job with agent-os (`jobs/bin/agent-os-start`),
+the same plan, yes and five steps as any job:
+- the remember-list one runs `agent-os boss prepare --remember --how voice -- "<your words>"`: agent-os finds the item
+  you mean and says "Prepared the fix from your remember list. It waits for your go." When more than one item fits it
+  asks "which one?" in the office first: "More than one thing on your remember list fits. Pick which one in the
+  office, then it waits for your go."
+- "start a job on example-game: fix the logs" runs `agent-os boss prepare --repo example-game --how voice -- "fix the
+  logs"` (the same as a team job below) and says "Prepared the Example Game team job. It waits for your go."
+Nothing is built or pushed until you say yes at the desk. No on the card starts nothing. These two only fire when the
+sentence starts that way: "what's on my remembered list?", "remember that ..." and "what should I fix on my remember
+list?" stay what they were, and a sentence with two asks in it ("fix the thing on my remember list and then open
+Spotify") is asked again. If agent-os fails or takes over a minute it says "I couldn't start that job." Tests:
+`CRABBOX_LOCAL=1 python3 -I jobs/test_agent_jobs.py` (a fake agent-os; the real one never runs).
 
 **Start a team (since 2026-10-19).** "Start a claude on example: tidy the logs" (the task comes after a colon, a
 comma, a dash or an em dash, or "to" / "and" / "then") shows "Start a team on Example?". Yes runs

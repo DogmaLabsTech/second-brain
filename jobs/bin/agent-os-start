@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-"""agent-os-start [--job start-job] --how voice|typed -- "<what <user> said>": hand the words to agent-os.
+"""agent-os-start [--job start-job --repo <project>] --how voice|typed -- "<words>": prepare a team job with agent-os.
 
-Run by `brain job run remember-fix|start-job` after <user>'s Yes on the island card.
-  1. `agent-os hear --how <how> -- "<text>"` writes a job folder with ask.md and prints `job: <folder>`.
-  2. `agent-os run --job <folder>` is started detached (systemd-run --user, its own unit, so it outlives the island;
-     setsid when systemd-run is missing or fails). Its output goes to <folder>/run.log.
-  3. Prints one JSON line for the island: {"message": "Started. It will wait for your go.", "speak": true}.
-     With --job start-job the line says it is saved for later instead (agent-os only builds remember-list fixes
-     today, so it finishes with "nothing to build" rather than waiting for a go).
-agent-os runs its stages and stops at go.md, a file only <user> writes: nothing is built or pushed without him.
-The text is always one argument after `--` (never through a shell). If hear fails or prints no job folder, it says
-"I couldn't start that job" and starts nothing.
+Run by `brain job run remember-fix|start-job` after <user>'s Yes on the island card. It only prepares: the job waits
+for <user>'s yes at the desk (go.md, a file only he writes); nothing is started, built or pushed from here.
+  remember-fix: `agent-os boss prepare --remember --how <how> -- "<his words>"`. agent-os finds the item on his
+    remember list and prepares an ordinary team job for it.
+      exit 0 + a `job:` line  -> "Prepared the fix from your remember list. It waits for your go."
+      exit 3 + a `job:` line  -> several items fit: the job waits for his pick in the office ("which one?").
+      anything else           -> "I couldn't start that job."
+  start-job: the same as start-claude's team job (jobs/bin/agent-os-boss, one copy of its checks):
+    `agent-os boss prepare --repo <project> --how <how> -- "<task>"` -> "Prepared the <Project> team job. ..."
+It prints one JSON line for the island: {"message": ..., "speak": true}. The words are always one argument after
+`--` (never through a shell). If agent-os fails or takes longer than PREPARE_SECONDS it says it couldn't.
 
 Environment:
   AGENT_OS_BIN            which agent-os (default: `agent-os` on PATH, else ~/agent-os/bin/agent-os)
   AGENT_OS_HOME, AGENT_OS_REMEMBER_LIST
-                          passed on to both agent-os commands (agent-os reads them itself)
-  AGENT_OS_DRY_RUN=1      TEST ONLY: adds --dry-run to both commands. Off unless set to exactly "1"; never set it
-                          in the island or a service.
-  BRAIN_DETACH=setsid     TEST ONLY: skip systemd-run and use setsid.
+                          agent-os reads them itself (they pass through)
 """
+import importlib.machinery
+import importlib.util
 import json
 import os
 import re
@@ -28,13 +28,12 @@ import subprocess
 import sys
 
 HOME = os.path.expanduser("~")
+HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_BIN = os.path.join(HOME, "agent-os", "bin", "agent-os")
-PASS_ENV = ("AGENT_OS_HOME", "AGENT_OS_REMEMBER_LIST")
-SAFE_NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,120}")
-STARTED = "Started. It will wait for your go."
-SAVED = "Handed to agent-os. For now it only builds fixes from your remember list, so this one is saved for later."
+PREPARED = "Prepared the fix from your remember list. It waits for your go."
+WHICH_ONE = "More than one thing on your remember list fits. Pick which one in the office, then it waits for your go."
 FAILED = "I couldn't start that job."
-HEAR_SECONDS = 15
+PREPARE_SECONDS = 60     # it may look up the repo in the brain
 
 
 def say(message, code):
@@ -46,84 +45,45 @@ def agent_os_bin():
     return os.path.abspath(os.environ.get("AGENT_OS_BIN") or shutil.which("agent-os") or DEFAULT_BIN)
 
 
-def dry():
-    return ["--dry-run"] if os.environ.get("AGENT_OS_DRY_RUN") == "1" else []
+def ok_words(text):
+    return bool(text.strip()) and not re.search(r"[\x00-\x08\x0a-\x1f\x7f]", text) and len(text) <= 500 \
+        and not text.lstrip().startswith("-")
 
 
-def unit_name(folder):
-    """The systemd unit name, built only from a safe job-folder name ([a-z0-9-]); None for anything else."""
-    base = os.path.basename(folder.rstrip("/"))
-    return "agent-os-" + base if SAFE_NAME.fullmatch(base) else None
-
-
-def hear(exe, how, text):
-    """Run `agent-os hear`; return the job folder (it must exist and hold ask.md), or None."""
+def prepare_remembered(how, text):
+    """`agent-os boss prepare --remember`: (message, exit code) for the island."""
     try:
-        out = subprocess.run([exe, "hear", "--how", how, *dry(), "--", text], capture_output=True, text=True,
-                             timeout=HEAR_SECONDS, stdin=subprocess.DEVNULL)
+        out = subprocess.run([agent_os_bin(), "boss", "prepare", "--remember", "--how", how, "--", text],
+                             capture_output=True, text=True, timeout=PREPARE_SECONDS, stdin=subprocess.DEVNULL)
     except (OSError, subprocess.TimeoutExpired):
-        return None
-    if out.returncode != 0:
-        return None
-    folder = None
-    for line in out.stdout.splitlines():
-        m = re.match(r"^job: (/.+)$", line.strip())
-        if m:
-            folder = m.group(1).strip()
-    if not folder or not os.path.isfile(os.path.join(folder, "ask.md")):
-        return None
-    return os.path.realpath(folder)
+        return FAILED, 1
+    has_job = any(re.match(r"^job: /\S", line.strip()) for line in out.stdout.splitlines())
+    if has_job and out.returncode == 0:
+        return PREPARED, 0
+    if has_job and out.returncode == 3:
+        return WHICH_ONE, 0
+    return FAILED, 1
 
 
-def start_run(exe, folder, unit):
-    """Start `agent-os run --job <folder>` detached. Returns True when it was started."""
-    argv = [exe, "run", "--job", folder, *dry()]
-    log = os.path.join(folder, "run.log")
-    if os.environ.get("BRAIN_DETACH") != "setsid" and shutil.which("systemd-run"):
-        sd = ["systemd-run", "--user", "--collect", "--quiet", "--unit", unit,
-              "--property", "StandardOutput=append:" + log, "--property", "StandardError=append:" + log]
-        for k in PASS_ENV + ("PATH",):
-            if os.environ.get(k):
-                sd += ["--setenv", f"{k}={os.environ[k]}"]
-        try:
-            r = subprocess.run(sd + ["--", *argv], capture_output=True, text=True, timeout=10,
-                               stdin=subprocess.DEVNULL)
-            if r.returncode == 0:
-                return True
-        except subprocess.TimeoutExpired:
-            # It may have started all the same: never start a second run for the same folder.
-            return subprocess.run(["systemctl", "--user", "is-active", "--quiet", unit],
-                                  stdin=subprocess.DEVNULL, capture_output=True).returncode == 0
-        except OSError:
-            pass
-    try:
-        with open(log, "ab") as f:
-            subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=f, stderr=f, start_new_session=True,
-                             close_fds=True)
-        return True
-    except OSError:
-        return False
+def boss_main(argv):
+    """start-job runs agent-os-boss's own main (its project check, its message)."""
+    path = os.path.join(HERE, "agent-os-boss")
+    loader = importlib.machinery.SourceFileLoader("agent_os_boss", path)
+    spec = importlib.util.spec_from_loader("agent_os_boss", loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod.main(argv)
 
 
 def main(argv):
-    job = "remember-fix"
-    if len(argv) == 6 and argv[0] == "--job" and argv[1] == "start-job":
-        job, argv = "start-job", argv[2:]
-    if len(argv) != 4 or argv[0] != "--how" or argv[1] not in ("voice", "typed") or argv[2] != "--":
+    if argv[:2] == ["--job", "start-job"]:
+        if len(argv) != 8 or argv[2] != "--repo":
+            return say(FAILED, 2)
+        return boss_main(argv[2:])
+    if len(argv) != 4 or argv[0] != "--how" or argv[1] not in ("voice", "typed") or argv[2] != "--" \
+            or not ok_words(argv[3]):
         return say(FAILED, 2)
-    how, text = argv[1], argv[3]
-    if not text.strip() or "\n" in text or "\r" in text or len(text) > 500 or text.lstrip().startswith("-"):
-        return say(FAILED, 2)
-    exe = agent_os_bin()
-    folder = hear(exe, how, text)
-    if not folder:
-        return say(FAILED, 1)
-    unit = unit_name(folder)
-    if not unit:
-        return say(FAILED, 1)
-    if not start_run(exe, folder, unit):
-        return say(FAILED, 1)
-    return say(SAVED if job == "start-job" else STARTED, 0)
+    return say(*prepare_remembered(argv[1], argv[3]))
 
 
 if __name__ == "__main__":

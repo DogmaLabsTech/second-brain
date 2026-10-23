@@ -58,7 +58,7 @@ DESKTOP_JOBS = ("desktop", "open-app", "open-file", "send-file", "team-screen", 
 # Jobs that sound like questions ("what moved today?"): their rule beats the decider's "question" too, and a
 # how-question doesn't undo them (they are new to the decider; add them to the next the local decider round).
 DAY_JOBS = ("what-changed", "goodnight")
-# Jobs that hand <user>'s words to agent-os (jobs/bin/agent-os-start). Their rules are tight (anchored at the start of
+# Jobs that hand <user>'s words to agent-os (jobs/bin/agent-os-start: `boss prepare`). Their rules are tight (anchored at the start of
 # the sentence), so a fitting rule beats any decider label until the local decider knows them; a line holding two asks never fits.
 AGENT_JOBS = ("remember-fix", "start-job")
 TWO_ASKS = re.compile(r"\b(and|then|also|plus)\s+(then\s+|also\s+)?(start|open|remind|remember|send|play|pause|fix|do|"
@@ -673,9 +673,10 @@ def _build_start_job(job, job_id, text, args):
     if not what:
         return _plain(f"What should the job on {pretty(repo)} do? Say, start a job on "
                       f"{pretty(repo)}, then what to do.")
-    args = {"project": repo, "name": pretty(repo), **args}
-    answer = ("This hands it to agent-os. For now it only builds fixes from your remember list, so this one "
-              "is saved for later.")
+    what = re.sub(r"^(to|and|then)\s+(?=\S)", "", what.strip(), flags=re.I)   # "on example-game to fix it"
+    args = {"project": repo, "name": pretty(repo), **args, "text": one_line(what)}
+    answer = (f"This prepares a team job on {pretty(repo)}: {what[:80].rstrip('.!?')}. It will wait for your go before anything "
+              "is built.")
     return job_id, args, f"Start a job on {pretty(repo)}", answer, []
 
 
