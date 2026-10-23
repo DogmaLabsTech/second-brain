@@ -138,23 +138,13 @@ def week(days):
 
 
 def private_list_problem(path=None):
-    """Plain words when deciders/private.json exists but cannot be read (brain-decide then has no family or
-    client names to keep private, and its warning is lost in the ask path); None when it is fine or not there."""
+    """Plain words when deciders/private.json exists but is empty, broken or unreadable (then brain-decide and
+    Haiku send nothing online until it is fixed: deciders/private_guard.py); None when it is fine or not there."""
     path = path or os.path.join(DECIDERS, "private.json")
-    try:
-        with open(path) as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        return None
-    except (OSError, ValueError) as why:
-        return (f"The private names list ({tilde(path)}) can't be read ({why}). Until it is fixed, family and "
-                "client names are not kept private: asks that name them can go to the second decider.")
-    if not isinstance(data, dict) or not isinstance(data.get("words", []), list) \
-            or not all(isinstance(w, str) for w in data.get("words", [])):
-        return (f"The private names list ({tilde(path)}) has the wrong shape (it must be an object whose 'words' "
-                "is a list of words). Until it is fixed, family and client names are not kept private: asks "
-                "that name them can go to the second decider.")
-    return None
+    if DECIDERS not in sys.path:
+        sys.path.append(DECIDERS)
+    import private_guard
+    return private_guard.problem(path)
 
 
 def freshness_lines(report=None):

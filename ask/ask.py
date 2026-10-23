@@ -402,15 +402,41 @@ def _names():
     return names
 
 
+class ListProblem(RuntimeError):
+    """The private names list is there but empty, broken or unreadable: its message is plain words for <user>."""
+
+
+_GUARD = []
+
+
+def private_list_problem(names):
+    """Plain words when the private names list the filter reads (names.private_file()) is there but empty, broken or
+    unreadable (deciders/private_guard.py, the one guard brain-decide uses too); None when it is fine or not there
+    (the filter itself then refuses). Loaded by path, so deciders/ does not join the module search path."""
+    if not _GUARD:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("private_guard",
+                                                      os.path.join(ROOT, "deciders", "private_guard.py"))
+        _GUARD.append(importlib.util.module_from_spec(spec))
+        spec.loader.exec_module(_GUARD[0])
+    return _GUARD[0].problem(names.private_file())
+
+
 def private_names_out(prompt, system):
     """(prompt, system, back): the text for an online model with every private name (decider/names.py, the same list
     brain-decide uses) swapped for [NAME1], [NAME2]..., and the map that puts them back into the answer here.
-    Raises RuntimeError, and nothing may be sent, when the names can't be removed for sure or the filter is missing."""
+    Raises RuntimeError, and nothing may be sent, when the names can't be removed for sure or the filter is missing
+    (ListProblem, a RuntimeError, when the list itself is empty, broken or unreadable)."""
     try:
         names = _names()
+        why = private_list_problem(names)
+        if why:
+            raise ListProblem(f"haiku: not sent. {why}")
         clean, back = names.scrub_keyed(prompt)
         if system != SYSTEM:
             system = names.scrub(system)
+    except ListProblem:
+        raise
     except Exception as why:  # noqa: BLE001 - names.Unsafe, or no filter: never send
         raise RuntimeError(f"haiku: not sent, private names could not be removed ({type(why).__name__})") from None
     return (clean + NAMES_NOTE if back else clean), system, back
