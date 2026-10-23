@@ -25,11 +25,12 @@ class Base(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         d = self.tmp.name
         self.old = {k: getattr(day, k) for k in ("DATA", "CHANGES", "CLOSEOUTS", "OVERNIGHT", "SNAPS", "PAGES",
-                                                   "MB_HANDLED", "HOME", "DONE_FILE", "JOBS_DIR")}
+                                                   "MB_HANDLED", "HOME", "DONE_FILE", "JOBS_DIR", "AGENT_OS")}
         day.DATA, day.CHANGES, day.CLOSEOUTS = d, os.path.join(d, "c.jsonl"), os.path.join(d, "co.jsonl")
         day.OVERNIGHT, day.SNAPS, day.PAGES = os.path.join(d, "o.jsonl"), os.path.join(d, "s"), os.path.join(d, "p")
         day.MB_HANDLED = os.path.join(d, "handled.tsv")
         day.DONE_FILE, day.JOBS_DIR = os.path.join(d, "done.md"), os.path.join(d, "jobs")
+        day.AGENT_OS = os.path.join(d, "no-agent-os")   # never the real agent-os
 
     def tearDown(self):
         for k, v in self.old.items():
@@ -179,6 +180,8 @@ class Goodnight(Base):
         day.write(os.path.join(old_job, "report.md"), "done\n")
         os.utime(os.path.join(old_job, "report.md"), (time.time() - 7200, time.time() - 7200))
         day.write(os.path.join(day.JOBS_DIR, "2026-10-18-busy", "brief.md"), "working\n")
+        today = day.day_of(time.time()).isoformat()
+        write_tray(day.JOBS_DIR, [("new", today, "2026-10-15-old", "fix the clock", "the clock is fixed")])
         real = day.remind_list()
         real.PATH = path
         real.items = lambda p=path, f=real.items: f(p)
@@ -195,23 +198,28 @@ class Goodnight(Base):
             (day.remind_list, day.say, day.busy, day.save_snapshot, day.all_commits, day.subprocess.run) = saved
         c = day.read_jsonl(day.CLOSEOUTS)[-1]
         self.assertEqual((c["picked"], c["running"]), (["build the thing"], ["example-game"]))
-        self.assertEqual((c["cleared"], c["filed"]), (["dentist friday"], ["2026-10-15-old"]))
-        # the summary first, with what was tidied, then the close; no lock
-        self.assertTrue(calls[0][1].startswith(("Nothing moved today.", "Today:")), calls[0][1])
-        self.assertIn("1 ticked item cleared and 1 finished job filed away.", calls[0][1])
-        self.assertIn("The day is closed. 1 thing will run tonight", calls[1][1])
-        self.assertEqual(calls[2], ("run", ["systemd-inhibit", "--what=sleep:idle"]))
+        self.assertEqual((c["cleared"], c["finished"]), (["dentist friday"], ["2026-10-15-old"]))
+        self.assertNotIn("filed", c)
+        # the in-tray is made again first, then the summary with what was tidied, then the close; no lock
+        self.assertEqual(calls[0], ("run", [day.AGENT_OS, "intray"]))
+        self.assertTrue(calls[1][1].startswith(("Nothing moved today.", "Today:")), calls[1][1])
+        self.assertIn("1 ticked item cleared and 1 job finished, in your in-tray.", calls[1][1])
+        self.assertIn("The day is closed. 1 thing will run tonight", calls[2][1])
+        self.assertEqual(calls[3], ("run", ["systemd-inhibit", "--what=sleep:idle"]))
         self.assertNotIn(("lock",), calls)
         lines = open(path).read().splitlines()
         self.assertEqual(len(lines), 2)                       # the ticked line left; open ones stay queued
         self.assertIn("→ started with Claude overnight", lines[0])
         self.assertEqual(lines[1], "- [ ] 2026-10-15: research x")
         self.assertIn("dentist friday", open(day.DONE_FILE).read())
-        self.assertTrue(os.path.isdir(os.path.join(day.JOBS_DIR, "done", "2026-10-15-old")))
+        # nothing is moved: the job folders stay where agent-os keeps them, and there is no done/ folder
+        self.assertTrue(os.path.isdir(old_job))
         self.assertTrue(os.path.isdir(os.path.join(day.JOBS_DIR, "2026-10-18-busy")))
+        self.assertFalse(os.path.exists(os.path.join(day.JOBS_DIR, "done")))
         self.assertEqual(len(os.listdir(day.PAGES)), 1)
-        self.assertIn("Cleared from the remember list: dentist friday", open(
-            os.path.join(day.PAGES, os.listdir(day.PAGES)[0])).read())
+        page = open(os.path.join(day.PAGES, os.listdir(day.PAGES)[0])).read()
+        self.assertIn("Cleared from the remember list: dentist friday", page)
+        self.assertIn("Jobs finished today: 2026-10-15-old (the clock is fixed)", page)
 
     def test_flag_value_and_picks_from_flag(self):
         self.assertEqual(day._flag_value(["--run", "--picks=3,7"], "--picks"), "3,7")
@@ -240,7 +248,8 @@ class Goodnight(Base):
         finally:
             (day.remind_list, day.say, day.busy, day.save_snapshot, day.all_commits, day.subprocess.run) = saved
         self.assertEqual([c for c in calls if c[0] == "say"], [])            # silent
-        self.assertEqual(calls, [("run", ["systemd-inhibit", "--what=sleep:idle"])])   # busy helpers keep running
+        self.assertEqual(calls, [("run", [day.AGENT_OS, "intray"]),
+                                 ("run", ["systemd-inhibit", "--what=sleep:idle"])])   # busy helpers keep running
         c = day.read_jsonl(day.CLOSEOUTS)[-1]
         self.assertEqual((c["picked"], c["running"]), (["research x"], ["example-game"]))
         lines = open(path).read().splitlines()
@@ -250,9 +259,81 @@ class Goodnight(Base):
     def test_goodnight_is_eod(self):
         self.assertIs(day.cmd_goodnight, day.cmd_eod)
 
-    def test_recent_job_with_report_stays(self):
-        day.write(os.path.join(day.JOBS_DIR, "j", "report.md"), "x\n")
-        self.assertEqual(day.file_finished_jobs(day.JOBS_DIR), [])
+    def test_end_of_day_never_files_jobs(self):
+        self.assertFalse(hasattr(day, "file_finished_jobs"))
+        with open(day.__file__) as f:
+            self.assertNotIn('"done"', f.read())
+
+
+class InTray(Base):
+    """End of day and the standup read agent-os's in-tray (jobs/in-tray.md) and history files (jobs/history/)."""
+
+    def test_finished_on_the_day_from_tray_and_history(self):
+        write_tray(day.JOBS_DIR, [("new", "2026-10-15", "a-job", "ask a", "result a"),
+                                  ("read", "2026-10-15", "b-job", "ask b", "result | with bar"),
+                                  ("new", "2026-10-14", "old-new", "x", "y"),
+                                  ("old", "2026-10-15", "c-job", "ask c", "result c")])
+        write_history(day.JOBS_DIR, "2026-10", [("2026-10-15", "c-job", "ask c", "result c"),
+                                                ("2026-10-15", "d-job", "ask d", "result d"),
+                                                ("2026-10-13", "e-job", "ask e", "result e")])
+        got = day.finished_jobs(day.JOBS_DIR, dt.date(2026, 10, 15))
+        self.assertEqual(got, [("a-job", "result a"), ("b-job", "result / with bar"), ("c-job", "result c"),
+                               ("d-job", "result d")])
+        self.assertEqual(day.new_reports(day.JOBS_DIR), 2)
+
+    def test_after_midnight_counts_for_the_day(self):
+        write_history(day.JOBS_DIR, "2026-11", [("2026-11-01", "late", "ask", "done late")])
+        self.assertEqual(day.finished_jobs(day.JOBS_DIR, dt.date(2026, 10, 31), today=dt.date(2026, 11, 1)),
+                         [("late", "done late")])
+        self.assertEqual(day.finished_jobs(day.JOBS_DIR, dt.date(2026, 10, 31)), [])
+
+    def test_missing_or_broken_files_are_nothing(self):
+        self.assertEqual(day.finished_jobs(day.JOBS_DIR, dt.date(2026, 10, 15)), [])
+        self.assertEqual(day.new_reports(day.JOBS_DIR), 0)
+        day.write(os.path.join(day.JOBS_DIR, "in-tray.md"), "| new | not a date | x | y | z | | r |\n| a | b |\n")
+        day.write(os.path.join(day.JOBS_DIR, "history", "notes.md"), "| 2026-10-15 | x | y | z | | r |\n")
+        self.assertEqual(day.finished_jobs(day.JOBS_DIR, dt.date(2026, 10, 15)), [])
+        self.assertEqual(day.new_reports(day.JOBS_DIR), 0)
+
+    def test_refresh_failure_is_quiet(self):
+        day.refresh_intray()   # day.AGENT_OS does not exist: nothing raised
+
+    def test_refresh_runs_agent_os_intray_on_the_jobs_folder(self):
+        fake = os.path.join(self.tmp.name, "fake-agent-os")
+        seen = os.path.join(self.tmp.name, "seen")
+        day.write(fake, "#!/bin/sh\necho \"$* $AGENT_OS_HOME\" > %s\n" % seen)
+        os.chmod(fake, 0o755)
+        day.AGENT_OS = fake
+        day.refresh_intray()
+        self.assertEqual(open(seen).read().strip(), "intray " + day.JOBS_DIR)
+
+    def test_standup_names_new_reports(self):
+        write_tray(day.JOBS_DIR, [("new", "2026-10-15", "a-job", "ask a", "result a")])
+        saved = (day.all_commits, day.waiting_line, day.remind_list)
+        day.all_commits, day.waiting_line = (lambda s, e: {}), (lambda: "")
+        day.remind_list = lambda: types.SimpleNamespace(items=lambda: [])
+        try:
+            text, spoken = day.standup(ts("2026-10-16 09:00"))
+        finally:
+            day.all_commits, day.waiting_line, day.remind_list = saved
+        self.assertIn("- In-tray: 1 new finished report.", text)
+        self.assertIn("1 new report in your in-tray.", spoken)
+
+
+def write_tray(jobs_dir, rows):
+    """An in-tray as agent-os writes it (engine/intray.py): state, date, job, ask, result, cost, report."""
+    body = ["---", "standing: observation", "---", "# In-tray", "", "## New", "",
+            "| state | date | job | ask | result | cost | report |", "|---|---|---|---|---|---|---|"]
+    body += ["| %s | %s | %s | %s | %s |  | ~/agent-os/jobs/%s/report.md |" % (st, d, j, a, r.replace("|", "/"), j)
+             for st, d, j, a, r in rows]
+    day.write(os.path.join(jobs_dir, "in-tray.md"), "\n".join(body) + "\n")
+
+
+def write_history(jobs_dir, month, rows):
+    """A month file as agent-os writes it (engine/history.py): date, job, ask, result, cost, report."""
+    body = ["# %s" % month, "", "| date | job | ask | result | cost | report |", "|---|---|---|---|---|---|"]
+    body += ["| %s | %s | %s | %s |  | no report |" % row for row in rows]
+    day.write(os.path.join(jobs_dir, "history", month + ".md"), "\n".join(body) + "\n")
 
     def test_clear_ticked_without_ticks_leaves_the_file(self):
         path = os.path.join(self.tmp.name, "r.md")

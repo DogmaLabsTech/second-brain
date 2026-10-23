@@ -212,14 +212,15 @@ island). Without one it ends at 5 the next morning. "Yesterday" always means the
 - **Log a change by hand:** `brain changed move "~/old -> ~/new"`. `move-to-hdd.sh` does this by itself.
 - **End of day:** type `/eod` in the desk, say "end of day" or "goodnight" (or type `brain eod`; `brain goodnight`
   is the same). The island says the day's summary. Items you ticked on the remember list move to
-  `~/OMARCHY-BRAIN/inbox/done.md`, and finished desk jobs (a report, nothing changed for an hour) move to
-  `~/agent-os/jobs/done/`. Then it shows the open items; tick what may run tonight, one at a time, then Done.
+  `~/OMARCHY-BRAIN/inbox/done.md`. It names the jobs that finished today, read from agent-os's in-tray
+  (`~/agent-os/jobs/in-tray.md`, made fresh with `agent-os intray`) and history files (`~/agent-os/jobs/history/`);
+  it never moves a job folder (since 2026-10-23: agent-os packs finished jobs itself). Then it shows the open items; tick what may run tonight, one at a time, then Done.
   Ticked items run one by one through the morning build (Claude in its safe sandbox, never pushes; each gets a PM
   run folder). The rest stay queued. Helpers already working keep going; nothing else starts. The day is marked
   closed. The screen is not locked (since 2026-10-18); the computer won't sleep until the night's work is done
   (until 7 am if helpers were busy).
 - **Morning standup:** at 9:00, before the remember list, the island says yesterday in short, how the
-  overnight work went and who waits on you, and a notification opens the full page
+  overnight work went, who waits on you and how many new reports wait in your in-tray, and a notification opens the full page
   (`pages/standup-<date>.md`). Once a day; `brain standup --print` shows it any time.
 
 Timers: `second-brain-day.timer` (5:00: keeps the folder list and yesterday's page) and the 9:00
