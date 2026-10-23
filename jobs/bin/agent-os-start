@@ -33,7 +33,7 @@ DEFAULT_BIN = os.path.join(HOME, "agent-os", "bin", "agent-os")
 PREPARED = "Prepared the fix from your remember list. It waits for your go."
 WHICH_ONE = "More than one thing on your remember list fits. Pick which one in the office, then it waits for your go."
 FAILED = "I couldn't start that job."
-PREPARE_SECONDS = 60     # it may look up the repo in the brain
+PREPARE_SECONDS = 50     # it may look up the repo in the brain; under the runner's own 60 s limit
 
 
 def say(message, code):
