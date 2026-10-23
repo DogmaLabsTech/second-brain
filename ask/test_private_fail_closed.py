@@ -17,7 +17,8 @@ import haiku  # noqa: E402
 import haiku_standby  # noqa: E402
 
 BAD = {"empty file": "", "blank file": " \n", "empty object": "{}", "no words": '{"words": []}',
-       "typo": '{"words": ["zorblax"],}', "wrong shape": '["zorblax"]', "words not a list": '{"words": "zorblax"}'}
+       "typo": '{"words": ["zorblax"],}', "wrong shape": '["zorblax"]', "words not a list": '{"words": "zorblax"}',
+       "dash only": '{"words": ["-"]}', "one letter": '{"words": ["a"]}', "partner mark": '{"partner": "?"}'}
 
 
 class FailClosed(unittest.TestCase):
@@ -43,8 +44,10 @@ class FailClosed(unittest.TestCase):
                     with self.assertRaises(RuntimeError) as e:
                         ask.haiku_write("how do i restart the bar")
                 self.assertEqual(sent, [])
+                self.assertIsInstance(e.exception, ask.ListProblem)
                 self.assertIn("not sent", str(e.exception))
                 self.assertIn("Nothing is sent to any online model", str(e.exception))
+                self.assertIn(os.path.basename(self.private) + ")", str(e.exception))
 
     def test_an_unreadable_file_sends_nothing(self):
         if os.geteuid() == 0:

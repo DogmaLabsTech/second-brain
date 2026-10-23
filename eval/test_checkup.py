@@ -19,21 +19,21 @@ class PrivateList(unittest.TestCase):
             return checkup.private_list_problem(path)
 
     def test_a_good_file_and_no_file_are_fine(self):
-        self.assertIsNone(self.problem('{"words": ["rex"]}'))
+        self.assertIsNone(self.problem('{"words": ["zorblax"]}'))
         self.assertIsNone(self.problem())
 
     def test_a_typo_is_said_in_plain_words(self):
-        said = self.problem('{"words": ["rex"],}')
+        said = self.problem('{"words": ["zorblax"],}')
         self.assertIn("is broken", said)
         self.assertIn("Nothing is sent to any online model", said)
 
     def test_an_empty_file_or_list_is_said_too(self):
-        for text in ("", "  \n", "{}", '{"words": []}', '{"words": [" "], "_note": "x"}'):
+        for text in ("", "  \n", "{}", '{"words": []}', '{"words": [" "], "_note": "x"}', '{"words": ["-", "a"]}'):
             with self.subTest(text=text):
                 self.assertIn("Nothing is sent to any online model", self.problem(text))
 
     def test_a_file_of_the_wrong_shape_is_said_too(self):
-        for text in ('["rex"]', '{"words": "rex"}', '{"words": [1, 2]}'):
+        for text in ('["zorblax"]', '{"words": "zorblax"}', '{"words": [1, 2]}'):
             with self.subTest(text=text):
                 self.assertIn("wrong shape", self.problem(text))
 
