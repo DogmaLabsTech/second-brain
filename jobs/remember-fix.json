@@ -7,6 +7,6 @@
   "needs_confirm": true,
   "args": {"text": "what <user> said, one line", "how": "voice or typed"},
   "command": ["{jobs}/bin/agent-os-start", "--how", "{how}", "--", "{text}"],
-  "message": "Started. It will wait for your go.",
+  "message": "Prepared the fix from your remember list. It waits for your go.",
   "speak": true
 }

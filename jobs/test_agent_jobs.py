@@ -1,6 +1,7 @@
 """Tests for the agent-os jobs (remember-fix, start-job): rules, the job card, the argument checks, the detached
-start in jobs/bin/agent-os-start and the routing in ask.ask(). The real agent-os is never run: a fake `agent-os`
-and a fake `systemd-run` sit first on PATH in a temp folder and record their arguments.
+`boss prepare` call in jobs/bin/agent-os-start and the routing in ask.ask(). The real agent-os is never run: a fake
+`agent-os` and a fake `systemd-run` (a tripwire: nothing is started detached any more) sit first on PATH in a temp
+folder and record their arguments.
 Run: CRABBOX_LOCAL=1 python3 -I jobs/test_agent_jobs.py -v"""
 import contextlib
 import importlib.machinery
@@ -29,15 +30,33 @@ BOSS = os.path.join(HERE, "bin", "agent-os-boss")
 FOLDER_NAME = "20261016-1830-fix-the-thing"
 TEXT = "fix the thing on my remember list tonight"
 FAILED = "I couldn't start that job."
-STARTED = "Started. It will wait for your go."
-SAVED = "Handed to agent-os. For now it only builds fixes from your remember list, so this one is saved for later."
+PREPARED = "Prepared the fix from your remember list. It waits for your go."
+WHICH_ONE = ("More than one thing on your remember list fits. Pick which one in the office, then it waits for your "
+             "go.")
 
 FAKE_AGENT_OS = '''#!%(py)s
 import json, os, sys, time
 argv = sys.argv[1:]
 with open(os.environ["FAKE_CALLS"], "a") as f:
     f.write(json.dumps({"tool": "agent-os", "argv": argv}) + "\\n")
-mode = os.environ.get("FAKE_HEAR_MODE", "ok")
+if argv[:2] == ["boss", "prepare"] and "--remember" in argv:
+    mode = os.environ.get("FAKE_REMEMBER_MODE", "ok")
+    if mode == "slow":
+        time.sleep(30)
+    if mode == "fail":
+        print("agent-os: no repo for that item; the desk asks", file=sys.stderr)
+        sys.exit(2)
+    if mode != "noline":
+        print("job: /fake/jobs/%(name)s")
+    if mode == "which":
+        print("1. fix the bar clock")
+        print("2. fix the bar wifi icon")
+        print("WAITING: which one? 2 items on the remember list fit")
+        sys.exit(3)
+    if mode == "odd":
+        sys.exit(4)
+    print("worker job: /fake/jobs/%(name)s-worker")
+    sys.exit(0)
 if argv[:2] == ["boss", "prepare"]:
     boss_mode = os.environ.get("FAKE_BOSS_MODE", "ok")
     if boss_mode == "fail":
@@ -47,30 +66,14 @@ if argv[:2] == ["boss", "prepare"]:
         time.sleep(30)
     print("boss job: /fake/boss")
     sys.exit(0)
-if argv and argv[0] == "hear":
-    if mode == "fail":
-        sys.exit(1)
-    name = os.environ.get("FAKE_FOLDER_NAME", "%(name)s")
-    folder = os.path.join(os.environ["AGENT_OS_HOME"], name)
-    os.makedirs(folder, exist_ok=True)
-    if mode != "noask":
-        with open(os.path.join(folder, "ask.md"), "w") as f:
-            f.write("heard: " + argv[-1] + "\\nhow: " + argv[2] + "\\nwhen: 2026-10-16 18:30\\n")
-    if mode != "noline":
-        print("job: " + folder)
-    sys.exit(0)
-if argv and argv[0] == "run":
-    time.sleep(30)
+sys.exit(9)
 '''
 
+# A tripwire: nothing may be started detached any more. It only records that it was called.
 FAKE_SYSTEMD_RUN = '''#!%(py)s
-import json, os, subprocess, sys
-argv = sys.argv[1:]
+import json, os, sys
 with open(os.environ["FAKE_CALLS"], "a") as f:
-    f.write(json.dumps({"tool": "systemd-run", "argv": argv}) + "\\n")
-cmd = argv[argv.index("--") + 1:]
-subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                 start_new_session=True)
+    f.write(json.dumps({"tool": "systemd-run", "argv": sys.argv[1:]}) + "\\n")
 sys.exit(0)
 '''
 
@@ -109,7 +112,7 @@ class Fakes(unittest.TestCase):
         patcher = mock.patch.dict(os.environ, env)
         patcher.start()
         self.addCleanup(patcher.stop)
-        for k in ("AGENT_OS_DRY_RUN", "BRAIN_DETACH", "FAKE_HEAR_MODE", "FAKE_FOLDER_NAME", "FAKE_BOSS_MODE"):
+        for k in ("AGENT_OS_DRY_RUN", "BRAIN_DETACH", "FAKE_REMEMBER_MODE", "FAKE_BOSS_MODE"):
             os.environ.pop(k, None)
 
     def tearDown(self):
@@ -258,9 +261,10 @@ class Build(unittest.TestCase):
 
     def test_start_job_card(self):
         out = jobs.build("start-job", "start a job on agent-os: make the report shorter")
-        self.assertIn("saved for later", out["answer"])   # no go-wait promise: agent-os can't build it yet
-        self.assertNotIn("your go", out["answer"])
+        self.assertNotIn("saved for later", out["answer"])
+        self.assertIn("your go", out["answer"])
         job = out["job"]
+        self.assertEqual(job["args"]["text"], "make the report shorter")   # the task, as start-claude hands it
         self.assertEqual(job["label"], "Start a job on Agent Os")
         self.assertEqual(job["args"]["project"], "agent-os")
         self.assertTrue(job["needs_confirm"])
@@ -405,62 +409,59 @@ class Refuses(Fakes):
 
 
 class Starting(Fakes):
-    def test_detached_start_with_systemd_run(self):
-        code, printed, secs = self.run_job("remember-fix", TEXT)
+    """Yes on the remember-fix card: exactly `agent-os boss prepare --remember --how <how> -- "<words>"`, nothing else.
+    Yes on the start-job card: exactly `agent-os boss prepare --repo <project> --how <how> -- "<task>"`."""
+
+    def setUp(self):
+        super().setUp()
+        p = mock.patch.object(jobs, "project_names", return_value=known_projects())
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_remember_fix_prepares_a_team_job(self):
+        code, printed, _ = self.run_job("remember-fix", TEXT, how="voice")
         self.assertEqual(code, 0)
-        self.assertLess(secs, 5)   # the fake run sleeps 30 s: the start is detached
-        self.assertEqual(self.message(printed), STARTED)
-        hear = self.calls("agent-os")[0]["argv"]
-        self.assertEqual(hear, ["hear", "--how", "typed", "--", TEXT])
-        folder = os.path.join(self.home, FOLDER_NAME)
-        sd = self.calls("systemd-run")
-        self.assertEqual(len(sd), 1)
-        argv = sd[0]["argv"]
-        self.assertEqual(argv[argv.index("--unit") + 1], "agent-os-" + FOLDER_NAME)
-        self.assertEqual(argv[argv.index("--") + 1:], [self.fake, "run", "--job", folder])
-        self.assertTrue(self.wait_for(lambda: any(c["argv"][:3] == ["run", "--job", folder]
-                                                  for c in self.calls("agent-os"))))
+        self.assertEqual(json.loads(printed.strip().splitlines()[-1]), {"message": PREPARED, "speak": True})
+        self.assertEqual(self.calls(), [{"tool": "agent-os",
+                                         "argv": ["boss", "prepare", "--remember", "--how", "voice", "--", TEXT]}])
+
+    def test_which_one_waits_for_the_pick_in_the_office(self):
+        os.environ["FAKE_REMEMBER_MODE"] = "which"
+        code, printed, _ = self.run_job("remember-fix", TEXT)
+        self.assertEqual(code, 0)   # not a failure: the job is there and waits for <user>'s pick
+        self.assertEqual(self.message(printed), WHICH_ONE)
+        self.assertEqual(len(self.calls()), 1)
 
     def test_text_is_one_literal_argument(self):
-        text = "fix the thing on my remember list; rm -rf ~ $(whoami)"
-        marker = os.path.join(self.tmp, "pwned")
-        code, printed, _ = self.run_job("remember-fix", text)
+        text = "fix the thing on my remember list; rm -rf ~ $(touch " + os.path.join(self.tmp, "pwned") + ")"
+        code, _, _ = self.run_job("remember-fix", text)
         self.assertEqual(code, 0)
-        hear = self.calls("agent-os")[0]["argv"]
-        self.assertEqual(hear, ["hear", "--how", "typed", "--", jobs.clean_text(text)])
-        self.assertEqual(len(hear), 5)
-        quoted = "fix the thing on my remember list 'tonight' \"now\" `id`"
-        os.environ["FAKE_FOLDER_NAME"] = "20261016-1831-quoted"
-        self.run_job("remember-fix", quoted)
-        hears = [c["argv"] for c in self.calls("agent-os") if c["argv"][0] == "hear"]
-        self.assertEqual(hears[1], ["hear", "--how", "typed", "--", jobs.clean_text(quoted)])
-        self.assertFalse(os.path.exists(marker))
-        self.assertTrue(os.path.isdir(self.home))
+        argv = self.calls("agent-os")[0]["argv"]
+        self.assertEqual(argv, ["boss", "prepare", "--remember", "--how", "typed", "--", jobs.clean_text(text)])
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "pwned")))
 
-    def test_how_voice(self):
-        code, _, _ = self.run_job("remember-fix", TEXT, how="voice")
+    def test_start_job_prepares_a_team_job_on_the_project(self):
+        code, printed, _ = self.run_job("start-job", "start a job on agent-os: make the report shorter", how="voice")
         self.assertEqual(code, 0)
-        self.assertEqual(self.calls("agent-os")[0]["argv"], ["hear", "--how", "voice", "--", TEXT])
+        self.assertEqual(self.calls(), [{"tool": "agent-os", "argv": ["boss", "prepare", "--repo", "agent-os", "--how",
+                                                                     "voice", "--", "make the report shorter"]}])
+        self.assertEqual(self.message(printed), "Prepared the Agent Os team job. It waits for your go.")
+        self.assertNotIn("saved for later", printed)
 
-    def test_start_job_runs_the_same_way(self):
-        code, printed, _ = self.run_job("start-job", "start a job on agent-os: make the report shorter")
-        self.assertEqual(code, 0)
-        self.assertEqual(self.message(printed), SAVED)   # agent-os only builds remember-list fixes today
-        self.assertNotIn("go", self.message(printed).split())
-        hear = self.calls("agent-os")[0]["argv"]
-        self.assertEqual(hear, ["hear", "--how", "typed", "--", "start a job on agent-os: make the report shorter"])
-        self.assertEqual(len(self.calls("systemd-run")), 1)
-
-    def test_setsid_fallback(self):
-        os.environ["BRAIN_DETACH"] = "setsid"
-        code, printed, secs = self.run_job("remember-fix", TEXT)
-        self.assertEqual(code, 0)
-        self.assertLess(secs, 5)
-        self.assertEqual(self.message(printed), STARTED)
-        folder = os.path.join(self.home, FOLDER_NAME)
-        self.assertTrue(self.wait_for(lambda: any(c["argv"][:1] == ["run"] for c in self.calls("agent-os"))))
+    def test_never_hear_run_start_or_detach(self):
+        os.environ["AGENT_OS_DRY_RUN"] = "1"   # the old test switch does nothing now
+        self.run_job("remember-fix", TEXT)
+        self.run_job("start-job", "start a job on example: tidy the logs")
+        self.assertEqual(len(self.calls("agent-os")), 2)
+        for call in self.calls("agent-os"):
+            self.assertEqual(call["argv"][:2], ["boss", "prepare"])
+            self.assertNotIn("--dry-run", call["argv"])
         self.assertEqual(self.calls("systemd-run"), [])
-        self.assertTrue(os.path.exists(os.path.join(folder, "run.log")))
+        self.assertEqual(os.listdir(self.home), [])
+
+    def test_answers_on_the_cards_match(self):
+        self.assertEqual(jobs.load()["remember-fix"]["message"], PREPARED)
+        self.assertNotIn("saved for later", json.dumps(jobs.load()["start-job"]))
 
 
 class TeamJob(Fakes):
@@ -553,82 +554,65 @@ class TeamJob(Fakes):
 
 
 class JobArgument(Fakes):
-    def test_only_start_job_is_accepted(self):
+    def test_bad_arguments_are_refused_before_agent_os(self):
         start = load_start()
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            code = start.main(["--job", "other", "--how", "typed", "--", TEXT])
-        self.assertNotEqual(code, 0)
-        self.assertEqual(self.message(out.getvalue()), FAILED)
+        for argv in (["--job", "other", "--how", "typed", "--", TEXT], ["--how", "shout", "--", TEXT],
+                     ["--how", "typed", TEXT], ["--how", "typed", "--", ""], ["--how", "typed", "--", "a\nb"],
+                     ["--how", "typed", "--", "-x"], ["--how", "typed", "--", "x" * 501],
+                     ["--job", "start-job", "--how", "typed", "--", "do it"],
+                     ["--job", "start-job", "--repo", "desk", "--how", "typed", "--", "do it"]):
+            with self.subTest(argv=argv):
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    code = start.main(argv)
+                self.assertNotEqual(code, 0)
+                self.assertIn(self.message(out.getvalue()), (FAILED, "I couldn't prepare that job."))
         self.assertEqual(self.calls(), [])
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            code = start.main(["--how", "typed", "--", TEXT])
-        self.assertEqual((code, self.message(out.getvalue())), (0, STARTED))
 
 
-class UnitName(unittest.TestCase):
-    def test_unit_name(self):
-        start = load_start()
-        self.assertEqual(start.unit_name("/x/" + FOLDER_NAME), "agent-os-" + FOLDER_NAME)
-        self.assertEqual(start.unit_name("/x/" + FOLDER_NAME + "/"), "agent-os-" + FOLDER_NAME)
-        self.assertEqual(start.unit_name("../etc"), "agent-os-etc")   # only the basename is used, and it is safe
-        for bad in ("Bad Name", "x;rm", "/jobs/..", "/jobs/.", "a.service", "", "20261016-1830-Fix", "/x/UPPER",
-                    "/x/-dash-first", "/x/a@b"):
-            with self.subTest(bad=bad):
-                self.assertIsNone(start.unit_name(bad), bad)
-
-
-class HearFailures(Fakes):
-    def assert_nothing_started(self, code, printed):
-        self.assertNotEqual(code, 0)
-        self.assertEqual(self.message(printed), FAILED)
-        self.assertEqual([c for c in self.calls("agent-os") if c["argv"][0] == "run"], [])
+class RememberFailures(Fakes):
+    def failed(self, mode):
+        os.environ["FAKE_REMEMBER_MODE"] = mode
+        code, printed, _ = self.run_job("remember-fix", TEXT)
+        self.assertNotEqual(code, 0, mode)
+        self.assertEqual(self.message(printed), FAILED, mode)
         self.assertEqual(self.calls("systemd-run"), [])
 
-    def test_unsafe_folder_name(self):
-        os.environ["FAKE_FOLDER_NAME"] = "20261016 Fix;x"
-        code, printed, _ = self.run_job("remember-fix", TEXT)
-        self.assertTrue(os.path.isfile(os.path.join(self.home, "20261016 Fix;x", "ask.md")))
-        self.assert_nothing_started(code, printed)
+    def test_agent_os_refuses(self):
+        self.failed("fail")
 
-    def test_hear_exits_1(self):
-        os.environ["FAKE_HEAR_MODE"] = "fail"
-        self.assert_nothing_started(*self.run_job("remember-fix", TEXT)[:2])
+    def test_no_job_line(self):
+        self.failed("noline")
 
-    def test_hear_prints_no_job_line(self):
-        os.environ["FAKE_HEAR_MODE"] = "noline"
-        self.assert_nothing_started(*self.run_job("remember-fix", TEXT)[:2])
+    def test_an_exit_it_does_not_know(self):
+        self.failed("odd")
 
-    def test_job_folder_without_ask_md(self):
-        os.environ["FAKE_HEAR_MODE"] = "noask"
-        self.assert_nothing_started(*self.run_job("remember-fix", TEXT)[:2])
+    def test_slow_agent_os_gives_up(self):
+        os.environ["FAKE_REMEMBER_MODE"] = "slow"
+        start = load_start()
+        out = io.StringIO()
+        with mock.patch.object(start, "PREPARE_SECONDS", 1), contextlib.redirect_stdout(out):
+            code = start.main(["--how", "voice", "--", TEXT])
+        self.assertEqual((code, self.message(out.getvalue())), (1, FAILED))
 
 
-class DryRun(Fakes):
-    def argvs(self):
-        self.wait_for(lambda: any(c["argv"][:1] == ["run"] for c in self.calls("agent-os")))
-        return [c["argv"] for c in self.calls("agent-os")]
-
-    def test_unset_adds_nothing(self):
-        self.run_job("remember-fix", TEXT)
-        self.assertTrue(self.argvs())
-        for argv in self.argvs() + [c["argv"] for c in self.calls("systemd-run")]:
-            self.assertNotIn("--dry-run", argv)
-
-    def test_one_adds_it_to_hear_and_run(self):
-        os.environ["AGENT_OS_DRY_RUN"] = "1"
-        self.run_job("remember-fix", TEXT)
-        argvs = self.argvs()
-        self.assertEqual([a[0] for a in argvs], ["hear", "run"])
-        for argv in argvs:
-            self.assertIn("--dry-run", argv)
-
-    def test_yes_is_not_one(self):
-        os.environ["AGENT_OS_DRY_RUN"] = "yes"
-        self.run_job("remember-fix", TEXT)
-        for argv in self.argvs():
-            self.assertNotIn("--dry-run", argv)
+class NoOldCalls(unittest.TestCase):
+    def test_no_hear_or_run_left_in_the_code(self):
+        """No `agent-os hear` or `agent-os run` anywhere in the repo's code (tests and history notes aside)."""
+        import re
+        bad = re.compile(r"agent-os (hear|run)\b|\[exe, \"(hear|run)\"|\"(hear|run)\", \"--")
+        found = []
+        for root, dirs, files in os.walk(REPO):
+            dirs[:] = [d for d in dirs if d not in (".git", "node_modules", "__pycache__", "history")]
+            for f in files:
+                path = os.path.join(root, f)
+                if f.startswith("test_") or not (f.endswith((".py", ".json", ".sh", ".qml")) or
+                                                 os.path.dirname(path).endswith(os.path.join("jobs", "bin"))):
+                    continue
+                with open(path, errors="replace") as fh:
+                    if bad.search(fh.read()):
+                        found.append(os.path.relpath(path, REPO))
+        self.assertEqual(found, [])
 
 
 class NoOnTheCard(Fakes):

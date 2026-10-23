@@ -7,16 +7,19 @@ early: work after that is "overnight" and goes to the next morning's standup. Pl
                          the day page (about 20 lines, grouped per project); --say: two spoken sentences
                          as {"message", "speak"}; also saves it in pages/ (searchable, collection "days")
   day.py changed <kind> <what>   one line in the change log (moves, renames, setup changes, by hand or script)
-  day.py eod             end of day: say the day's summary, clear ticked items and finished jobs, tick what
-                         may run overnight, close the day, run the ticks (no lock). `goodnight` is the same.
+  day.py eod             end of day: say the day's summary, clear ticked items, name the jobs that finished (agent-os's
+                         in-tray and history files, read only), tick what may run overnight, close the day, run the
+                         ticks (no lock). `goodnight` is the same.
   day.py standup [--once]   the morning standup: spoken + a page; --once: only before 11:00, once a day
   day.py nightly         5:00 (timer): save the folder list and the page of the day that just ended
 
 Data: ~/.local/share/second-brain/day/ (changes.jsonl, closeouts.jsonl, overnight.jsonl, snapshots/, pages/).
 Safe test run of eod (nothing said, moved or built for real): BRAIN_DAY_DIR=<tmp> BRAIN_REMEMBER_FILE=<tmp list>
-BRAIN_DONE_FILE=<tmp> BRAIN_JOBS_DIR=<tmp> BRAIN_MORNING_BUILD=<fake> BRAIN_MORNING_BUILD_STATE=<tmp>
-BRAIN_DAY_QUIET=1 BRAIN_DAY_TEST_PICKS="1. ,Done".
-Sources, read only: git history of <user>'s repos (all branches, so worktrees count), the change log, the folders.
+BRAIN_DONE_FILE=<tmp> BRAIN_JOBS_DIR=<tmp> AGENT_OS_BIN=<fake> BRAIN_MORNING_BUILD=<fake>
+BRAIN_MORNING_BUILD_STATE=<tmp> BRAIN_DAY_QUIET=1 BRAIN_DAY_TEST_PICKS="1. ,Done".
+Sources, read only: git history of <user>'s repos (all branches, so worktrees count), the change log, the folders,
+agent-os's in-tray (jobs/in-tray.md, made again by `agent-os intray` at end of day) and history files
+(jobs/history/YYYY-MM.md). End of day never moves a job folder: agent-os packs finished jobs itself.
 """
 import concurrent.futures as cf
 import datetime as dt
@@ -46,10 +49,12 @@ MORNING_BUILD = os.environ.get("BRAIN_MORNING_BUILD") or os.path.join(HOME, ".lo
 MB_STATE = os.environ.get("BRAIN_MORNING_BUILD_STATE") or os.path.join(HOME, ".local/state/morning-build")
 MB_HANDLED = os.path.join(MB_STATE, "handled.tsv")
 MB_LOCK = os.path.join(MB_STATE, ".lock")
-# End of day moves ticked remember-list items here, and finished desk jobs (a report.md, quiet for an hour) to done/.
+# End of day moves ticked remember-list items here.
 DONE_FILE = os.environ.get("BRAIN_DONE_FILE") or os.path.join(HOME, "OMARCHY-BRAIN/inbox/done.md")
+# agent-os's jobs folder: end of day and the standup read its in-tray.md and history/ (never write or move in it).
 JOBS_DIR = os.environ.get("BRAIN_JOBS_DIR") or os.path.join(HOME, "agent-os/jobs")
-JOB_QUIET = 3600
+AGENT_OS = os.environ.get("AGENT_OS_BIN") or shutil.which("agent-os") or os.path.join(HOME, "agent-os/bin/agent-os")
+INTRAY_SECONDS = 60
 # For a safe test run of eod: no voice, picks made for you ("1. …,Done").
 TEST_QUIET = os.environ.get("BRAIN_DAY_QUIET") == "1"
 TEST_PICKS = [p for p in os.environ.get("BRAIN_DAY_TEST_PICKS", "").split(",") if p]
@@ -467,27 +472,67 @@ def clear_ticked(path, done_path, d):
     return done
 
 
-def file_finished_jobs(jobs_dir, now=None):
-    """Desk jobs with a report.md and nothing changed for an hour move to jobs_dir/done/. Returns their names."""
-    now = now or time.time()
-    filed = []
+def refresh_intray():
+    """`agent-os intray` makes jobs/in-tray.md again. Quiet: when it fails, the tray as it was is read."""
+    env = dict(os.environ, AGENT_OS_HOME=JOBS_DIR)
     try:
-        names = sorted(os.listdir(jobs_dir))
+        subprocess.run([AGENT_OS, "intray"], capture_output=True, text=True, timeout=INTRAY_SECONDS,
+                       stdin=subprocess.DEVNULL, env=env)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+DATE_CELL = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _table_rows(path, width):
+    """The cells of each table row with `width` cells and a date where agent-os puts one."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
     except OSError:
         return []
-    for name in names:
-        src = os.path.join(jobs_dir, name)
-        if name == "done" or not os.path.isfile(os.path.join(src, "report.md")):
+    rows = []
+    for raw in text.splitlines():
+        if not raw.strip().startswith("|"):
             continue
-        newest = max((os.path.getmtime(os.path.join(r, f)) for r, _, fs in os.walk(src) for f in fs), default=0)
-        if now - newest < JOB_QUIET:
-            continue
-        os.makedirs(os.path.join(jobs_dir, "done"), exist_ok=True)
-        dst = os.path.join(jobs_dir, "done", name)
-        if not os.path.exists(dst):
-            shutil.move(src, dst)
-            filed.append(name)
-    return filed
+        cells = [c.strip() for c in raw.strip().strip("|").split("|")]
+        if len(cells) == width and DATE_CELL.match(cells[width - 6]):
+            rows.append(cells)
+    return rows
+
+
+def _tray(jobs_dir):
+    """In-tray rows (state, date, job, ask, result, cost, report) as agent-os writes them (engine/intray.py)."""
+    return [r for r in _table_rows(os.path.join(jobs_dir, "in-tray.md"), 7) if r[0] in ("new", "read", "old")]
+
+
+def _history(jobs_dir):
+    """History rows (date, job, ask, result, cost, report) from every jobs/history/YYYY-MM.md."""
+    folder = os.path.join(jobs_dir, "history")
+    try:
+        names = sorted(n for n in os.listdir(folder) if re.match(r"^\d{4}-\d{2}\.md$", n))
+    except OSError:
+        return []
+    return [r for n in names for r in _table_rows(os.path.join(folder, n), 6)]
+
+
+def finished_jobs(jobs_dir, d, today=None):
+    """[(job, result)] that finished on day d, from the in-tray and the history files, each job once. A job that
+    finished after midnight (dated up to `today`, the calendar day of the goodnight) counts for d too."""
+    last = max(d, today or d).isoformat()
+    seen, out = set(), []
+    for date, job, result in [(r[1], r[2], r[4]) for r in _tray(jobs_dir)] + \
+            [(r[0], r[1], r[3]) for r in _history(jobs_dir)]:
+        if d.isoformat() <= date <= last and job not in seen:
+            seen.add(job)
+            out.append((job, result))
+    return out
+
+
+def new_reports(jobs_dir):
+    """How many finished reports in the in-tray <user> has not read yet."""
+    return sum(1 for r in _tray(jobs_dir) if r[0] == "new")
 
 
 def handled_since(text, since):
@@ -556,18 +601,18 @@ def _start_detached():
     return 0
 
 
-def _tidy_phrase(cleared, filed):
+def _tidy_phrase(cleared, finished):
     tidy = []
     if cleared:
         tidy.append(f"{len(cleared)} ticked item{'s' if len(cleared) != 1 else ''} cleared")
-    if filed:
-        tidy.append(f"{len(filed)} finished job{'s' if len(filed) != 1 else ''} filed away")
+    if finished:
+        tidy.append(f"{len(finished)} job{'s' if len(finished) != 1 else ''} finished, in your in-tray")
     return " " + " and ".join(tidy) + "." if tidy else ""
 
 
-def _eod_page_extra(cleared, filed):
-    return ([""] if cleared or filed else []) + ([f"- Cleared from the remember list: {', '.join(cut(t, 60) for t in cleared)}"] if cleared else []) + \
-        ([f"- Jobs filed away: {', '.join(filed)}"] if filed else [])
+def _eod_page_extra(cleared, finished):
+    return ([""] if cleared or finished else []) + ([f"- Cleared from the remember list: {', '.join(cut(t, 60) for t in cleared)}"] if cleared else []) + \
+        ([f"- Jobs finished today: {', '.join(f'{j} ({cut(r, 60)})' if r else j for j, r in finished)}"] if finished else [])
 
 
 def _run_overnight(d, running):
@@ -607,17 +652,18 @@ def cmd_eod(args):
     summary = say_line("today", g)
     mod = remind_list()
     cleared = clear_ticked(mod.PATH, DONE_FILE, d)
-    filed = file_finished_jobs(JOBS_DIR, now)
-    speak(summary + _tidy_phrase(cleared, filed), wait=True)
+    refresh_intray()
+    finished = finished_jobs(JOBS_DIR, d, dt.date.fromtimestamp(now))
+    speak(summary + _tidy_phrase(cleared, finished), wait=True)
     value = _flag_value(args, "--picks")   # given: the ticks come with the call, no menu to answer
     picked = pick_overnight(mod) if value is None else picks_from_flag(mod, value)
     for line_no, _, _ in picked:
         mark_overnight(line_no, mod.PATH)
     running = busy()
     append_jsonl(CLOSEOUTS, {"t": int(now), "day": d.isoformat(), "picked": [t for _, _, t in picked],
-                             "running": running, "cleared": cleared, "filed": filed})
+                             "running": running, "cleared": cleared, "finished": [j for j, _ in finished]})
     write(os.path.join(PAGES, d.isoformat() + ".md"),
-          page(f"{day_name(d)} ({clock(start)} to {clock(now)}, closed out)", g, _eod_page_extra(cleared, filed)))
+          page(f"{day_name(d)} ({clock(start)} to {clock(now)}, closed out)", g, _eod_page_extra(cleared, finished)))
     n = len(picked)
     speak("The day is closed. " + (f"{n} thing{'s' if n != 1 else ''} will run tonight. " if n else
                                    "Nothing new runs tonight. ") + "I'll tell you how it went at the standup.", wait=True)
@@ -674,7 +720,7 @@ def _open_item_count():
         return 0
 
 
-def _standup_spoken(g, c, ran, night, waiting):
+def _standup_spoken(g, c, ran, night, waiting, fresh=0):
     spoken = ["Good morning. " + say_line("yesterday", g)]
     if c and c.get("picked"):
         ok = sum(1 for r in ran if str(r.get("result", "")).startswith("built:done"))
@@ -685,6 +731,8 @@ def _standup_spoken(g, c, ran, night, waiting):
         spoken.append(f"Since bedtime: {n_night} saved change{'s' if n_night != 1 else ''}.")
     if waiting:
         spoken.append(waiting)
+    if fresh:
+        spoken.append(f"{fresh} new report{'s' if fresh != 1 else ''} in your in-tray.")
     return " ".join(spoken)
 
 
@@ -703,6 +751,7 @@ def standup(now=None):
     ran = [r for r in read_jsonl(OVERNIGHT) if c and r.get("day") == c.get("day")]
     waiting = waiting_line()
     open_items = _open_item_count()
+    fresh = new_reports(JOBS_DIR)
 
     lines = [f"# Standup, {day_name(today)}", ""]
     lines += ["## Yesterday", ""] + page(f"{day_name(y)}", g).splitlines()[2:]
@@ -711,7 +760,8 @@ def standup(now=None):
     lines += ["", "## Waiting on you", ""]
     lines.append(f"- {waiting or 'Could not check.'}")
     lines.append(f"- Remember list: {open_items} open item{'s' if open_items != 1 else ''}.")
-    return "\n".join(lines) + "\n", _standup_spoken(g, c, ran, night, waiting)
+    lines.append(f"- In-tray: {fresh} new finished report{'s' if fresh != 1 else ''}.")
+    return "\n".join(lines) + "\n", _standup_spoken(g, c, ran, night, waiting, fresh)
 
 
 def cmd_standup(args):
