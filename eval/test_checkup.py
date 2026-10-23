@@ -24,8 +24,13 @@ class PrivateList(unittest.TestCase):
 
     def test_a_typo_is_said_in_plain_words(self):
         said = self.problem('{"words": ["rex"],}')
-        self.assertIn("can't be read", said)
-        self.assertIn("not kept private", said)
+        self.assertIn("is broken", said)
+        self.assertIn("Nothing is sent to any online model", said)
+
+    def test_an_empty_file_or_list_is_said_too(self):
+        for text in ("", "  \n", "{}", '{"words": []}', '{"words": [" "], "_note": "x"}'):
+            with self.subTest(text=text):
+                self.assertIn("Nothing is sent to any online model", self.problem(text))
 
     def test_a_file_of_the_wrong_shape_is_said_too(self):
         for text in ('["rex"]', '{"words": "rex"}', '{"words": [1, 2]}'):

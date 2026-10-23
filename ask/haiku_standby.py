@@ -73,7 +73,8 @@ def names_clear(prompt):
     before it sends; this is the second check, so no other caller can push a name out through the standby."""
     try:
         import ask
-        return ask._names().find(prompt) == 0
+        names = ask._names()
+        return ask.private_list_problem(names) is None and names.find(prompt) == 0
     except Exception:  # noqa: BLE001 - names.Unsafe, or no filter: not sure, so not clear
         return False
 
