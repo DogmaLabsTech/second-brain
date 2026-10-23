@@ -18,7 +18,7 @@ import ask  # noqa: E402
 import haiku  # noqa: E402
 import haiku_standby  # noqa: E402
 
-FAKE = {"partner": "Thandoria", "kid": "Quim", "words": ["zorblax", "vex", "oszy"]}
+FAKE = {"partner": "Thandoria", "kid": "Plorvik", "words": ["zorblax", "vex", "oszy"]}
 ASKED = "When is Zorblax coming? vexfamily said oszyfamily and Thandoria's dog are fine."
 
 
