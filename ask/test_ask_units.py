@@ -18,9 +18,24 @@ from expand import expanded_document  # noqa: E402
 class Expand(unittest.TestCase):
     def test_question_is_searched_as_said(self):
         lines = expanded_document("how do I reload the bar after editing").splitlines()
-        self.assertTrue(lines[0].startswith("lex: "))
-        self.assertEqual(lines[1], "vec: how do I reload the bar after editing")
-        self.assertLessEqual(len(lines), 3)
+        self.assertEqual(lines[0], "vec: how do I reload the bar after editing")
+        self.assertTrue(lines[1].startswith("vec: how do I reload the bar after editing "))   # <user>'s words -> notes' words
+        self.assertLessEqual(len(lines), 2)
+
+    def test_no_word_search_line_by_default(self):
+        self.assertFalse(any(l.startswith("lex: ") for l in expanded_document("where is the zebra").splitlines()))
+
+    def test_word_search_line_comes_back_with_the_switch(self):
+        import expand
+        old = expand.USE_LEX
+        try:
+            expand.USE_LEX = True
+            lines = expanded_document("how do I reload the bar after editing").splitlines()
+            self.assertTrue(lines[0].startswith("lex: "))
+            self.assertEqual(lines[1], "vec: how do I reload the bar after editing")
+            self.assertLessEqual(len(lines), 3)
+        finally:
+            expand.USE_LEX = old
 
 
 class SearchCli(unittest.TestCase):
