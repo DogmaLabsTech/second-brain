@@ -275,7 +275,7 @@ does, and passes everything else through untouched. On the fair test a chat-styl
 | Warm speech to text | `~/.config/systemd/user/second-brain-stt.service` → `stt/` here, venv `~/.local/share/second-brain/stt-venv` |
 
 Change which folders are read: edit `index/index.yml`, then run `index/setup.sh`.
-Numbers from the first build: `docs/index-report.md`.
+Numbers from the first build: `docs/history/index-report.md`.
 
 ## How to undo
 

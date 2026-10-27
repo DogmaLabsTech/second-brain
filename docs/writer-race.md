@@ -2,7 +2,7 @@
 
 Who should write `brain ask`'s short answer? Each writer got the **same notes and the same prompt**
 (`ask/ask.py` `SYSTEM` + the top 4 search hits, about 650 characters each) for 21 questions: the 10 from
-`search-test.md`, 8 more with a known answer, and 3 the notes can't answer. The facts a right answer must
+`history/search-test.md`, 8 more with a known answer, and 3 the notes can't answer. The facts a right answer must
 contain were written down first (`ask/race-questions.tsv`); the answers are in `ask/race-results.jsonl`.
 
 Run again: `CRABBOX_LOCAL=1 python3 -I ask/race.py local:qwen2.5 local:granite4.2 haiku`
