@@ -422,8 +422,10 @@ def auto_main(argv):
     except Exception as why:   # no score row was made: say so, so the gap is never silent again
         msg = f"The Monday check-up did not run: {type(why).__name__}: {str(why)[:160]}"
         print("!! " + msg, file=sys.stderr)
-        with open(os.path.join(checkups_dir(), today + ".txt"), "a") as f:
+        failed = os.path.join(checkups_dir(), today + ".txt")
+        with open(failed, "a") as f:
             f.write(buf.getvalue() + "\n!! " + msg + "\n")
+        os.chmod(failed, 0o600)   # may hold question text, like the normal report
         notify("Brain check-up failed", msg)
         return 3   # remind.sh: already told <user>
     flagged = flags(sm, _last_miss_ids(today))
