@@ -17,7 +17,10 @@ What the check-up drafts, from the week's asks (ask/asklog.py) and misses (decid
              Job asks are counted but get no line: they are not search questions.
   lore       when the same cause shows up twice, or one signal fits a theme of the insights report (THEMES), a story
              in agent-os lore/drafts/<slug>.md with `standing: observation`
-  rate       up to 3 unrated answers that were asked again, with one-press `brain rate <id> up|down` lines
+  rate       up to 3 answers that were asked again within 10 minutes and that <user> has not rated, with one-press
+             `brain rate <id> up|down` lines. The check-up marks each of them 👎 on its own (`auto_rate`, why "auto: asked
+             again within 10 minutes"; the only thing here that writes outside the drafts folders: ratings.jsonl). His
+             own rating is never touched and a later `up` of his wins.
 
 Rules: the check-up writes only inside the two drafts folders. It never writes lore/, heldout.jsonl, seen.jsonl or
 synonyms.tsv; only a keep does, and only <user> runs that. Every draft text goes through decider's names filter
@@ -344,12 +347,19 @@ def lore_new(signals, decided, today):
 
 # ---------- rate offers ----------
 
-def rate_offers(asks, ratings, days=7, now=None):
-    """Up to 3 newest unrated answers that were asked again (same words, or half the words, within 10 minutes)
-    from the same place: the likely-unhappy ones, so a rating means something."""
+AUTO_WHY = "auto: asked again within 10 minutes"
+
+
+def asked_again(asks, ratings, days=7, now=None, auto_open=False):
+    """The week's answers that were asked again (same words, or half the words, within 10 minutes) from the same
+    place, oldest first: the first answer probably failed. Only ones <user> has not rated; `auto_open` also keeps
+    the ones whose newest rating is the check-up's own auto mark (AUTO_WHY)."""
     now = now or time.time()
     since = _since(days, now)
-    rated = {r["id"] for r in ratings}
+    newest = {}
+    for r in ratings:
+        newest[r["id"]] = r   # the newest vote of an ask wins
+    rated = {i for i, r in newest.items() if not (auto_open and r.get("why") == AUTO_WHY)}
     week = sorted((a for a in asks if a.get("at", "") >= since and a.get("from") not in SKIP_FROM), key=_ts)
     out = []
     for i, a in enumerate(week):
@@ -364,6 +374,24 @@ def rate_offers(asks, ratings, days=7, now=None):
                                                     (wa and wb and len(wa & wb) / len(wa | wb) >= 0.5)):
                 out.append(a)
                 break
+    return out
+
+
+def auto_rate(days=7, now=None):
+    """Mark every unrated answer that was asked again within 10 minutes as a 👎 (why: AUTO_WHY), so the check-up
+    counts it without <user> pressing anything. A rating of his own is never touched (only unrated asks are marked),
+    his later `brain rate <id> up` wins (the newest vote counts), and running again marks nothing twice.
+    Returns the marked asks."""
+    marked = asked_again(asklog.read(asklog.ASKS), asklog.read(asklog.RATINGS), days, now)
+    for a in marked:
+        asklog.rate(a["id"], "down", AUTO_WHY)
+    return marked
+
+
+def rate_offers(asks, ratings, days=7, now=None):
+    """Up to 3 newest answers that were asked again and have no rating of <user>'s (unrated, or only auto-marked by
+    the check-up), so a press can still say the first answer was fine."""
+    out = asked_again(asks, ratings, days, now, auto_open=True)
     offers = []
     for a in out[-RATE_OFFERS:][::-1]:
         try:
@@ -418,7 +446,7 @@ def lines(report):
     if w["eval"] or w["lore"]:
         out.append("  waiting: %d test questions, %d lore stories: `brain drafts`" % (w["eval"], w["lore"]))
     if report["offers"]:
-        out.append("  Asked again but never rated (a press tells the check-up if the first answer was right):")
+        out.append("  Asked again within 10 minutes and not rated by you (marked 👎 on its own; press up if the first answer was fine):")
         for o in report["offers"]:
             out.append("    brain rate %s up|down" % o["id"] + ("   \"%s\"" % o["q"][:80] if o["q"] else ""))
     return out
