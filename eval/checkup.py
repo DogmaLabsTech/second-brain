@@ -9,9 +9,18 @@
   brain checkup --no-learn   skip learning from the week's likely misses (Haiku and the second decider label them)
   brain checkup --no-train   find misses, but don't start a training round even with 30+ new examples
   brain checkup --no-drafts  skip the drafts for <user> (test questions and lore stories from the week's signals)
+  brain checkup --auto       what the Monday timer runs (eval/remind.sh): everything above with --no-learn --no-train
+                             (no online labelling, no training round without <user>), the report saved to
+                             ~/.local/state/second-brain/checkups/DATE.txt, the score row added to scores.tsv (note
+                             "auto"), the result compared with the last run, and a desktop notice with the flags
+
+Every run also marks answers that were asked again within 10 minutes as 👎 on its own (eval/drafts.py `auto_rate`;
+`brain rate <id> up` undoes one).
 
 Scores are written to eval/scores.tsv (one line per run), so each week can be compared with the last.
 """
+import contextlib
+import io
 import json
 import os
 import statistics
@@ -161,7 +170,7 @@ def drafts_lines(days):
     signals, for <user> to keep or drop, and up to 3 asks worth rating. Writes only inside the drafts folders."""
     try:
         return drafts.lines(drafts.run(days))
-    except (OSError, ValueError) as why:
+    except Exception as why:   # a draft problem must never lose the score row
         return [f"Drafts for <user>: couldn't make them ({why})"]
 
 
@@ -245,23 +254,49 @@ def _save_answers(rows):
     print(f"\nAnswers saved for grading: {tilde(out)}")
 
 
-def main(argv):
+def _try(problems, what, fn, default=None):
+    """Run one part of the check-up; if it breaks, say so in plain words and go on (one broken part must not lose the
+    score row). The sentence also goes into `problems`, which the --auto flags show."""
+    try:
+        return fn()
+    except Exception as why:
+        problems.append(f"{what} didn't run ({type(why).__name__}: {str(why)[:120]})")
+        print("!! " + problems[-1] + "\n")
+        return default
+
+
+def auto_mark(days):
+    """Answers asked again within 10 minutes count as 👎 (drafts.auto_rate). Says so only when it marked some."""
+    marked = drafts.auto_rate(days)
+    if marked:
+        print(f"Asked again within 10 minutes, marked 👎 on its own: {len(marked)} "
+              f"(press `brain rate <id> up` if the first answer was fine)\n")
+    return marked
+
+
+def run(argv):
+    """The check-up. Returns (exit code, summary) where the summary is what --auto needs for its flags."""
+    auto = "--auto" in argv
+    if auto:   # unattended: nothing goes to an online model and no training round starts without <user>
+        argv = list(argv) + ["--no-learn", "--no-train"]
     days = int(argv[argv.index("--days") + 1]) if "--days" in argv else 7
+    problems = []
     problem = private_list_problem()
     if problem:
         print("!! " + problem + "\n")
-    fresh = freshness_lines()
+    fresh = _try(problems, "The freshness look", freshness_lines, [])
     if fresh:
         print("Index freshness:\n  " + "\n  ".join(fresh) + "\n")
     rows = load("heldout.jsonl")
     s = search_score(rows)
     _print_search(s)
 
-    it = None if "--no-intent" in argv else intent_score()
+    it = None if "--no-intent" in argv else _try(problems, "The intent fair test", intent_score)
     if it:
         _print_intent(it)
-    _print_tuning()
+    _try(problems, "The tuning set", _print_tuning)
 
+    marked = _try(problems, "Marking re-asked answers", lambda: auto_mark(days), [])
     asks, votes = week(days)
     up, down = _print_week(asks, votes, days)
 
@@ -270,12 +305,147 @@ def main(argv):
         block = drafts_lines(days)
         if block:
             print("\n" + "\n".join(block))
+    prev = previous_row()
+    if auto and not os.environ.get("CHECKUP_NOTE"):
+        os.environ["CHECKUP_NOTE"] = "auto"
     _append_scores(s, it, asks, up, down, learned)
 
     if "--answers" in argv:
         _save_answers(rows)
-    return 0
+    summary = {"s": s, "it": it, "asks": len(asks), "up": len(up), "down": len(down), "marked": len(marked or []),
+               "prev": prev, "problem": problem, "fresh": [f for f in fresh if f.startswith("!!")],
+               "problems": problems, "days": days}
+    return 0, summary
+
+
+def main(argv):
+    return run(argv)[0]
+
+
+# ---------- the unattended run (the Monday timer) ----------
+
+def ratio(text):
+    """'7/34' -> (7, 34); None for '-' or anything else."""
+    try:
+        a, b = str(text).split("/")
+        return int(a), int(b)
+    except ValueError:
+        return None
+
+
+def previous_row(path=None):
+    """The last row of scores.tsv (the one before this run's) as a dict, or None."""
+    path = path or os.path.join(HERE, "scores.tsv")
+    try:
+        with open(path) as f:
+            lines = [l.rstrip("\n").split("\t") for l in f if l.strip()]
+    except OSError:
+        return None
+    if len(lines) < 2:
+        return None
+    head = lines[0]
+    return dict(zip(head, lines[-1]))
+
+
+def flags(sm, prev_misses=None):
+    """Plain-word flags for the notice: a lower fair-test score than the last row, newly missed questions, 👎 (and
+    how many were marked on their own), 'sure and wrong' router answers, warnings, parts that broke, a week with no
+    asks. [] when all is well."""
+    s, out = sm["s"], []
+    prev = sm.get("prev") or {}
+    now_scores = {"top3": (s["top3"], s["n"]), "top1": (s["top1"], s["n"]), "newer": (s["newer_ok"], s["newer_n"])}
+    for key, label in (("top3", "right note in the top 3"), ("top1", "right note first"), ("newer", "newer note wins")):
+        was, now = ratio(prev.get(key)), now_scores[key]
+        if was and was[1] == now[1] and now[0] < was[0]:
+            out.append(f"{label} fell from {was[0]}/{was[1]} to {now[0]}/{now[1]}")
+    if prev_misses is not None:
+        new = sorted({m[0] for m in s["misses"]} - set(prev_misses))
+        if new:
+            out.append(f"newly missed in the fair test: {', '.join(new)}")
+    it = sm.get("it")
+    if it and it.get("sure_wrong"):
+        out.append(f"the router was sure and wrong {it['sure_wrong']}/{it['n']} times")
+    if sm["down"]:
+        out.append(f"{sm['down']} 👎 in {sm['days']} days" + (f" ({sm['marked']} marked on their own because they were asked again)" if sm["marked"] else ""))
+    if sm.get("problem"):
+        out.append("the private names list has a problem (nothing goes online until it is fixed)")
+    out += [w.lstrip("! ") for w in sm.get("fresh", [])]
+    out += sm.get("problems", [])
+    if not sm["asks"]:
+        out.append(f"no asks in {sm['days']} days (nothing to learn from; is anything logging them?)")
+    return out
+
+
+def checkups_dir():
+    d = os.path.join(asklog.STATE, "checkups")
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    return d
+
+
+def _last_miss_ids(today):
+    """The fair-test miss ids saved by the previous --auto run (today's file is only overwritten after this read), or None."""
+    d = checkups_dir()
+    olds = sorted(f for f in os.listdir(d) if f.endswith(".json") and f[:-5] <= today)
+    if not olds:
+        return None
+    try:
+        with open(os.path.join(d, olds[-1])) as f:
+            return json.load(f).get("miss_ids")
+    except (OSError, ValueError):
+        return None
+
+
+def notify(title, body):
+    try:
+        subprocess.run(["notify-send", "-a", "Second brain", "-i", "brain", title, body], timeout=10, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        pass   # no desktop (or no notify-send): the saved report still has everything
+
+
+def auto_main(argv):
+    """`brain checkup --auto`: run the check-up, save the report and the miss ids, tell <user> the result."""
+    today = time.strftime("%Y-%m-%d")
+    buf = io.StringIO()
+    real = sys.stdout
+
+    class Tee:
+        def write(self, text):
+            real.write(text)
+            buf.write(text)
+
+        def flush(self):
+            real.flush()
+
+    try:
+        with contextlib.redirect_stdout(Tee()):
+            code, sm = run(argv)
+    except Exception as why:   # no score row was made: say so, so the gap is never silent again
+        msg = f"The Monday check-up did not run: {type(why).__name__}: {str(why)[:160]}"
+        print("!! " + msg, file=sys.stderr)
+        failed = os.path.join(checkups_dir(), today + ".txt")
+        with open(failed, "a") as f:
+            f.write(buf.getvalue() + "\n!! " + msg + "\n")
+        os.chmod(failed, 0o600)   # may hold question text, like the normal report
+        notify("Brain check-up failed", msg)
+        return 3   # remind.sh: already told <user>
+    flagged = flags(sm, _last_miss_ids(today))
+    report = os.path.join(checkups_dir(), today + ".txt")
+    s = sm["s"]
+    summary = (f"Fair test: right note first {s['top1']}/{s['n']}, in top 3 {s['top3']}/{s['n']}, newer wins "
+               f"{s['newer_ok']}/{s['newer_n']}. Week: {sm['asks']} asks, 👎 {sm['down']}.")
+    tail = ["", "Flags:"] + ["  - " + f for f in flagged] if flagged else ["", "Flags: none"]
+    with open(report, "w") as f:
+        f.write(buf.getvalue() + "\n" + summary + "\n" + "\n".join(tail) + "\n")
+    os.chmod(report, 0o600)
+    with open(os.path.join(checkups_dir(), today + ".json"), "w") as f:
+        json.dump({"top1": s["top1"], "top3": s["top3"], "n": s["n"], "miss_ids": [m[0] for m in s["misses"]]}, f)
+    print("\n" + summary + "\n" + "\n".join(tail))
+    notify("Brain check-up done" + (" - look at this" if flagged else ""),
+           summary + ("\nFlags: " + "; ".join(flagged) if flagged else "\nAll quiet.") +
+           "\nReport: " + tilde(report) + ". Type /brain-checkup in Claude to fix what it found.")
+    return code
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    argv = sys.argv[1:]
+    sys.exit(auto_main(argv) if "--auto" in argv else main(argv))

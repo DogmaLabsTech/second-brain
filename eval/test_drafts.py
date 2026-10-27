@@ -370,6 +370,59 @@ class RateOffers(Case):
         self.assertIn('"how do I reload"', text)
 
 
+class AutoRate(Case):
+    """An answer asked again within 10 minutes is marked 👎 on its own (drafts.auto_rate)."""
+
+    def ratings(self):
+        return drafts.asklog.read(drafts.asklog.RATINGS)
+
+    def test_the_first_answer_of_a_quick_re_ask_gets_a_thumbs_down(self):
+        self.week([ask("a1", "how do I reload the bar", ago=100), ask("a2", "how do I reload the bar", ago=99),
+                   ask("l1", "something else entirely", ago=50)])
+        marked = drafts.auto_rate(7, NOW)
+        self.assertEqual([a["id"] for a in marked], ["a1"])
+        self.assertEqual([(r["id"], r["verdict"], r["why"]) for r in self.ratings()], [("a1", "down", drafts.AUTO_WHY)])
+
+    def test_running_again_marks_nothing_twice(self):
+        self.week([ask("a1", "how do I reload the bar", ago=100), ask("a2", "how do I reload the bar", ago=99)])
+        drafts.auto_rate(7, NOW)
+        self.assertEqual(drafts.auto_rate(7, NOW), [])
+        self.assertEqual(len(self.ratings()), 1)
+
+    def test_an_answer_owner_rated_is_never_touched(self):
+        self.week([ask("a1", "how do I reload the bar", ago=100), ask("a2", "how do I reload the bar", ago=99)],
+                  ratings=[{"id": "a1", "at": at(90), "verdict": "up", "why": ""}])
+        self.assertEqual(drafts.auto_rate(7, NOW), [])
+        self.assertEqual([r["verdict"] for r in self.ratings()], ["up"])
+
+    def test_his_later_up_beats_the_automatic_down_and_is_not_marked_again(self):
+        self.week([ask("a1", "how do I reload the bar", ago=100), ask("a2", "how do I reload the bar", ago=99)])
+        drafts.auto_rate(7, NOW)
+        drafts.asklog.rate("a1", "up")
+        self.assertEqual(drafts.auto_rate(7, NOW), [])
+        self.assertEqual({r["id"]: r["verdict"] for r in self.ratings()}["a1"], "up")
+        self.assertEqual(drafts.rate_offers(drafts.asklog.read(drafts.asklog.ASKS), self.ratings(), 7, NOW), [])
+
+    def test_the_automatic_down_still_shows_as_an_offer_to_undo(self):
+        self.week([ask("a1", "how do I reload the bar", ago=100), ask("a2", "how do I reload the bar", ago=99)])
+        drafts.auto_rate(7, NOW)
+        offers = drafts.rate_offers(drafts.asklog.read(drafts.asklog.ASKS), self.ratings(), 7, NOW)
+        self.assertEqual([o["id"] for o in offers], ["a1"])
+
+    def test_late_re_asks_jobs_and_the_checkups_own_asks_are_not_marked(self):
+        self.week([ask("b1", "where is the port", ago=300), ask("b2", "where is the port", ago=280),
+                   ask("j1", "pause the music", ago=100, kind="job"), ask("j2", "pause the music", ago=99, kind="job"),
+                   ask("c1", "what is x", ago=100, src="checkup"), ask("c2", "what is x", ago=99, src="checkup")])
+        self.assertEqual(drafts.auto_rate(7, NOW), [])
+        self.assertEqual(self.ratings(), [])
+
+    def test_the_automatic_down_is_a_signal_for_the_drafts(self):
+        self.week([ask("a1", "how do I reload the bar", ago=100), ask("a2", "how do I reload the bar", ago=99)])
+        drafts.auto_rate(7, NOW)
+        report = self.run_drafts()
+        self.assertEqual(report["signals"].get("down"), 1)
+
+
 class KeepAndDrop(Case):
     def draft_one(self):
         self.week([ask("a1", "where is the bar", sources=["/h/x/bar.md"])], [{"id": "a1", "at": at(5), "verdict": "down"}])
