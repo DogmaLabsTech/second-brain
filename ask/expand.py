@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(HERE), "index"))
 from structq import document  # noqa: E402
 
 _RULES = None
+USE_LEX = os.environ.get("BRAIN_LEX", "0") == "1"   # the word-search line; off since 2026-10-27
 
 
 def rules():
@@ -37,14 +38,18 @@ def extra_words(q):
 
 
 def expanded_document(q, extra=None):
-    """One word-search line (the question's key words), one meaning-search line (the question as
-    said), and, when the list knows <user>'s words, a second meaning-search line with the notes' words
-    added. Measured 2026-10-15 (docs/checkup.md): the many keyword-pair lines used before outvoted the
-    meaning search and found the right note for 14 of 34 fresh questions; this mix found 21."""
+    """One meaning-search line (the question as said) and, when the list knows <user>'s words, a second
+    meaning-search line with the notes' words added. No word-search line (BRAIN_LEX=1 brings it back):
+    measured 2026-10-27 on the fair test (docs/checkup.md), the word-search line outvoted the meaning
+    search and pushed the right note down; without it right-note-first went 7/34 to 12/34 and top 3
+    18/34 to 21/34, with no kind of question worse. History: many keyword lines found 14/34 (2026-10-15),
+    one keyword line plus meaning search 21/34 then, 18/34 once the notes grew."""
     words = extra_words(q) if extra is None else extra
-    lines = document(q).splitlines()
-    key = next((l for l in lines if l.startswith("lex: ")), None)
-    out = ([key] if key else []) + [f"vec: {q}"]
+    out = []
+    if USE_LEX:
+        key = next((l for l in document(q).splitlines() if l.startswith("lex: ")), None)
+        out += [key] if key else []
+    out.append(f"vec: {q}")
     if words:
         out.append(f"vec: {q} {' '.join(words)}")
     return "\n".join(out)

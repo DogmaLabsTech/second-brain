@@ -16,7 +16,7 @@ class Rewrite(unittest.TestCase):
         self.assertNotIn("query", args)
         self.assertEqual(want, 4)
         types = [s["type"] for s in args["searches"]]
-        self.assertEqual(types[0], "lex")
+        self.assertEqual(types, ["vec", "vec"])   # no word-search line since 2026-10-27 (ask/expand.py)
         self.assertIn({"type": "vec", "query": "how do I reload the bar"}, args["searches"])
         self.assertTrue(any("restart" in s["query"] for s in args["searches"] if s["type"] == "vec"))
         self.assertFalse(args["rerank"])
