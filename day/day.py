@@ -1,7 +1,7 @@
 """day: what moved today, end of day and the morning standup, from scripts (no model, few words).
 
 A day runs 5:00 to 5:00. End of day (`/eod` in the desk, "end of day" or "goodnight" to the island) ends it
-early: work after that is "overnight" and goes to the next morning's standup. Plan: docs/plan-day-journal.md.
+early: work after that is "overnight" and goes to the next morning's standup. Plan: docs/history/plan-day-journal.md.
 
   day.py day [today|yesterday|overnight|YYYY-MM-DD] [--say|--json]
                          the day page (about 20 lines, grouped per project); --say: two spoken sentences

@@ -1,6 +1,6 @@
 # Handoff: finish router upgrade 2 (for a Pi agent, 2026-10-16)
 
-Context: `docs/router-upgrades-plan.md`. Upgrades 1 and 3 are done; upgrade 2 is built and committed
+Context: `docs/history/router-upgrades-plan.md`. Upgrades 1 and 3 are done; upgrade 2 is built and committed
 (commits 718f82c and later) and only needs round 5's result. <user> is not technical: plain words, short.
 
 ## Where things stand
@@ -40,7 +40,7 @@ Context: `docs/router-upgrades-plan.md`. Upgrades 1 and 3 are done; upgrade 2 is
    or the bar; another session works there.
 7. Tell <user>: `notify-send -a "Second brain" "Upgrade 2 done" "<one plain sentence: before → after>"`, and write
    the full plain-words report (3-6 short lines: what changed, before/after numbers, anything he must decide) to
-   `docs/upgrade2-report.md` and commit it.
+   `docs/history/upgrade2-report.md` and commit it.
 
 Rules: never send private text to the second decider; tests run on the test machine with `crabbox run -- …` (or `CRABBOX_LOCAL=1` if it
 can't connect, and say so). Don't start new training rounds.

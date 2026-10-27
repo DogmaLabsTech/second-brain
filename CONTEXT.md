@@ -24,16 +24,17 @@ When you add, move or retire a file here, update this file in the same commit.
 
 ## History (dated; kept for the record, may be out of date)
 
-Not moved into `history/` folders yet. Do not use these for current numbers.
+Moved into `docs/history/` on 2026-10-27. Do not use these for current numbers.
 
-- `docs/search-test.md` (2026-10-15): the old 10-question search test. Replaced by `eval/heldout.jsonl`.
+- `docs/history/search-test.md` (2026-10-15): the old 10-question search test. Replaced by `eval/heldout.jsonl`.
   Its questions are `index/search-questions.tsv`.
-- `docs/index-report.md` (2026-10-15): numbers from the first index build.
-- `docs/router-upgrades-plan.md`, `docs/handoff-upgrade2-finish.md`, `docs/upgrade2-report.md`
+- `docs/history/index-report.md` (2026-10-15): numbers from the first index build.
+- `docs/history/router-upgrades-plan.md`, `docs/history/handoff-upgrade2-finish.md`, `docs/history/upgrade2-report.md`
   (2026-10-15 and 16): the router upgrades plan, its handoff and its report. Finished.
-- `docs/plan-day-journal.md` (2026-10-16): the plan for the day page, goodnight and the standup.
+- `docs/history/plan-day-journal.md` (2026-10-16): the plan for the day page, goodnight and the standup.
   Built; the code is in `day/`.
-- `docs/wake-false-wake-test.json`: the output of one wake-word false-wake test.
+- `docs/wake-false-wake-test.json`: the output of one wake-word false-wake test. Not moved yet: the wake test
+  (`wake/test/false_wake_test.py`) writes this exact path by default.
 - `deciders/results/`: result files from past training and test rounds (v1 to v6, testbox and second_decider runs).
   Check the decider files before you treat any one of them as current.
 

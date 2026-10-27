@@ -9,6 +9,10 @@ venv/
 *-venv/
 .pytest_cache/
 
+# --- Editor and browser-tool leftovers (local state, not notes) ---
+.obsidian/
+.playwright-mcp/
+
 # --- Secrets, just in case (none are kept in this folder) ---
 .env
 .env.*
