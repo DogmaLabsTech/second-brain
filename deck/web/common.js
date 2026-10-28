@@ -1,4 +1,4 @@
-// Shared bits for the brain prototypes. Everything stays on this computer.
+// Shared bits for the Deck (a classic script: globals the modules use). Everything stays on this computer.
 const COL = {
   'agent-os': '#ff7a45', business: '#ffd23f', chats: '#4d9bff', codex: '#8b7bff', computer: '#19d3c5',
   content: '#ff5fa2', days: '#f1ecc8', experiments: '#b8f27c', hermes: '#8a94a6', memory: '#ce9143', plans: '#6ee7ff',

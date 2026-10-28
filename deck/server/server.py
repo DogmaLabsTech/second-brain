@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prototype server: static files + /note?id=N + /search?q= (06 Ask: `brain search`, read-only, X-Deck: 1).
+"""The Deck's server: static files + /note?id=N + /search?q= (06 Ask: `brain search`, read-only, X-Deck: 1).
 GET reads the real note file (collection folder from ~/.config/qmd/index.yml + note path), falling back to the
 search index copy (read-only). POST saves an edited note: only an existing .md file inside its collection folder,
 only if it did not change since it was loaded (hash), with a backup copy first and an atomic write.

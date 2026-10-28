@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install the second-brain qmd config and build the index.
-# Undo: index/uninstall.sh
+# Undo: README.md, "How to undo".
 set -euo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/env.sh"
 here="$(cd "$(dirname "$0")" && pwd)"
