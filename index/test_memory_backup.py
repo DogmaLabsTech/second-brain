@@ -76,6 +76,23 @@ class MemoryBackup(unittest.TestCase):
         self.assertEqual(self.run_backup().returncode, 0)
         self.assertEqual(len(self.copies()), 1)
 
+    def test_a_failed_copy_leaves_nothing_behind(self):
+        self.assertEqual(self.run_backup().returncode, 0)
+        good = (self.dest / self.copies()[0]).read_bytes()
+        bad = self.store / "drafts" / "unreadable.md"
+        bad.write_text("x")
+        bad.chmod(0)
+        r = self.run_backup()
+        bad.chmod(0o600)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("tar failed", r.stderr)
+        self.assertEqual(list(self.dest.glob("*.tmp")), [])
+        self.assertEqual((self.dest / self.copies()[0]).read_bytes(), good)
+
+    def test_copies_are_for_owner_only(self):
+        self.assertEqual(self.run_backup().returncode, 0)
+        self.assertEqual((self.dest / self.copies()[0]).stat().st_mode & 0o077, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
