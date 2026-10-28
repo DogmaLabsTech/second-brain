@@ -56,6 +56,12 @@ class Case(unittest.TestCase):
         patch = mock.patch.object(drafts, "scrub", fake_scrub)
         patch.start()
         self.addCleanup(patch.stop)
+        self.names_file = os.path.join(self.tmp, "private.json")   # the guard reads this, never the real list
+        with open(self.names_file, "w") as f:
+            f.write('{"words": ["zorblax"]}')
+        names = mock.patch.dict(os.environ, {"DECIDER_PRIVATE_NAMES": self.names_file})
+        names.start()
+        self.addCleanup(names.stop)
         self.draft("lesson-git-rm.md", NOTE)
         self.asked = []   # texts the fake model was given
 
@@ -220,6 +226,47 @@ class Safety(Case):
         self.assertEqual(self.asked, [])
         self.assertTrue(got["local_only"])
 
+    def test_a_names_list_the_guard_rejects_means_no_model_and_local_only(self):
+        for label, content in (("empty file", ""), ("no words", '{"words": []}'), ("broken", "{oops"),
+                               ("wrong shape", '["a"]')):
+            with self.subTest(label):
+                with open(self.names_file, "w") as f:
+                    f.write(content)
+                self.asked.clear()
+                self.draft("g.md", "# guard %s\n\nClean text.\n" % label.replace(" ", "-"))
+                got = self.keep("g.md", "projects/second-brain/lessons/g-%s.md" % label.replace(" ", "-"))
+                self.assertEqual(self.asked, [])
+                self.assertTrue(got["local_only"])
+                self.assertIn("local-only: true\n", read(got["path"]))
+                self.assertTrue(got["guard"])
+                self.assertIn("names list", got["guard"])
+                self.assertNotIn("zorblax", got["guard"].lower())
+
+    def test_a_guard_that_cannot_load_counts_as_unsure(self):
+        with mock.patch.object(memory_keep, "_guard_module", side_effect=ImportError("gone")):
+            got = self.keep()
+        self.assertEqual(self.asked, [])
+        self.assertTrue(got["local_only"])
+        self.assertTrue(got["guard"])
+
+    def test_a_good_names_list_gives_no_guard_message(self):
+        self.assertIsNone(self.keep()["guard"])
+
+    def test_a_missing_names_file_is_not_a_problem_for_the_guard(self):
+        os.unlink(self.names_file)   # the guard lets a missing file pass; the names filter itself then decides
+        self.assertIsNone(self.keep()["guard"])
+
+    def test_the_cli_prints_the_guard_words(self):
+        with open(self.names_file, "w") as f:
+            f.write("")
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, {"BRAIN_MEMORY_STORE": self.store}), \
+                mock.patch.object(memory_keep, "local_summary", self.model), \
+                mock.patch.object(sys.stdin, "isatty", return_value=False), contextlib.redirect_stdout(out):
+            self.assertEqual(drafts.main(["keep", "lesson-git-rm.md", "--to", "projects/second-brain/lessons"]), 0)
+        self.assertEqual(self.asked, [])
+        self.assertIn("is empty", out.getvalue())
+
     def test_a_clean_note_is_not_marked_local_only(self):
         got = self.keep()
         self.assertFalse(got["local_only"])
@@ -229,7 +276,7 @@ class Safety(Case):
         got = self.keep(summary="unsure line")
         self.assertTrue(got["local_only"])
 
-    def test_a_model_that_fails_leaves_an_empty_summary_for_owner_and_still_keeps_the_note(self):
+    def test_a_model_that_fails_falls_back_to_the_first_line_and_still_keeps_the_note(self):
         def down(text):
             raise OSError("no model")
         got = self.keep(summarize=down)

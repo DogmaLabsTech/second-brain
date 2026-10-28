@@ -12,10 +12,11 @@ It fills the front matter (project, kind, date, summary, files, pinned; the form
 one-line summary with the local model (Ollama on this computer, never an online one), shows it so <user> can change it
 (on a terminal it asks; otherwise it prints it and the line can be edited in the file), and commits in the store.
 
-Names: the names filter (decider/names.py, through drafts.scrub) runs before any model sees the text. The model gets the
-scrubbed text only. When the filter is missing or not sure, no model is called at all, the first heading stands in for
-the summary, and the note gets `local-only: true` in its front matter, so nothing that reads the store may send it to an
-online model. A summary never keeps a private name: it is stored scrubbed.
+Names: the private-list guard (deciders/private_guard.py) and then the names filter (decider/names.py, through
+drafts.scrub) run before any model sees the text. The model gets the scrubbed text only. When the guard finds the list
+empty, broken or unreadable (or cannot load), or the filter is missing or not sure, no model is called at all, the first
+heading stands in for the summary, and the note gets `local-only: true` in its front matter, so nothing that reads the
+store may send it to an online model. A summary never keeps a private name: it is stored scrubbed.
 
 A missing store, a store that is not a git repo, a bad target or a name already taken stop `keep` with a plain message
 and change nothing. The store path is a parameter (BRAIN_MEMORY_STORE, default ~/projects/shared) so tests use a
@@ -188,6 +189,26 @@ def local_summary(text):
     return line
 
 
+# ---------- the private names list ----------
+
+def _guard_module():
+    deciders = os.path.join(os.path.dirname(HERE), "deciders")
+    if deciders not in sys.path:
+        sys.path.append(deciders)
+    import private_guard   # the one guard of the private list (empty, broken or unreadable = nothing is sent)
+    return private_guard
+
+
+def guard_problem():
+    """Plain words when the private names list is empty, broken or unreadable (deciders/private_guard.py), or when the
+    guard itself cannot be used; None when the list is fine or not there. Never holds a name."""
+    try:
+        return _guard_module().problem(drafts._names().private_file())
+    except Exception as why:  # noqa: BLE001 - no guard, no filter: treat as unsure
+        return "The private names guard could not be used (%s). Nothing is sent to any model until it is fixed." \
+            % type(why).__name__
+
+
 # ---------- keep ----------
 
 def keep(draft, to, store=None, summary=None, files=None, pin=None, confirm=None, summarize=None, today=None):
@@ -217,11 +238,13 @@ def keep(draft, to, store=None, summary=None, files=None, pin=None, confirm=None
     old_files, old_pin, body = split_draft(original)
 
     # The names filter first. Unsure (or no filter): no model sees anything and the note is marked local-only.
-    local_only, scrubbed = False, ""
-    try:
-        scrubbed = drafts.scrub(body)
-    except drafts.Unsure:
-        local_only = True
+    guard = guard_problem()   # a bad names list counts as unsure, whatever the filter says
+    local_only, scrubbed = bool(guard), ""
+    if not guard:
+        try:
+            scrubbed = drafts.scrub(body)
+        except drafts.Unsure:
+            local_only = True
     by = "given"
     if summary is None:
         by, line = "fallback", first_line(body)
@@ -237,6 +260,8 @@ def keep(draft, to, store=None, summary=None, files=None, pin=None, confirm=None
         if edited != line:
             line, by = edited, "edited"
     try:
+        if guard:
+            raise drafts.Unsure("guard")
         line = _oneline(drafts.scrub(line))   # what agents get word for word never holds a private name
     except drafts.Unsure:
         local_only = True
@@ -266,7 +291,7 @@ def keep(draft, to, store=None, summary=None, files=None, pin=None, confirm=None
         subprocess.run(["git", "-C", store, "reset", "-q", "--", rel] + ([src_rel] if tracked else []), capture_output=True)
         raise
     return {"path": dest, "project": project, "kind": kind, "summary": line, "summary_by": by,
-            "local_only": local_only, "commit": commit}
+            "local_only": local_only, "guard": guard, "commit": commit}
 
 
 def _restore(path, text):
@@ -293,6 +318,8 @@ def cli(argv, to):
     print("kept in the store: %s (%s, %s), committed %s" % (shown, got["project"], got["kind"], got["commit"]))
     print("summary%s: %s" % ({"model": " (local model)", "given": "", "edited": " (your edit)",
                               "fallback": " (first line; no model made one)"}[got["summary_by"]], got["summary"]))
+    if got["guard"]:
+        print(got["guard"])
     if got["local_only"]:
         print("The names filter was not sure about this note, so no model saw it and it is marked local-only "
               "(local-only: true). Check the summary line.")
