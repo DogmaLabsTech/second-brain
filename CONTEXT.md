@@ -25,6 +25,10 @@ When you add, move or retire a file here, update this file in the same commit.
 - `ask/memory.py` (`brain memory <repo> ["task"]`, 2026-10-28): the agent memory store's notes for a project and a task
   (scope, pinned first, summaries word for word, 2,000-token ceiling). The chats' door `ask/chat_proxy.py` serves the
   same as its `memory` tool. Tests: `ask/test_memory.py`, `ask/test_memory_tool.py`.
+- `ask/memory_hook.py` (`bin/brain-memory-hook`, 2026-10-28): Claude's start-of-session memory push (a `UserPromptSubmit`
+  hook: first prompt per session, project from the folder or worktree, 2.5 s ceiling, silent on any trouble).
+  `index/claude-memory-hook.json`: a settings file with only this hook, for `claude --settings` tests. Not in
+  `~/.claude/settings.json` until <user> says yes (README, "the memory hook"). Tests: `ask/test_memory_hook.py`.
 - `deciders/private_guard.py`: the one check of `private.json` before anything goes to an online model (empty, broken or
   unreadable = send nothing). Tests: `deciders/test_private_fail_closed.py`, `ask/test_private_fail_closed.py`.
 - `eval/README.md`: the fair test rules. `eval/scores.tsv`: the score log (add a row, newest last).
