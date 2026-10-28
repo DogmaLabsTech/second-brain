@@ -37,7 +37,7 @@ class Server(unittest.TestCase):
         cls.tmp = Path(tempfile.mkdtemp())
         (cls.tmp / "data.js").write_text("window.BRAIN={docs:[]};/*from-outside*/")
         env = dict(os.environ, DECK_PORT=str(PORT), DECK_DATA=str(cls.tmp / "data.js"), DECK_TALK_LOG=str(cls.tmp / "talk.jsonl"),
-                   DECK_ASKS_LOG=str(cls.tmp / "asks.jsonl"), DECK_SEARCHES_LOG=str(cls.tmp / "searches.jsonl"))
+                   DECK_ASKS_LOG=str(cls.tmp / "asks.jsonl"), DECK_SEARCHES_LOG=str(cls.tmp / "searches.jsonl"), DECK_DATA_POLL="0.2")
         cls.srv = subprocess.Popen([sys.executable, "-I", str(HERE / "server.py")], env=env,
                                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         for _ in range(100):
@@ -62,6 +62,31 @@ class Server(unittest.TestCase):
         self.assertNotIn(b'<meta name="deck-live" content="">', body)
         self.assertIn(b'<meta name="deck-live" content="', body)
         self.assertEqual(head.get("Cache-Control"), "no-store")
+
+    def test_live_stream_says_when_a_new_map_is_swapped_in(self):
+        import re
+        token = re.search(rb'name="deck-live" content="(\w+)"', get("/deck.html")[2])[1].decode()
+        c = http.client.HTTPConnection("127.0.0.1", PORT, timeout=10)
+        c.request("GET", "/live?k=" + token, headers={"Host": f"127.0.0.1:{PORT}"})
+        r = c.getresponse()
+        self.assertEqual(r.status, 200)
+
+        def next_data():
+            kind = ""
+            while True:
+                line = r.fp.readline().decode().rstrip("\n")
+                if line.startswith("event: "): kind = line[7:]
+                elif line.startswith("data: ") and kind == "data": return json.loads(line[6:])["v"]
+        first = next_data()
+        self.assertTrue(first)
+        new = self.tmp / "data.new"   # as tools/refresh.sh does: a whole new file renamed over the old one
+        new.write_text((self.tmp / "data.js").read_text() + "/*refreshed*/")
+        os.replace(new, self.tmp / "data.js")
+        second = next_data()
+        self.assertNotEqual(first, second)
+        self.assertTrue(second.endswith(":" + str((self.tmp / "data.js").stat().st_size)))
+        c.close()
+        self.assertIn(b"refreshed", get("/data.js")[2])
 
     def test_health_says_it_is_the_deck(self):
         code, head, body = get("/health")

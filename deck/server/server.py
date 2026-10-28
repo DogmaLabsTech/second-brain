@@ -21,6 +21,8 @@ GET /live (brief 15): a read-only stream of every search and ask (the brain's lo
 GET /private?id=N and POST /private {id, on} (brief 22, X-Deck: 1): a memory note's "this computer only" tag. GET reads its front
 matter (read-only); POST runs `brain private <note> on|off --json` (the Deck never edits the note itself). Only memory notes.
 Test mode: with DECK_TEST_MAP the command is pointed at that map's memory folder (BRAIN_MEMORY_STORE) and a backups folder beside it.
+GET /live also sends `data` {v} (brief 28): the stamp of data.js when the page connects, and again when a new map is swapped in
+(checked every DECK_DATA_POLL seconds, 3), so the page can offer NEW DATA · RELOAD.
 GET /health (brief 26): {"app": "second-brain-deck", "ready": true, "pid": ...} once the server answers. The Electron app waits for it,
 and uses it to tell an already running Deck server (reuse it) from some other program on the port (ask, never kill).
 DECK_PARENT_WATCH=1 (set by the app): the server reads its stdin pipe and exits when it closes, i.e. when the app is gone, even after a
@@ -358,6 +360,23 @@ def live_tail():
                 e = live_event(src, o)
                 if e: live_emit(e)
 threading.Thread(target=live_tail, daemon=True).start()
+# ---- new map (brief 28): the hourly refresh (tools/refresh.sh) swaps in a new data.js. The server looks every few seconds and,
+# once the file has stopped changing, tells the open pages on the live stream (a `data` event with the file's new stamp).
+DATA_POLL = float(os.environ.get("DECK_DATA_POLL") or 3)
+def data_stamp():
+    try: st = DATA.stat(); return f"{st.st_mtime_ns}:{st.st_size}"
+    except OSError: return ""
+_data = dict(v=data_stamp())
+def data_watch():
+    seen = _data["v"]
+    while True:
+        time.sleep(DATA_POLL); v = data_stamp()
+        if v == seen or not v: seen = v or seen; continue
+        time.sleep(DATA_POLL)   # a file written by hand (not swapped in at once) is only announced when it stays the same
+        if data_stamp() != v: continue
+        seen = v
+        with _live_cv: _data["v"] = v; _live_cv.notify_all()
+threading.Thread(target=data_watch, daemon=True).start()
 class H(http.server.SimpleHTTPRequestHandler):
     def __init__(s, *a, **k): super().__init__(*a, directory=str(ROOT), **k)
     def log_message(s, *a): pass
@@ -410,13 +429,14 @@ class H(http.server.SimpleHTTPRequestHandler):
         s.send_response(200); s.send_header("Content-Type", "text/event-stream"); s.send_header("Cache-Control", "no-store"); s.send_header("X-Accel-Buffering", "no"); s.end_headers()
         def send(kind, obj): s.wfile.write(f"event: {kind}\ndata: {json.dumps(obj)}\n\n".encode()); s.wfile.flush()
         try:
-            with _live_cv: last = _live["seq"]; hist = list(_live["events"])
-            send("history", hist[-20:])
+            with _live_cv: last = _live["seq"]; hist = list(_live["events"]); dv = _data["v"]
+            send("history", hist[-20:]); send("data", dict(v=dv))   # the map's stamp now; a new one later = a new map (brief 28)
             while True:
                 with _live_cv:
-                    _live_cv.wait_for(lambda: _live["seq"] > last, timeout=15); new = [e for e in _live["events"] if e["id"] > last]; last = _live["seq"]
-                if not new: s.wfile.write(b": ping\n\n"); s.wfile.flush()
+                    _live_cv.wait_for(lambda: _live["seq"] > last or _data["v"] != dv, timeout=15); new = [e for e in _live["events"] if e["id"] > last]; last = _live["seq"]; nv = _data["v"]
+                if not new and nv == dv: s.wfile.write(b": ping\n\n"); s.wfile.flush()
                 for e in new: send("live", e)
+                if nv != dv: dv = nv; send("data", dict(v=dv))
         except (OSError, ValueError): return
     def search(s):
         """06 Ask: `brain search` (the brain's meaning search, the notes `brain ask` would use), read-only. Needs X-Deck: 1, so
