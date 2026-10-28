@@ -18,7 +18,11 @@ island's Kokoro server, voice bm_george; started like bin/say if it is down), /t
 GET /live (brief 15): a read-only stream of every search and ask (the brain's logs + the Deck's own calls) for the live animation.
 GET /private?id=N and POST /private {id, on} (brief 22, X-Deck: 1): a memory note's "this computer only" tag. GET reads its front
 matter (read-only); POST runs `brain private <note> on|off --json` (the Deck never edits the note itself). Only memory notes.
-Test mode: with DECK_TEST_MAP the command is pointed at that map's memory folder (BRAIN_MEMORY_STORE) and a backups folder beside it."""
+Test mode: with DECK_TEST_MAP the command is pointed at that map's memory folder (BRAIN_MEMORY_STORE) and a backups folder beside it.
+GET /health (brief 26): {"app": "second-brain-deck", "ready": true, "pid": ...} once the server answers. The Electron app waits for it,
+and uses it to tell an already running Deck server (reuse it) from some other program on the port (ask, never kill).
+DECK_PARENT_WATCH=1 (set by the app): the server reads its stdin pipe and exits when it closes, i.e. when the app is gone, even after a
+forced kill, so no server is left behind."""
 import http.server, socketserver, sqlite3, hmac, array, math, wave, json, urllib.parse, urllib.request, pathlib, os, sys, hashlib, shutil, tempfile, datetime, subprocess, signal, threading, time, re, yaml
 ROOT = pathlib.Path(__file__).resolve().parent.parent / "web"; PORT = int(os.environ.get("DECK_PORT", 8765)); DB = os.path.expanduser("~/.cache/qmd/index.sqlite")
 QMD = os.path.expanduser("~/.config/qmd/index.yml"); DATA = pathlib.Path(os.environ.get("DECK_DATA") or os.path.expanduser("~/.local/share/second-brain/viz/data.js")); TEST_MAP = os.environ.get("DECK_TEST_MAP")
@@ -323,6 +327,7 @@ class H(http.server.SimpleHTTPRequestHandler):
         except ValueError: return None
     def do_GET(s):
         if not s.ok_host(): return s.send_error(403)
+        if urllib.parse.urlparse(s.path).path == "/health": return s.js(200, dict(app="second-brain-deck", ready=True, pid=os.getpid(), data=DATA.exists()))
         if urllib.parse.urlparse(s.path).path == "/search": return s.search()
         if urllib.parse.urlparse(s.path).path == "/live": return s.live()
         if urllib.parse.urlparse(s.path).path == "/private": return s.private()
@@ -535,4 +540,9 @@ class H(http.server.SimpleHTTPRequestHandler):
             except Exception: pass
         return s.js(200, dict(ok=ok, message=msg, speak=speak))
 class S(socketserver.ThreadingMixIn, http.server.HTTPServer): daemon_threads = True; allow_reuse_address = True
+def parent_watch():   # the app holds the other end of our stdin: end of file = the app is gone (closed or killed)
+    try:
+        while sys.stdin.buffer.read(4096): pass
+    finally: os._exit(0)
+if os.environ.get("DECK_PARENT_WATCH") == "1": threading.Thread(target=parent_watch, daemon=True).start()
 S(("127.0.0.1", PORT), H).serve_forever()

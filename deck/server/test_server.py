@@ -2,6 +2,7 @@
 Starts its own server on DECK_TEST_PORT (8796), never the real 8765. The /note check needs this computer's search index
 (run with CRABBOX_LOCAL=1); without the index it is skipped."""
 import http.client
+import json
 import os
 import subprocess
 import sys
@@ -62,6 +63,14 @@ class Server(unittest.TestCase):
         self.assertIn(b'<meta name="deck-live" content="', body)
         self.assertEqual(head.get("Cache-Control"), "no-store")
 
+    def test_health_says_it_is_the_deck(self):
+        code, head, body = get("/health")
+        self.assertEqual(code, 200)
+        h = json.loads(body)
+        self.assertEqual((h["app"], h["ready"], h["pid"], h["data"]), ("second-brain-deck", True, self.srv.pid, True))
+        self.assertEqual(head.get("Cache-Control"), "no-store")
+        self.assertEqual(get("/health", host="evil.example:8796")[0], 403)
+
     def test_old_address_and_root_lead_to_the_deck(self):
         for path in ("/", "/hud/deck.html"):
             code, head, _ = get(path)
@@ -90,6 +99,28 @@ class Server(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertIn(b'"title"', body)
         self.assertIn(b'"text"', body)
+
+
+class ParentWatch(unittest.TestCase):
+    def start(self, watch):   # port 0: any free port, this test only needs the process
+        env = dict(os.environ, DECK_PORT="0", DECK_PARENT_WATCH="1" if watch else "")
+        p = subprocess.Popen([sys.executable, "-I", str(HERE / "server.py")], env=env, stdin=subprocess.PIPE,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.addCleanup(lambda: p.poll() is None and (p.kill(), p.wait(10)))
+        time.sleep(1.5)
+        self.assertIsNone(p.poll(), "the server stopped by itself")
+        return p
+
+    def test_server_exits_when_the_app_is_gone(self):
+        p = self.start(True)
+        p.stdin.close()   # what the kernel does when the app dies, even after kill -9
+        self.assertEqual(p.wait(5), 0)
+
+    def test_without_the_switch_it_keeps_running(self):
+        p = self.start(False)
+        p.stdin.close()
+        time.sleep(1.5)
+        self.assertIsNone(p.poll())
 
 
 class Repo(unittest.TestCase):
