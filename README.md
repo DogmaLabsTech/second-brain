@@ -305,7 +305,7 @@ Stop only the search record (keeps everything else): go back to the version befo
 then delete the list.
 
 ```
-git -C ~/projects/second-brain revert --no-edit <the search-record merge>
+git -C ~/projects/second-brain revert -m 1 --no-edit d8eb3d7   # the search-record merge
 systemctl --user restart second-brain-chat-search.service
 rm ~/.local/state/second-brain/searches.jsonl ~/.local/state/second-brain/searches.jsonl.lock
 ```
