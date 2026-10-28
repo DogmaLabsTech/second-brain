@@ -1,0 +1,16 @@
+{
+  "name": "second-brain-deck",
+  "desktopName": "second-brain-deck.desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Deck (the brain's 3D map) in its own window. Loopback only.",
+  "main": "app/main.js",
+  "scripts": {
+    "start": "app/deck",
+    "test": "node --test app/test/",
+    "smoke": "node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "electron": "45.1.0"
+  }
+}
