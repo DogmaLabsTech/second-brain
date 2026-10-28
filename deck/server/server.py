@@ -5,11 +5,14 @@ search index copy (read-only). POST saves an edited note: only an existing .md f
 only if it did not change since it was loaded (hash), with a backup copy first and an atomic write.
 Loopback only. No CORS headers (other sites can't read it), a Host check against DNS rebinding, and POST needs the
 X-Deck: 1 header plus a JSON body (a plain web form can't send either).
+Folders (the second-brain viz/ build): the page files are web/ (served at /, the Deck is /deck.html); the private data stays
+out of git: GET /data.js reads ~/.local/share/second-brain/viz/data.js (DECK_DATA overrides), the talk log is
+~/.local/state/second-brain/talk-log.jsonl (DECK_TALK_LOG overrides).
 Test mode: DECK_TEST_MAP=<file.yml> replaces the collection folders (e.g. {computer: /tmp/x}); DECK_PORT changes the port.
 Talking (07 Voice panel), the voice island's way (~/.config/omarchy/plugins/user.brain-island/bin: listen, ask, say, job),
 all POST with X-Deck: 1: /talk/stt (any audio -> ffmpeg 16 kHz mono wav -> the warm STT server, else `voxtype transcribe`),
 /talk/ask (`brain ask --stream --from deck --how voice`, JSON lines back: first sentence early, then the result with the
-notes mapped to collection + path; one line per question in talk-log.jsonl), /talk/say (one sentence as a WAV from the
+notes mapped to collection + path; one line per question in the talk log), /talk/say (one sentence as a WAV from the
 island's Kokoro server, voice bm_george; started like bin/say if it is down), /talk/job (runs a job only after the Yes click),
 /talk/outcome (said No / stopped, for the brain's check-up).
 GET /live (brief 15): a read-only stream of every search and ask (the brain's logs + the Deck's own calls) for the live animation.
@@ -17,8 +20,8 @@ GET /private?id=N and POST /private {id, on} (brief 22, X-Deck: 1): a memory not
 matter (read-only); POST runs `brain private <note> on|off --json` (the Deck never edits the note itself). Only memory notes.
 Test mode: with DECK_TEST_MAP the command is pointed at that map's memory folder (BRAIN_MEMORY_STORE) and a backups folder beside it."""
 import http.server, socketserver, sqlite3, hmac, array, math, wave, json, urllib.parse, urllib.request, pathlib, os, sys, hashlib, shutil, tempfile, datetime, subprocess, signal, threading, time, re, yaml
-ROOT = pathlib.Path(__file__).parent; PORT = int(os.environ.get("DECK_PORT", 8765)); DB = os.path.expanduser("~/.cache/qmd/index.sqlite")
-QMD = os.path.expanduser("~/.config/qmd/index.yml"); TEST_MAP = os.environ.get("DECK_TEST_MAP")
+ROOT = pathlib.Path(__file__).resolve().parent.parent / "web"; PORT = int(os.environ.get("DECK_PORT", 8765)); DB = os.path.expanduser("~/.cache/qmd/index.sqlite")
+QMD = os.path.expanduser("~/.config/qmd/index.yml"); DATA = pathlib.Path(os.environ.get("DECK_DATA") or os.path.expanduser("~/.local/share/second-brain/viz/data.js")); TEST_MAP = os.environ.get("DECK_TEST_MAP")
 BACKUPS = os.path.expanduser("~/.cache/tmp/sb/note-backups"); MAXBODY = 4_000_000; SHOW = 150000
 def folders():
     if TEST_MAP: return {k: str(v) for k, v in (yaml.safe_load(open(TEST_MAP)) or {}).items()}
@@ -61,7 +64,7 @@ BRAIN = shutil.which(os.path.expanduser(island("brain", "executable", "brain")))
 STT_URL = os.environ.get("BRAIN_STT_URL") or island("brainVoice", "sttEndpoint", "http://127.0.0.1:8183/transcribe")
 TTS = island("brainVoice", "ttsEndpoint", "") or "http://127.0.0.1:%d" % int(os.environ.get("EXPLAIN_VOICE_PORT", "47821"))
 TTS_SERVER = [island("brainVoice", "python", "python3"), "-I", island("brainVoice", "server", "")]
-VOICE = os.environ.get("DECK_VOICE", "bm_george"); TALKLOG = ROOT / "talk-log.jsonl"; MAXAUDIO = 12_000_000
+VOICE = os.environ.get("DECK_VOICE", "bm_george"); TALKLOG = pathlib.Path(os.environ.get("DECK_TALK_LOG") or os.path.expanduser("~/.local/state/second-brain/talk-log.jsonl")); MAXAUDIO = 12_000_000
 def run(cmd, timeout, **k):
     """A helper process in its own group, killed whole on timeout (like the island's helpers)."""
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True, **k)
@@ -144,6 +147,7 @@ def ensure_tts():
             if tts_up(): return True
         return False
 def talklog(**row):
+    TALKLOG.parent.mkdir(parents=True, exist_ok=True)
     with open(TALKLOG, "a") as f: f.write(json.dumps(dict(time=datetime.datetime.now().isoformat(timespec="seconds"), **row)) + "\n")
 # ---- live searches (brief 15): GET /live is a read-only Server-Sent Events stream, one event per search or ask anywhere:
 # it tails asks.jsonl (every `brain ask`) and searches.jsonl (the chats' MCP searches and `brain search`; it may appear later),
@@ -322,8 +326,13 @@ class H(http.server.SimpleHTTPRequestHandler):
         if urllib.parse.urlparse(s.path).path == "/search": return s.search()
         if urllib.parse.urlparse(s.path).path == "/live": return s.live()
         if urllib.parse.urlparse(s.path).path == "/private": return s.private()
-        if urllib.parse.urlparse(s.path).path == "/hud/deck.html":   # the page carries this server's live token (never cached: a new server, a new token)
-            body = (ROOT / "hud" / "deck.html").read_bytes().replace(b'<meta name="deck-live" content="">', f'<meta name="deck-live" content="{LIVE_TOKEN}">'.encode(), 1)
+        if urllib.parse.urlparse(s.path).path in ("/", "/hud/deck.html"): s.send_response(302); s.send_header("Location", "/deck.html"); s.send_header("Content-Length", "0"); s.end_headers(); return
+        if urllib.parse.urlparse(s.path).path == "/data.js":   # private, outside git (tools/ writes it there)
+            try: body = DATA.read_bytes()
+            except OSError: return s.send_error(404, "no data.js yet: run tools/build_data.py and tools/add_sim.py")
+            s.send_response(200); s.send_header("Content-Type", "text/javascript; charset=utf-8"); s.send_header("Content-Length", str(len(body))); s.end_headers(); s.wfile.write(body); return
+        if urllib.parse.urlparse(s.path).path == "/deck.html":   # the page carries this server's live token (never cached: a new server, a new token)
+            body = (ROOT / "deck.html").read_bytes().replace(b'<meta name="deck-live" content="">', f'<meta name="deck-live" content="{LIVE_TOKEN}">'.encode(), 1)
             s.send_response(200); s.send_header("Content-Type", "text/html; charset=utf-8"); s.send_header("Cache-Control", "no-store"); s.send_header("Content-Length", str(len(body))); s.end_headers(); s.wfile.write(body); return
         if urllib.parse.urlparse(s.path).path == "/note":
             i = s.note_id()

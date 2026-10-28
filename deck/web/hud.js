@@ -1,4 +1,4 @@
-// Shared HUD parts for the three concepts. COL, NICE, DOCS, COLS, ago, esc come from ../common.js; BRAIN from ../data.js.
+// Shared HUD parts for the three concepts. COL, NICE, DOCS, COLS, ago, esc come from common.js; BRAIN from data.js (the server serves it from ~/.local/share/second-brain/viz/).
 import * as THREE from 'three';
 export { THREE };
 const _t = new Date(); export const NOW = Date.UTC(_t.getFullYear(), _t.getMonth(), _t.getDate(), 12);
