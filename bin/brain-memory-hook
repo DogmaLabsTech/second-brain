@@ -1,0 +1,5 @@
+#!/bin/sh
+# brain-memory-hook: Claude's UserPromptSubmit hook that pushes the project's agent memory once per session
+# (ask/memory_hook.py; README "Agent memory in every Claude session"). Always exits 0; no output = no push.
+HERE=$(dirname "$(dirname "$(readlink -f "$0")")")
+exec python3 -I "$HERE/ask/memory_hook.py"

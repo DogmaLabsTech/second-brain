@@ -87,6 +87,59 @@ lines `local-only`, `local-only-by` (you or the filter) and `local-only-at` chan
 `brain drafts keep` keeps it even when the names filter is not sure. Add `--json` for a machine answer (the Deck's
 lock button). Code: `ask/private_tag.py`.
 
+## Agent memory in every Claude session (the memory hook)
+
+When a Claude session starts work in one of your projects, the memory hook adds that project's notes to it by itself,
+matched to the first thing it is asked, so no agent has to remember to look. It runs on the **first prompt of each
+session only** (Claude's `UserPromptSubmit` hook, one marker per session in `~/.local/state/second-brain/memory-hook/`,
+cleared after 3 days). Code: `ask/memory_hook.py` (shell entry `bin/brain-memory-hook`). Tests: `ask/test_memory_hook.py`.
+
+- **Which project:** the git repo's name, worktrees included (`~/.agent-os/worktrees/second-brain/<branch>` counts as
+  second-brain); only names that are folders in `~/projects/`. Anywhere else: nothing.
+- **What it adds:** the same list as `brain memory <repo> "<first prompt>"` (pinned first, best match, then newest,
+  at most 2,000 tokens), under one header line that points to the `memory` tool and `brain memory`. A prompt like
+  "Read /…/builder.md and do what it says" also searches with the start of that brief. A prompt with no meaning
+  ("continue", "yes", "ok") gets the pinned and newest notes. You see one line: `Memory: 24 notes pushed (1580 tokens)
+  for example-game.` Each push is logged in `~/.local/state/second-brain/memory-hook.jsonl`.
+- **Never in the way:** the search gets 1.5 s (slower: pinned and newest), the whole answer 2.5 s (slower: nothing).
+  Measured: 0.3 to 0.4 s normally, 1.7 s with a hung search. Store missing (the test machine), no notes, bad input or any error:
+  no output, and Claude starts as usual.
+
+Where it fires (tested 2026-10-28 with Claude Code 2.1.311, from a temporary example-game worktree):
+
+| Where | Fires? | How it was proved |
+|---|---|---|
+| `claude -p "…"` | yes | the model quoted the pushed lines |
+| nodeterm agent windows (`claude "<first prompt>"`) | yes | same command in tmux: "Memory: 24 notes pushed" shown, lines quoted; the second prompt got no push |
+| agent workers | not tested in agent itself | they are the same interactive Claude with your settings; typed prompts fire the hook in the tmux run |
+| subagents (Agent tool) | **no** | a probe saw only `SubagentStart`; the helper said it had no memory. Their hand-back reaches the main chat as a new prompt of the same session, so the marker blocks a second push |
+| with your agent, agent-projects and nodeterm hooks | yes, side by side | the `claude -p` run with all your settings plus this one |
+
+Subagents get their rules from the main chat or the `memory` tool. Codex and Gemini have no such hook: they use the
+`memory` tool and `brain memory`.
+
+**Switch on** (your yes; it touches every Claude session on this computer): in `~/.claude/settings.json`, add this
+entry to the `"UserPromptSubmit": [ … ]` list, next to the two that are there:
+
+```json
+{
+  "hooks": [
+    {
+      "type": "command",
+      "command": "~/projects/second-brain/bin/brain-memory-hook 2>/dev/null || true",
+      "timeout": 5
+    }
+  ]
+}
+```
+
+To try it first without touching your settings: `claude --settings ~/projects/second-brain/index/claude-memory-hook.json`
+(that file holds only this hook).
+
+**Switch off for a while:** `touch ~/.local/state/second-brain/memory-hook.off` (remove the file to switch back on).
+**Undo:** take that entry out of `~/.claude/settings.json` again; then `rm -r ~/.local/state/second-brain/memory-hook
+~/.local/state/second-brain/memory-hook.jsonl`.
+
 ## How to ask (a short answer)
 
 ```
