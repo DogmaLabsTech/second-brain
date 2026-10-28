@@ -6,6 +6,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -61,6 +62,46 @@ class Collections(unittest.TestCase):
             cols = yaml.safe_load(f)["collections"]
         for name, c in cols.items():
             self.assertEqual(ask.COLLECTIONS.get(name), c["path"], name)
+
+
+class LocalOnly(unittest.TestCase):
+    """A memory note marked local-only (eval/memory_keep.py) never reaches Haiku; the local writer answers."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        p = mock.patch.dict(ask.COLLECTIONS, {"memory": self.tmp.name})
+        p.start()
+        self.addCleanup(p.stop)
+        self.sent = []
+        for name in ("haiku_write", "local_write"):
+            p = mock.patch.object(ask, name, lambda prompt, *a, who=name, **k: self.sent.append(who) or ("ok", 1, 2))
+            p.start()
+            self.addCleanup(p.stop)
+
+    def hit(self, name, text):
+        path = os.path.join(self.tmp.name, name)
+        if text is not None:
+            with open(path, "w") as f:
+                f.write(text)
+        return {"path": path, "title": name, "snippet": "s", "line": 1}
+
+    def test_marked_note_goes_to_the_local_writer_only(self):
+        hits = [self.hit("a.md", "---\nproject: x\nlocal-only: true\n---\nzorbel lesson\n")]
+        self.assertTrue(ask.local_only(hits[0]))
+        self.assertTrue(ask.write("q", hits, "auto")[1].startswith("local:"))
+        self.assertEqual(self.sent, ["local_write"])
+        with self.assertRaises(RuntimeError):
+            ask.write("q", hits, "haiku")
+        self.assertEqual(self.sent, ["local_write"])
+
+    def test_unreadable_memory_note_counts_as_local_only(self):
+        self.assertTrue(ask.local_only(self.hit("gone.md", None)))
+
+    def test_unmarked_and_other_notes_are_not(self):
+        self.assertFalse(ask.local_only(self.hit("b.md", "---\nproject: x\npinned: false\n---\nlocal-only: true\n")))
+        self.assertFalse(ask.local_only({"path": "/elsewhere/c.md"}))
+        ask.write("q", [self.hit("b.md", "---\npinned: false\n---\nbody\n")], "haiku")
+        self.assertEqual(self.sent, ["haiku_write"])
 
 
 class FirstSentence(unittest.TestCase):
