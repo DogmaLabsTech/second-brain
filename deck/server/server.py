@@ -14,7 +14,9 @@ all POST with X-Deck: 1: /talk/stt (any audio -> ffmpeg 16 kHz mono wav -> the w
 /talk/ask (`brain ask --stream --from deck --how voice`, JSON lines back: first sentence early, then the result with the
 notes mapped to collection + path; one line per question in the talk log), /talk/say (one sentence as a WAV from the
 island's Kokoro server, voice bm_george; started like bin/say if it is down), /talk/job (runs a job only after the Yes click),
-/talk/outcome (said No / stopped, for the brain's check-up).
+/talk/outcome (said No / stopped, for the brain's check-up). Brief 27: /talk/warm (wake the search and the voice while he talks),
+/talk/confirm (a spoken yes/no to a plan; only a plain yes runs it), /talk/stt X-Preroll (talking over the brain: the half second
+before the voice was noticed comes first, as a WAV). Jobs run only from the server's own copy of the plan, by the ask's id.
 GET /live (brief 15): a read-only stream of every search and ask (the brain's logs + the Deck's own calls) for the live animation.
 GET /private?id=N and POST /private {id, on} (brief 22, X-Deck: 1): a memory note's "this computer only" tag. GET reads its front
 matter (read-only); POST runs `brain private <note> on|off --json` (the Deck never edits the note itself). Only memory notes.
@@ -64,7 +66,7 @@ def island(module, key, default):
         a = os.path.expanduser("~/.config/omarchy/plugins/user.rise/addons"); a in sys.path or sys.path.insert(0, a); from addon_config import config
         return config(module, key, default) or default
     except Exception: return default
-BRAIN = shutil.which(os.path.expanduser(island("brain", "executable", "brain"))) or os.path.expanduser("~/.local/bin/brain")
+BRAIN = os.environ.get("DECK_BRAIN") or shutil.which(os.path.expanduser(island("brain", "executable", "brain"))) or os.path.expanduser("~/.local/bin/brain")   # DECK_BRAIN: tests only
 STT_URL = os.environ.get("BRAIN_STT_URL") or island("brainVoice", "sttEndpoint", "http://127.0.0.1:8183/transcribe")
 TTS = island("brainVoice", "ttsEndpoint", "") or "http://127.0.0.1:%d" % int(os.environ.get("EXPLAIN_VOICE_PORT", "47821"))
 TTS_SERVER = [island("brainVoice", "python", "python3"), "-I", island("brainVoice", "server", "")]
@@ -99,17 +101,25 @@ def loudness(wav):
         if sys.byteorder == "big": b.byteswap()
         with wave.open(wav, "wb") as w: w.setnchannels(1); w.setsampwidth(2); w.setframerate(rate); w.writeframes(b.tobytes())
     return round(pdb, 1), round(rdb, 1), round(gain, 1)
-def transcribe(audio):
+def transcribe(audio, pre=0):
     """Browser audio (webm/ogg/wav) -> 16 kHz mono s16 wav (ffmpeg) -> loudness check (silence: stop here; quiet: raise it)
-    -> the warm STT server, else voxtype (bin/listen's order). heard=False means nothing was heard: don't ask the brain."""
+    -> the warm STT server, else voxtype (bin/listen's order). heard=False means nothing was heard: don't ask the brain.
+    pre > 0 (talking over the brain): the first `pre` bytes are a WAV of the half second before the page noticed the voice,
+    joined in front of the recording, so the first word is not cut off."""
     t0 = time.monotonic(); d = tempfile.mkdtemp(prefix="deck-talk-", dir=os.environ.get("XDG_RUNTIME_DIR") or None)
     try:
-        src, wav = os.path.join(d, "in.audio"), os.path.join(d, "q.wav"); open(src, "wb").write(audio)
-        code, _, err = run(["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", src, "-ac", "1", "-ar", "16000", "-sample_fmt", "s16", wav], 30)
+        src, wav, head = os.path.join(d, "in.audio"), os.path.join(d, "q.wav"), os.path.join(d, "pre.wav"); open(src, "wb").write(audio[pre:])
+        conv = ["-ac", "1", "-ar", "16000", "-sample_fmt", "s16", wav]
+        if pre:
+            open(head, "wb").write(audio[:pre])
+            conv = ["-i", head, "-i", src, "-filter_complex", "[0:a]aresample=16000,aformat=channel_layouts=mono[a];[1:a]aresample=16000,aformat=channel_layouts=mono[b];[a][b]concat=n=2:v=0:a=1"] + conv
+        else: conv = ["-i", src] + conv
+        code, _, err = run(["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y"] + conv, 30)
         if code: return dict(error="could not read the recording: " + (err.strip().splitlines() or ["ffmpeg failed"])[-1][:160])
         try: pdb, rdb, gain = loudness(wav)
         except (OSError, EOFError, wave.Error) as e: return dict(error=f"could not read the recording: {e}")
-        lv = dict(peak_db=pdb, rms_db=rdb, gain_db=gain); ms_conv = int((time.monotonic() - t0) * 1000); t1 = time.monotonic()
+        with wave.open(wav, "rb") as w: secs = round(w.getnframes() / w.getframerate(), 2)
+        lv = dict(peak_db=pdb, rms_db=rdb, gain_db=gain, secs=secs); ms_conv = int((time.monotonic() - t0) * 1000); t1 = time.monotonic()
         def got(text, engine):
             text = " ".join(str(text or "").split()); heard = not said_nothing(text)
             return dict(text=text if heard else "", heard=heard, said=text if not heard else "", engine=engine, ms_convert=ms_conv, ms_stt=int((time.monotonic() - t1) * 1000), **lv)
@@ -153,6 +163,44 @@ def ensure_tts():
 def talklog(**row):
     TALKLOG.parent.mkdir(parents=True, exist_ok=True)
     with open(TALKLOG, "a") as f: f.write(json.dumps(dict(time=datetime.datetime.now().isoformat(timespec="seconds"), **row)) + "\n")
+SEARCH_URL = os.environ.get("BRAIN_URL") or island("brain", "endpoint", "http://localhost:8181")
+def stt_up():
+    try:
+        with urllib.request.urlopen(STT_URL.rsplit("/", 1)[0] + "/health", timeout=.3) as r: return json.load(r).get("ok") is True
+    except Exception: return False
+def warm():
+    """While <user> talks (bin/listen's warm_brain, plus the voice): wake the brain's search server (after 5 quiet minutes it lets go of
+    its models and the first search takes ~5 s) and start Kokoro if it is down, so the first sentence can be said sooner. Never waits."""
+    def ping():
+        try: urllib.request.urlopen(urllib.request.Request(SEARCH_URL + "/query", json.dumps(dict(searches=[dict(type="vec", query="hello")], limit=1, rerank=False)).encode(), {"content-type": "application/json"}), timeout=30).read()
+        except Exception: pass
+    if os.environ.get("DECK_NO_WARM") != "1":
+        threading.Thread(target=ping, daemon=True).start(); threading.Thread(target=ensure_tts, daemon=True).start()
+    return dict(ok=True, stt="warm" if stt_up() else "slow", tts=tts_up())
+# ---- the gate for jobs (brief 27): the server keeps every plan the brain proposed (by its ask id, 10 minutes, used once) and runs only
+# that copy, never a job the page sends. It runs after a Yes click, or a spoken answer the server itself hears as a plain yes.
+PLANS, PLAN_SECONDS = {}, 600; _plans_lock = threading.Lock()
+def plan_keep(i, job):
+    with _plans_lock:
+        now = time.monotonic(); [PLANS.pop(k) for k in [k for k, (_, at) in PLANS.items() if now - at > PLAN_SECONDS]]
+        PLANS[i] = (job, now)
+def plan_take(i, keep=False):
+    with _plans_lock:
+        got = PLANS.get(i)
+        if not got or time.monotonic() - got[1] > PLAN_SECONDS: PLANS.pop(i, None); return None
+        if not keep: PLANS.pop(i, None)
+        return got[0]
+YES_START = re.compile(r"^(yes|yeah|yep|yup|yea|ya|sure|ok|okay|alright|all right|go ahead|go for it|do it|please do|confirm|confirmed|absolutely|definitely|correct|that's right|right|affirmative)\b")
+NO_START = re.compile(r"^(no|nope|nah|cancel|stop|don't|do not|never|not now|negative|abort|forget it)\b")
+NOT_YES = re.compile(r"\b(no|not|don't|dont|never|cancel|stop|wait|hold|but|later|abort|why|what|how|which|maybe|unless)\b")
+def yes_no(said):
+    """A spoken answer to "shall I?": 'yes' only for a short, plain yes with nothing against it ("yes, go ahead"); 'no' for a plain no;
+    everything else (silence, a question, "yes but wait", a long sentence) is 'unclear', which does nothing."""
+    t = re.sub(r"[^\w' ]+", " ", str(said or "").lower().replace("’", "'")); t = " ".join(t.split())
+    if not t or len(t.split()) > 8: return "unclear"
+    if NO_START.match(t): return "no"
+    if YES_START.match(t) and not NOT_YES.search(t): return "yes"
+    return "unclear"
 # ---- live searches (brief 15): GET /live is a read-only Server-Sent Events stream, one event per search or ask anywhere:
 # it tails asks.jsonl (every `brain ask`) and searches.jsonl (the chats' MCP searches and `brain search`; it may appear later),
 # read-only, and the Deck's own /search and /talk/ask emit directly (their own log lines are then skipped, so nothing shows twice).
@@ -458,9 +506,13 @@ class H(http.server.SimpleHTTPRequestHandler):
         if not 0 < n <= (MAXAUDIO if what == "stt" else 200_000): return s.js(413, dict(error="too big"))
         raw = s.rfile.read(n)
         if what == "stt":
-            r = transcribe(raw); return s.js(500 if "error" in r else 200, r)
+            try: pre = int(s.headers.get("X-Preroll") or 0); assert 0 <= pre < n and (not pre or raw[:4] == b"RIFF")
+            except Exception: return s.js(400, dict(error="bad pre-roll"))
+            r = transcribe(raw, pre); return s.js(500 if "error" in r else 200, r)
         try: body = json.loads(raw); assert isinstance(body, dict)
         except Exception: return s.js(400, dict(error="bad request"))
+        if what == "warm": return s.js(200, warm())
+        if what == "confirm": return s.confirm(body)
         if what == "say":
             text = " ".join(str(body.get("text") or "").split())[:600]
             if not text: return s.js(400, dict(error="nothing to say"))
@@ -513,6 +565,9 @@ class H(http.server.SimpleHTTPRequestHandler):
         job = res.get("job") if isinstance(res.get("job"), dict) and res["job"].get("id") else None
         done = dict(event="done", kind="job" if res.get("kind") == "job" and job else "answer", answer=str(res.get("answer") or ""), first=str(res.get("first") or ""), rest=str(res.get("rest") or ""),
                     sources=src, job=job, writer=str(res.get("writer") or "?"), id=str(res.get("id") or ""), ms=ms, error=res.get("error", ""))
+        if done["kind"] == "job":   # the plan the gate will run (only this copy), under the ask's id
+            if not re.fullmatch(r"[\w-]{3,64}", done["id"]): done["id"] = "deck-" + os.urandom(6).hex()
+            plan_keep(done["id"], job)
         try: talklog(question=q, how=str(body.get("how") or "voice"), answer=done["answer"][:200], kind=done["kind"], job=(job or {}).get("id"), notes=[f"{x['c']}/{x['p']}" for x in src if x["c"]], brain_id=done["id"], writer=done["writer"],
                      timings=dict(ms_record=stt.get("ms_record"), ms_convert=stt.get("ms_convert"), ms_stt=stt.get("ms_stt"), stt_engine=stt.get("engine"), ms_first_sentence=first_ms, ms_ask=ms))
         except Exception: pass
@@ -521,12 +576,35 @@ class H(http.server.SimpleHTTPRequestHandler):
         try: out(done)
         except OSError: pass
     def job(s, body):
-        """Runs a job the brain proposed, only after the Yes click on the page (the same call as bin/job)."""
-        job = body.get("job")
-        if not isinstance(job, dict) or not re.fullmatch(r"[\w.-]{1,64}", str(job.get("id") or "")) or body.get("confirmed") is not True: return s.js(400, dict(ok=False, message="That job had no name, so I did nothing."))
+        """Runs a job the brain proposed, only after the Yes click on the page (the same call as bin/job). The job is the server's own
+        copy of the plan (by the ask's id), never the one the page sends; a plan runs once."""
+        i = str(body.get("id") or "")
+        if body.get("confirmed") is not True or not re.fullmatch(r"[\w-]{3,64}", i): return s.js(400, dict(ok=False, message="That job had no name, so I did nothing."))
+        job = plan_take(i)
+        if not job: return s.js(409, dict(ok=False, message="That plan is too old or already done, so I did nothing. Ask again."))
+        return s.js(200, s.run_job(job, i))
+    def confirm(s, body):
+        """A spoken answer to the plan: {id, said} (the transcript). Only a plain yes runs it (yes_no); a no drops the plan; anything
+        else (silence, unclear) does nothing and keeps the plan for a click."""
+        i = str(body.get("id") or "")
+        if not re.fullmatch(r"[\w-]{3,64}", i): return s.js(400, dict(ok=False, decision="unclear", message="That job had no name, so I did nothing."))
+        said = " ".join(str(body.get("said") or "").split())[:200]; d = yes_no(said) if not said_nothing(said) else "unclear"
+        try: talklog(question=said, how="voice", kind="confirm", brain_id=i, decision=d)
+        except Exception: pass
+        if d == "no":
+            plan_take(i)
+            try: run([BRAIN, "outcome", i, "declined"], 20)
+            except Exception: pass
+            return s.js(200, dict(ok=True, decision="no", message="Okay, I won't."))
+        if d == "unclear": return s.js(200, dict(ok=True, decision="unclear", heard=said, kept=plan_take(i, keep=True) is not None,
+                                                  message="I didn't hear a clear yes, so I did nothing. Say yes or click Yes."))
+        job = plan_take(i)
+        if not job: return s.js(409, dict(ok=False, decision="yes", message="That plan is too old or already done, so I did nothing. Ask again."))
+        return s.js(200, dict(s.run_job(job, i), decision="yes"))
+    def run_job(s, job, i):
         try: code, out, err = run([BRAIN, "job", "run", str(job["id"]), "--args-json", json.dumps(job)], 60)
-        except subprocess.TimeoutExpired: return s.js(200, dict(ok=False, message="That job took too long, so I stopped waiting."))
-        except OSError as e: return s.js(200, dict(ok=False, message=f"I couldn't start that job: {e}"))
+        except subprocess.TimeoutExpired: return dict(ok=False, message="That job took too long, so I stopped waiting.")
+        except OSError as e: return dict(ok=False, message=f"I couldn't start that job: {e}")
         msg, speak = "", False
         for line in reversed(out.splitlines()):
             try: o = json.loads(line)
@@ -534,11 +612,9 @@ class H(http.server.SimpleHTTPRequestHandler):
             if isinstance(o, dict): msg, speak = str(o.get("message") or o.get("answer") or ""), bool(o.get("speak")); break
         ok = code == 0
         if not msg: msg = "Done: %s." % (job.get("label") or "that") if ok else "That didn't work: %s." % ((err.strip().splitlines() or ["code %d" % code])[0].removeprefix("brain: ")[:160].rstrip("."))
-        i = str(body.get("id") or "")
-        if re.fullmatch(r"[\w-]{3,64}", i):
-            try: run([BRAIN, "outcome", i, "job-ok" if ok else "job-failed", "" if ok else msg[:200]], 20)
-            except Exception: pass
-        return s.js(200, dict(ok=ok, message=msg, speak=speak))
+        try: run([BRAIN, "outcome", i, "job-ok" if ok else "job-failed", "" if ok else msg[:200]], 20)
+        except Exception: pass
+        return dict(ok=ok, message=msg, speak=speak)
 class S(socketserver.ThreadingMixIn, http.server.HTTPServer): daemon_threads = True; allow_reuse_address = True
 def parent_watch():   # the app holds the other end of our stdin: end of file = the app is gone (closed or killed)
     try:
