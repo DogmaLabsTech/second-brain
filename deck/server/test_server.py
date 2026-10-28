@@ -28,6 +28,11 @@ def get(path, host=f"127.0.0.1:{PORT}"):
 class Server(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        try:   # another server on the port would answer instead of ours
+            get("/deck.html")
+            raise RuntimeError(f"port {PORT} is busy: stop that server or set DECK_TEST_PORT")
+        except OSError:
+            pass
         cls.tmp = Path(tempfile.mkdtemp())
         (cls.tmp / "data.js").write_text("window.BRAIN={docs:[]};/*from-outside*/")
         env = dict(os.environ, DECK_PORT=str(PORT), DECK_DATA=str(cls.tmp / "data.js"), DECK_TALK_LOG=str(cls.tmp / "talk.jsonl"),
