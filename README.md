@@ -57,6 +57,24 @@ line saying so.
 Claude, Codex and Gemini chats get the same answer from the `memory` tool in the brain (the chats' door adds it; it
 needs a restart of `second-brain-chat-search.service` to show up). Code: `ask/memory.py`.
 
+### "This computer only" notes
+
+A memory note can be marked this computer only. Then Haiku (the online backup writer) never gets it; `brain ask`
+answers from it with the local writer only. Claude chats still read it. The names filter marks a note by itself when it
+is not sure about a name; you can mark or unmark one by hand:
+
+```
+brain private zorbel on          # mark it (a path in the store, part of the file name, or words from its title)
+brain private zorbel off         # unmark it
+brain private list               # every marked note: title, path, who marked it and when
+```
+
+If the name fits several notes, they are listed and nothing changes. Only memory notes can be marked. Only the three
+lines `local-only`, `local-only-by` (you or the filter) and `local-only-at` change in the note; the old file is copied to
+`~/.local/share/second-brain/backups/private-tag/` first, and the change is committed in the store. Your choice wins:
+`brain drafts keep` keeps it even when the names filter is not sure. Add `--json` for a machine answer (the Deck's
+lock button). Code: `ask/private_tag.py`.
+
 ## How to ask (a short answer)
 
 ```

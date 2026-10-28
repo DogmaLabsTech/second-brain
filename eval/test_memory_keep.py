@@ -272,6 +272,51 @@ class Safety(Case):
         self.assertFalse(got["local_only"])
         self.assertNotIn("local-only", read(got["path"]))
 
+    def test_the_filter_records_who_and_when(self):
+        self.draft("u.md", "# unsure note\n\nText.\n")
+        text = read(self.keep("u.md")["path"])
+        self.assertIn("local-only: true\nlocal-only-by: filter\nlocal-only-at: 2026-10-27\n---", text)
+
+    def test_a_hand_off_is_not_undone_by_an_unsure_filter(self):
+        self.draft("u.md", "---\nlocal-only: false\nlocal-only-by: owner\nlocal-only-at: 2026-10-26\n---\n"
+                           "# unsure note\n\nText.\n")
+        got = self.keep("u.md")
+        self.assertEqual(self.asked, [])   # the filter was not sure: still no model sees the text
+        self.assertEqual((got["local_only"], got["filter_unsure"], got["hand"]), (False, True, True))
+        self.assertIn("local-only: false\nlocal-only-by: owner\nlocal-only-at: 2026-10-26\n---", read(got["path"]))
+
+    def test_a_hand_on_stays_on_for_a_clean_note(self):
+        self.draft("c.md", "---\nlocal-only: true\nlocal-only-by: owner\n---\n" + NOTE)
+        got = self.keep("c.md")
+        self.assertTrue(got["local_only"])
+        self.assertIn("local-only: true\nlocal-only-by: owner\nlocal-only-at: 2026-10-27\n---", read(got["path"]))
+
+    def test_a_filter_tag_in_the_draft_is_not_a_hand_choice(self):
+        self.draft("f.md", "---\nlocal-only: true\nlocal-only-by: filter\n---\n" + NOTE)
+        got = self.keep("f.md")
+        self.assertFalse(got["local_only"])
+        self.assertNotIn("local-only", read(got["path"]))
+
+    def test_brain_private_then_back_to_drafts_then_keep_keeps_the_choice(self):
+        sys.path.insert(0, os.path.join(ROOT, "ask"))
+        import private_tag
+        got = self.keep()
+        with mock.patch.dict(os.environ, {"BRAIN_BACKUP_DIR": os.path.join(self.tmp, "backups")}):
+            private_tag.set_private(got["path"], True, store=self.store, today="2026-10-28")
+        again = os.path.join(self.store, "drafts", "again.md")
+        os.rename(got["path"], again)
+        back = self.keep("again.md", "projects/second-brain/lessons/again.md")
+        self.assertTrue(back["local_only"] and back["hand"])
+        self.assertIn("local-only-by: owner\nlocal-only-at: 2026-10-28\n", read(back["path"]))
+
+    def test_the_cli_says_a_hand_choice_wins(self):
+        self.draft("u.md", "---\nlocal-only: false\nlocal-only-by: owner\n---\n# unsure note\n\nText.\n")
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, {"BRAIN_MEMORY_STORE": self.store}), \
+                mock.patch.object(sys.stdin, "isatty", return_value=False), contextlib.redirect_stdout(out):
+            self.assertEqual(drafts.main(["keep", "u.md", "--to", "projects/second-brain/lessons"]), 0)
+        self.assertIn("You marked this note not this computer only by hand", out.getvalue())
+
     def test_a_given_summary_is_checked_by_the_filter_too(self):
         got = self.keep(summary="unsure line")
         self.assertTrue(got["local_only"])

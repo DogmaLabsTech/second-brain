@@ -10,6 +10,7 @@
 #   brain checkup             the weekly check-up: fair test score + this week's 👎 answers
 #   brain drafts [run|keep <id> [note…]|drop <id>]   the check-up's draft test questions and lore stories: you keep or drop each
 #   brain memory <repo> ["task"]   the agent memory store's rules and lessons for a project (and a task), best first
+#   brain private <note> on|off | list [--json]   mark a memory note "this computer only" (Haiku never gets it), or not
 #   brain status [--json]     is the index keeping up? per collection: notes, newest note, behind by, the test machine Codex embed
 #   brain reindex             re-read changed notes now (the timer does this every hour)
 #   brain day [today|yesterday|overnight|DATE] [--say]   what moved (a day runs 5 am to 5 am, or to goodnight)
@@ -22,7 +23,7 @@ set -euo pipefail
 root="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 . "$root/index/env.sh"
 
-usage() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; }
 
 cmd="${1:-}"; shift || true
 case "$cmd" in
@@ -63,6 +64,10 @@ case "$cmd" in
     # The store's notes for <repo> + all-projects, pinned first, summaries word for word, at most 2,000 tokens
     # (ask/memory.py; the same code answers the chats' `memory` tool in ask/chat_proxy.py). Exit 1 on a bad call.
     exec python3 -I "$root/ask/memory.py" "$@"
+    ;;
+  private)
+    # Tag or untag a memory note local-only by hand (local-only-by: owner), or list them (ask/private_tag.py).
+    exec python3 -I "$root/ask/private_tag.py" "$@"
     ;;
   status)
     exec python3 -I "$root/index/freshness.py" "$@"
