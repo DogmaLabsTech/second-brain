@@ -260,6 +260,14 @@ does, and passes everything else through untouched. On the fair test a chat-styl
 (the island's own score that day); a plain-question search from 40–70 s to 0.1 s
 (`eval/chat_search_test.py`). It uses no AI model and nothing leaves this computer.
 
+**Every search is written down (since 2026-10-28).** Each time a chat searches your brain, the same go-between writes
+one line in a private list on this computer: what was asked, which notes came back, how long it took, and which chat
+asked (its name and the folder it was working in). Opening a note (`get`) gets a shorter line. `brain search` writes
+a line too. The Deck reads this list to show searches as they happen. The list is
+`~/.local/state/second-brain/searches.jsonl` (only you can read it); it keeps the last 5,000 searches or 30 days,
+whichever is less. If writing a line ever fails, the search still works. Nothing secret is kept (no passwords or keys).
+To stop it, see "How to undo" below.
+
 | Thing | Where |
 |---|---|
 | qmd program | global npm package (`npm ls -g @tobilu/qmd`) |
@@ -269,6 +277,7 @@ does, and passes everything else through untouched. On the fair test a chat-styl
 | Agent memory backup | `~/.config/systemd/user/agent-memory-backup.timer` → `index/memory-backup.sh` (21:15 nightly: the store `~/projects/shared/` to `~/backups/agent-memory/`, 14 newest kept) |
 | Search server | `~/.config/systemd/user/second-brain-mcp.service` (qmd, http://localhost:8182, this computer only) |
 | Chats' door to it | `~/.config/systemd/user/second-brain-chat-search.service` → `ask/chat_proxy.py` (http://localhost:8181) |
+| Search record | `~/.local/state/second-brain/searches.jsonl`, written by the chats' door and `brain search` (`ask/searchlog.py`) |
 | `brain` command | `~/.local/bin/brain` → `bin/brain` here |
 | Claude's tool | `brain` MCP server in `~/.claude.json` (and Codex, Gemini: points at the chats' door, 8181) |
 | Local writer | `~/.config/systemd/user/second-brain-ollama.service` → `ask/` here (Ollama as you, models in `~/.ollama`, port 11434) |
@@ -291,6 +300,16 @@ rm -rf ~/.cache/qmd ~/.config/qmd ~/.local/share/second-brain
 ```
 
 Then delete the "The second brain" and "day-journal" sections in `~/.claude/CLAUDE.md` and `~/.pi/agent/AGENTS.md`.
+
+Stop only the search record (keeps everything else): go back to the version before it and restart the chats' door,
+then delete the list.
+
+```
+git -C ~/projects/second-brain revert --no-edit <the search-record merge>
+systemctl --user restart second-brain-chat-search.service
+rm ~/.local/state/second-brain/searches.jsonl ~/.local/state/second-brain/searches.jsonl.lock
+```
+
 Your notes are untouched either way.
 
 ## Weekly check-up
