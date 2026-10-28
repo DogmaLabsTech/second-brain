@@ -39,6 +39,8 @@ ask/race-results*.jsonl
 ask/race-questions.tsv
 # The fair test quotes business facts and family names (heldout.example.jsonl is kept).
 eval/heldout.jsonl
+# The agent held-out set quotes real run specs (a few name people); memory-heldout.example.jsonl is kept.
+eval/memory-heldout.jsonl
 
 # --- Wake word training audio, recordings and big model files ---
 wake-data/
