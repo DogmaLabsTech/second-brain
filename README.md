@@ -36,6 +36,25 @@ Before searching, a small list of your words and the notes' words (`ask/synonyms
 "restart", "lore" → "world bible") adds the notes' words to the question. Add a line there when a
 search misses because you and your notes say it differently.
 
+## Agent memory: rules and lessons for a project
+
+The rules and lessons agents should know live in the memory store (`~/projects/shared/`). To see what an agent
+gets for a project and a task:
+
+```
+brain memory second-brain "fix the chat door on port 8181"
+```
+
+You get that project's notes and the all-projects notes: pinned notes first, then the best matches (newer notes win
+close calls); without a task, pinned then newest. Each note shows its summary line exactly as stored, rule or lesson,
+the project and the path. Notes marked `(local-only)` are shown too, with that mark. It stops at 2,000 tokens
+(characters / 4) and says how many notes did not fit. Drafts and retired notes (`history/`) never show. The search is
+by meaning; a word search is added only for exact things in the task (a file name, a port, text in quotes, a function
+name). If the search server is down or slow (10 s), you get the pinned and newest notes and a line saying so.
+
+Claude, Codex and Gemini chats get the same answer from the `memory` tool in the brain (the chats' door adds it; it
+needs a restart of `second-brain-chat-search.service` to show up). Code: `ask/memory.py`.
+
 ## How to ask (a short answer)
 
 ```
