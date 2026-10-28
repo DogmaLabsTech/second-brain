@@ -44,7 +44,7 @@ When you add, move or retire a file here, update this file in the same commit.
 - `web/*.js`, `web/*.css`: the shared parts (top bar and point cloud `hud.js`, the shell, skins, panels, timeline, ask, rings, live feed).
 - `web/skins/`: one file per colour skin plus `index.js` (the list). `web/vendor/`: three.js.
 - `tools/build_data.py`, `tools/add_sim.py`: make `data.js` (read the search index read-only, `VIZ_INDEX` overrides it; output
-  folder defaults to `~/.local/share/second-brain/viz/`).
+  folder defaults to `~/.local/share/second-brain/viz/`). Both read the notes' fingerprints through `tools/vectors.py`.
 - `tools/refresh.sh`: the hourly refresh (lock, nice 10, temp folder, check, atomic swap, skips an unchanged index; one log line per run
   in `~/.local/state/second-brain/viz-refresh.log`; `refresh.sig` beside data.js). Run by `index/second-brain-viz-refresh.service`, which
   the reindex starts when it is done (`index/second-brain-reindex.service.d/viz.conf`). Env: `VIZ_OUT`, `VIZ_INDEX`, `VIZ_MIN_NOTES`.
