@@ -178,6 +178,20 @@ def passage(hit, chars=650):
     return text[:chars] or hit["snippet"]
 
 
+def local_only(hit):
+    """A memory note with `local-only: true` in its front matter (eval/memory_keep.py: the names filter was not sure)
+    never goes to an online model. A memory note that can't be read counts as local-only."""
+    if not hit["path"].startswith(COLLECTIONS["memory"] + os.sep):
+        return False
+    try:
+        with open(hit["path"], errors="replace") as f:
+            head = f.read(4000)
+    except OSError:
+        return True
+    m = re.match(r"---\n(.*?)\n---", head, re.S)
+    return bool(m and re.search(r"^local-only:\s*true\s*$", m.group(1), re.M))
+
+
 def short_path(p):
     return p.replace(HOME, "~")
 
@@ -603,6 +617,12 @@ def write(q, hits, writer="auto"):
     """Returns (answer, writer_name, info)."""
     prompt = user_prompt(q, hits)
     info = {}
+    if any(local_only(h) for h in hits[:4]):   # the notes user_prompt sends: local writer only, Haiku gets nothing
+        info["local_only_note"] = True
+        if writer == "haiku":
+            raise RuntimeError("haiku: not sent, a note is marked local-only")
+        if not writer.startswith("local"):
+            writer = "local"
     if writer.startswith("local"):
         model = writer.split(":", 1)[1] if ":" in writer else LOCAL_MODEL
         model = {"qwen2.5": "qwen2.5:3b", "granite4.2": "granite4.2:3b", "gpt-oss": "gpt-oss:20b"}.get(model, model)
