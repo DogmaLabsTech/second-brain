@@ -382,6 +382,10 @@ def remember_text(text):
     t = clean_text(text)
     t = re.sub(r"^(please\s+)?(remember|make a note|note down|write down|jot down)\b\s*(that|this|to|:)?\s*",
                "", t, flags=re.I)
+    # "add this to my remember list: buy foam" (said to the Deck) -> "buy foam"; "add buy foam to my remember list" -> "buy foam"
+    t = re.sub(r"^(please\s+)?(add|put|save|write)\s+(this|that|it)?\s*(to|on|onto|in)\s+(my|the)\s+remember(ed)?\s+list\b[\s:,.-]*",
+               "", t, flags=re.I)
+    t = re.sub(r"^(please\s+)?(add|put|save|write)\s+(.+?)\s+(to|on|onto|in)\s+(my|the)\s+remember(ed)?\s+list[.!]?$", r"\3", t, flags=re.I)
     return t.strip()
 
 
