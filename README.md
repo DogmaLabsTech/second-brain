@@ -145,7 +145,7 @@ To try it first without touching your settings: `claude --settings ~/projects/se
 ## The librarian: lesson drafts, old-note flags and the weekly list (agent memory job 6)
 
 The memory store learns without you writing notes, and you stay the one who says yes. Nothing here is pushed to an agent
-before your keep. Everything is local; no model is called.
+before your keep. Everything is local except one Haiku call per lesson draft (see the first bullet).
 
 - **Lesson drafts.** When a desk job ends and something objectively went wrong (a second build round, a failed check,
   a test alarm, a revert, a blocked tool in its records), the desk's librarian step writes **one** draft into the
@@ -155,6 +155,12 @@ before your keep. Everything is local; no model is called.
   the check-up. At most **5 drafts a week** (a sixth is refused in plain words). A draft nobody keeps for **30 days**
   moves to `history/expired-drafts/` (never deleted, never pushed). `brain memory-drafts list` shows what waits; keep
   it with `brain drafts keep <draft> --to projects/<repo>/lessons`, drop it with `brain memory-drafts drop <draft>`.
+  **Claude Haiku 5.5 writes the draft's one-line lesson and a short body** (<user>, 2026-10-28), from the job's records only,
+  after the names filter, through the same call `brain ask` uses (no tools, no MCP, no settings). The draft says
+  `written-by: haiku` or `written-by: fixed-rule`. If Haiku is slow (over 30 s), fails, answers nothing or too much, the
+  older fixed-rule draft (a title plus a quote of the failed check) is written and says why (`fixed-rule-why`). If the names
+  filter or the private list is not sure, Haiku gets nothing and the fixed-rule draft is marked `local-only: true`.
+  `BRAIN_DRAFT_WRITER=fixed` switches Haiku off (default `haiku`).
   Code: `eval/memory_drafts.py`. Tests: `eval/test_memory_drafts.py`.
 - **Flags.** A weekly pass flags (never changes) a kept note when a file in its `files:` list is gone, or changed a lot
   since the note's date (20 lines and half the file, by git log), or a newer note of the same project looks like the

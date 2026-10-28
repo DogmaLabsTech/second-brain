@@ -13,6 +13,7 @@ from unittest import mock
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 os.environ["BRAIN_STATE"] = tempfile.mkdtemp(prefix="mweek-test-state-")
+os.environ["BRAIN_DRAFT_WRITER"] = "fixed"   # tests never call the real Haiku
 import checkup  # noqa: E402
 import memory_drafts  # noqa: E402
 import memory_flagfile  # noqa: E402

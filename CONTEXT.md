@@ -21,7 +21,8 @@ When you add, move or retire a file here, update this file in the same commit.
   summary with the local model after the names filter, commits there. Tests: `eval/test_memory_keep.py`.
 - `eval/memory_drafts.py` (`brain memory-drafts add|list|drop|expire`, 2026-10-28): the lesson drafts of the agent memory
   store (what agent-os's librarian step writes after a job): note format with `already-known` and `was-pushed`, the cap
-  of 5 a week (`draft-log.jsonl` in the store), 30-day expiry to `history/expired-drafts/`. Tests: `eval/test_memory_drafts.py`.
+  of 5 a week (`draft-log.jsonl` in the store), 30-day expiry to `history/expired-drafts/`. Haiku writes the draft's summary and body
+  after the names filter (`BRAIN_DRAFT_WRITER=haiku|fixed`; fallback = the fixed-rule draft; `written-by:` says which). Tests: `eval/test_memory_drafts.py`.
 - `eval/memory_flags.py` (`brain memory-flags [run|list|confirm|retire]`) and `ask/memory_flagfile.py`: which kept notes may
   be out of date (file gone, file changed a lot, a newer note says the opposite), `flags.jsonl` in the store, the 30-day
   lapse out of the push, the 90-day "still true?" for pinned notes, <user>'s confirm and retire. `ask/memory.py` marks

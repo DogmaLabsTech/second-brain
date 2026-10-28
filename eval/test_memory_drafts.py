@@ -1,7 +1,8 @@
 """brain memory-drafts (eval/memory_drafts.py): lesson drafts, already-known, was-pushed, the weekly cap, expiry, drop.
 Everything runs in temp folders with made-up names; the real store, hook log and names list are never touched.
-Run: CRABBOX_LOCAL=1 python3 -I eval/test_memory_drafts.py   (no network, no model)"""
+Run: CRABBOX_LOCAL=1 python3 -I eval/test_memory_drafts.py   (no network, no model: Haiku is always a fake here)"""
 import contextlib
+import datetime
 import io
 import os
 import re
@@ -44,10 +45,25 @@ class Case(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.store = os.path.join(self.tmp, "shared")
         os.makedirs(os.path.join(self.store, "drafts"))
+        self.haiku_calls = []
         for p in (mock.patch.object(drafts, "scrub", fake_scrub),
-                  mock.patch.dict(os.environ, {"BRAIN_MEMORY_STORE": self.store, "BRAIN_HOOK_STATE": self.tmp, **GIT_ENV})):
+                  mock.patch.object(memory_keep, "guard_problem", lambda: self.guard),
+                  mock.patch.object(memory_drafts, "ask_haiku", self.fake_haiku),
+                  mock.patch.dict(os.environ, {"BRAIN_MEMORY_STORE": self.store, "BRAIN_HOOK_STATE": self.tmp,
+                                               "BRAIN_DRAFT_WRITER": "fixed", **GIT_ENV})):
             p.start()
             self.addCleanup(p.stop)
+
+    guard = None            # what the fake names guard says (None = the list is fine)
+    haiku_answer = None     # what the fake Haiku answers; an exception is raised instead
+
+    def fake_haiku(self, prompt, system, timeout=30):
+        self.haiku_calls.append((prompt, system, timeout))
+        if isinstance(self.haiku_answer, BaseException):
+            raise self.haiku_answer
+        if self.haiku_answer is None:
+            raise AssertionError("a test reached Haiku without a fake answer")
+        return self.haiku_answer
 
     def add(self, job="job-1", title="test machine busy means wait in the queue", today="2026-10-28", **kw):
         kw.setdefault("search", None)
@@ -67,7 +83,7 @@ class Add(Case):
         text = self.text(got)
         self.assertTrue(text.startswith("---\nto: projects/second-brain/lessons\nsummary: test machine busy means wait in the queue\n"
                                         "files:\n  - eval/drafts.py\npinned: false\nalready-known: no\nwas-pushed: no\n"), text)
-        self.assertIn("date: 2026-10-28\njob: job-1\n---\n# test machine busy means wait in the queue\n\n" + BODY, text)
+        self.assertIn("date: 2026-10-28\njob: job-1\nwritten-by: fixed-rule\n---\n# test machine busy means wait in the queue\n\n" + BODY, text)
         self.assertTrue(text.endswith("\nSource: job job-1: check records\n"))
         self.assertEqual((got["already_known"], got["was_pushed"], got["same_as"]), (False, "no", None))
 
@@ -76,11 +92,12 @@ class Add(Case):
         self.assertNotIn("orblax", self.text(got))
         self.assertIn("[NAME] broke the build", self.text(got))
 
-    def test_an_unsure_filter_writes_nothing(self):
-        with self.assertRaisesRegex(memory_drafts.DraftError, "names filter was not sure"):
-            self.add(body="this is unsure")
-        self.assertEqual(os.listdir(os.path.join(self.store, "drafts")), [])
-        self.assertEqual(memory_drafts.log_rows(self.store), [])
+    def test_an_unsure_filter_keeps_the_fixed_rule_draft_local_only(self):
+        got = self.add(body="this is unsure")
+        text = self.text(got)
+        self.assertIn("written-by: fixed-rule\n", text)
+        self.assertIn("local-only: true\nlocal-only-by: filter\nlocal-only-at: 2026-10-28\n", text)
+        self.assertEqual(len(memory_drafts.log_rows(self.store)), 1)
 
     def test_a_missing_store_a_bad_target_and_empty_words_are_plain_refusals(self):
         with mock.patch.dict(os.environ, {"BRAIN_MEMORY_STORE": os.path.join(self.tmp, "nope")}):
@@ -261,6 +278,127 @@ class Command(Case):
         with mock.patch.object(sys, "stdin", io.StringIO("x")), contextlib.redirect_stderr(err):
             self.assertEqual(memory_drafts.main(["add", "--to", "projects/x/lessons"]), 1)
         self.assertIn("brain memory-drafts:", err.getvalue())
+
+
+BODY_RECORDS = "What the records show:\n- the check in check-1.md said FAIL: the test hit the wrong lane"
+HAIKU_OK = ("SUMMARY: Run the tests through Crabbox and wait when all lanes are busy\n"
+            "BODY: The check failed because the run went to the wrong lane. Queue on the test machine instead. "
+            "The fix lives in the run script.")
+
+
+class HaikuWriter(Case):
+    def setUp(self):
+        super().setUp()
+        os.environ["BRAIN_DRAFT_WRITER"] = "haiku"   # restored by setUp's patch.dict cleanup
+        self.haiku_answer = HAIKU_OK
+
+    def add(self, **kw):
+        kw.setdefault("body", BODY_RECORDS)
+        return super().add(**kw)
+
+    def test_haiku_writes_the_summary_and_the_body(self):
+        got = self.add()
+        text = self.text(got)
+        self.assertEqual(got["written_by"], "haiku")
+        self.assertIn("summary: Run the tests through Crabbox and wait when all lanes are busy\n", text)
+        self.assertIn("job: job-1\nwritten-by: haiku\n---\n# Run the tests through Crabbox", text)
+        self.assertIn("The check failed because the run went to the wrong lane.", text)
+        self.assertNotIn("fixed-rule", text)
+        self.assertNotIn("local-only", text)
+        self.assertEqual(memory_drafts.log_rows(self.store)[0]["written_by"], "haiku")
+        (_prompt, system, timeout), = self.haiku_calls
+        self.assertEqual(timeout, 30)
+        self.assertIn("at most 25 words", system)
+        self.assertIn("at most 120 words", system)
+
+    def test_only_the_scrubbed_records_reach_haiku(self):
+        self.add(title="Zorblax broke the build", body="Zorblax pushed the change.\n" + BODY_RECORDS)
+        prompt = self.haiku_calls[0][0]
+        self.assertNotIn("orblax", prompt)
+        self.assertIn("[NAME] broke the build", prompt)
+        self.assertIn("wrong lane", prompt)
+
+    def test_an_unsure_filter_or_a_bad_list_calls_no_haiku(self):
+        got = self.add(job="j1", body="this is unsure")
+        self.assertEqual(self.haiku_calls, [])
+        self.assertIn("written-by: fixed-rule\nfixed-rule-why: ", self.text(got))
+        self.assertIn("local-only: true", self.text(got))
+        self.guard = "The private names list is empty."
+        got = self.add(job="j2", title="Another one", body=BODY_RECORDS)
+        self.assertEqual(self.haiku_calls, [])
+        self.assertIn("local-only: true", self.text(got))
+        self.assertEqual(got["written_by"], "fixed-rule")
+
+    def test_haikus_answer_is_scrubbed_again(self):
+        self.haiku_answer = "SUMMARY: Ask Zorblax before pushing\nBODY: Zorblax owns the fix in run.sh."
+        text = self.text(self.add())
+        self.assertNotIn("orblax", text)
+        self.assertIn("summary: Ask [NAME] before pushing", text)
+
+    def test_an_answer_the_filter_is_not_sure_about_falls_back(self):
+        self.haiku_answer = "SUMMARY: Do the unsure thing\nBODY: It is unsure."
+        got = self.add()
+        self.assertEqual(got["written_by"], "fixed-rule")
+        self.assertIn("could not be made safe", self.text(got))
+
+    def test_slow_failing_empty_and_badly_formed_answers_fall_back_and_say_so(self):
+        cases = [("slow", TimeoutError("late"), "too slow"), ("failing", RuntimeError("haiku: boom"), "could not answer"),
+                 ("empty", "  ", "empty or not in"), ("form", "Just run the tests.", "not in the SUMMARY"),
+                 ("long-summary", "SUMMARY: " + "word " * 26 + "\nBODY: ok", "longer than"),
+                 ("long-body", "SUMMARY: Short\nBODY: " + "word " * 121, "longer than")]
+        for n, (job, answer, why) in enumerate(cases):
+            with self.subTest(job):
+                self.haiku_answer = answer
+                got = self.add(job=job, title="Title %s" % job, today=(datetime.date(2026, 11, 2) + datetime.timedelta(weeks=n)).isoformat())   # one a week: the cap
+                text = self.text(got)
+                self.assertEqual(got["written_by"], "fixed-rule")
+                self.assertIn("summary: Title %s\n" % job, text)
+                self.assertIn("written-by: fixed-rule\nfixed-rule-why: ", text)
+                self.assertIn(why, text)
+                self.assertNotIn("local-only", text)   # the text was scrubbed fine; only Haiku failed
+                self.assertIn(BODY_RECORDS, text)
+
+    def test_the_cap_and_one_per_job_stop_before_haiku_is_called(self):
+        for n in range(5):
+            self.add(job="j%d" % n, title="Lesson %d" % n)
+        calls = len(self.haiku_calls)
+        with self.assertRaisesRegex(memory_drafts.DraftError, "5 drafts were already written"):
+            self.add(job="j9")
+        with self.assertRaisesRegex(memory_drafts.DraftError, "one draft per job"):
+            self.add(job="j0", today="2026-11-20")
+        self.assertEqual(len(self.haiku_calls), calls)
+        self.assertEqual(len(memory_drafts.log_rows(self.store)), 5)
+
+    def test_the_switch(self):
+        os.environ["BRAIN_DRAFT_WRITER"] = "fixed"
+        got = self.add(job="f1")
+        self.assertEqual((got["written_by"], self.haiku_calls), ("fixed-rule", []))
+        self.assertNotIn("fixed-rule-why", self.text(got))   # nobody wanted Haiku
+        for value in ("", "haiku", "HAIKU", "nonsense"):
+            os.environ["BRAIN_DRAFT_WRITER"] = value
+            self.assertEqual(memory_drafts.writer_mode(), "haiku")
+        os.environ.pop("BRAIN_DRAFT_WRITER")
+        self.assertEqual(memory_drafts.writer_mode(), "haiku")
+        os.environ["BRAIN_DRAFT_WRITER"] = " Fixed "
+        self.assertEqual(memory_drafts.writer_mode(), "fixed")
+
+    def test_a_haiku_draft_can_be_kept(self):
+        got = self.add()
+        subprocess.run(["git", "init", "-q", self.store], check=True)
+        kept = memory_keep.keep(got["name"], "projects/second-brain/lessons", store=self.store, today="2026-10-28",
+                                summary="Run the tests through Crabbox.")
+        with open(kept["path"]) as f:
+            note = f.read()
+        self.assertNotIn("written-by", note)
+        self.assertIn("The check failed because the run went to the wrong lane.", note)
+
+    def test_the_command_line_says_who_wrote_it(self):
+        out = io.StringIO()
+        with mock.patch.object(sys, "stdin", io.StringIO(BODY_RECORDS)), mock.patch.object(memory_drafts, "already_known", lambda *a: None), \
+                mock.patch.object(memory_drafts, "hook_log_rows", lambda: []), contextlib.redirect_stdout(out):
+            self.assertEqual(memory_drafts.main(["add", "--to", "projects/second-brain/lessons", "--job", "c1",
+                                                 "--title", "A title", "--source", "job c1"]), 0)
+        self.assertIn("written by haiku;", out.getvalue())
 
 
 if __name__ == "__main__":
