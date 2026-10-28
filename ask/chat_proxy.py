@@ -10,14 +10,20 @@ untouched, except a `query` tool call, which gets what `brain ask` does (ask.sea
 `get`, `multi_get`, `status`, the REST /query and /health go straight through. If anything in the rewrite
 fails, the original call is sent as it was. Python standard library only; nothing leaves this computer.
 
+It also keeps the search record (ask/searchlog.py, ~/.local/state/second-brain/searches.jsonl): one line per
+`query` (what the chat asked, before the mix, and the notes it got back) and per `get` / `multi_get`, with who
+asked. The line is written after the reply has gone out; if writing it fails, the search is not touched.
+
   python3 -I ask/chat_proxy.py [--port 8181] [--upstream http://localhost:8182]
 """
+import copy
 import http.client
 import json
 import os
 import socket
 import sys
 import threading
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -25,10 +31,13 @@ sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import ask  # noqa: E402
+import searchlog  # noqa: E402
 from expand import expanded_document, extra_words  # noqa: E402
 
 MAX_SEARCHES = 10   # qmd's own limit on sub-queries
 HOP = {"connection", "keep-alive", "transfer-encoding", "content-length", "host", "accept-encoding"}
+CLIENTS = {}   # process number -> the MCP client's name and version, from its `initialize`
+CLIENTS_MAX = 500
 
 
 # ---------- the rewrite (no network; tested in ask/test_chat_proxy.py) ----------
@@ -155,6 +164,7 @@ class Proxy(BaseHTTPRequestHandler):
             self._to_caller(self.end_headers)
             while chunk := resp.read1(65536):
                 self._to_caller(self._write_chunk, chunk)
+            self._know_caller()
             self._to_caller(self.wfile.write, b"0\r\n\r\n")
         finally:
             conn.close()
@@ -175,9 +185,10 @@ class Proxy(BaseHTTPRequestHandler):
     def _query(self, msg):
         """A query call (or a batch holding one): rewrite, ask qmd, re-sort, answer as JSON or event-stream."""
         batch = msg if isinstance(msg, list) else [msg]
-        plan = {}
+        plan, asked = {}, {}
         for m in batch:
             if is_query_call(m):
+                asked[json.dumps(m.get("id"))] = copy.deepcopy(m["params"].get("arguments") or {})
                 new, want = rewrite_args(m["params"].get("arguments") or {})
                 m["params"]["arguments"] = new
                 plan[json.dumps(m.get("id"))] = (want, primary(new["searches"]))
@@ -187,17 +198,81 @@ class Proxy(BaseHTTPRequestHandler):
             raw, status, ctype = resp.read(), resp.status, resp.getheader("Content-Type", "")
         finally:
             conn.close()
+        self._know_caller()
         if status != 200:
-            return self._reply(status, ctype, raw)
+            self._reply(status, ctype, raw)
+            return self._record_searches(asked, {})
         out = sse_messages(raw)
+        replies = {}
         for m in out if isinstance(out, list) else [out]:
             key = json.dumps(m.get("id"))
             if key in plan:
                 rewrite_result(m, *plan[key])
+                replies[key] = m
         data = json.dumps(out).encode()
         if "application/json" in (self.headers.get("Accept") or "application/json"):
-            return self._reply(200, "application/json", data)
-        return self._reply(200, "text/event-stream", b"event: message\ndata: " + data + b"\n\n")
+            self._reply(200, "application/json", data)
+        else:
+            self._reply(200, "text/event-stream", b"event: message\ndata: " + data + b"\n\n")
+        self._record_searches(asked, replies)
+
+    # ---------- the search record (never breaks a search) ----------
+
+    def _start_record(self, body):
+        """Note the search / read calls and an `initialize` in this request; start finding who sent it."""
+        self._rec = None
+        try:
+            if self.command != "POST" or not body or self.path.split("?")[0] != "/mcp":
+                return
+            msg = json.loads(body)
+            found, init = searchlog.calls(msg), searchlog.client_info(msg)
+            if found or init:
+                caller = searchlog.Caller(self.client_address[1], self.server.server_address[1])
+                self._rec = {"calls": found, "init": init, "caller": caller, "t0": time.monotonic()}
+        except Exception:  # noqa: BLE001  not JSON, or no socket (tests): nothing to record
+            self._rec = None
+
+    def _know_caller(self):
+        """Let the look-up of who is calling finish (at most 0.2 s, mostly 0) before the caller can hang up."""
+        if getattr(self, "_rec", None):
+            self._rec["caller"].result(0.2)
+
+    def _client(self):
+        rec = self._rec
+        found = rec["caller"].result()
+        if rec["init"] and found.get("pid"):
+            if len(CLIENTS) >= CLIENTS_MAX:
+                CLIENTS.clear()
+            CLIENTS[found["pid"]] = rec["init"]
+        info = rec["init"] or CLIENTS.get(found.get("pid")) or {"name": None, "version": None}
+        return {**info, **found}
+
+    def _ms(self):
+        return round((time.monotonic() - self._rec["t0"]) * 1000)
+
+    def _record_searches(self, asked, replies):
+        try:
+            if not getattr(self, "_rec", None):
+                return
+            client, ms = self._client(), self._ms()
+            for key, args in asked.items():
+                searchlog.record(searchlog.search_line(args, replies.get(key), client, ms, ask.real_path))
+        except Exception as why:  # noqa: BLE001
+            print(f"searchlog: {why}", file=sys.stderr)
+
+    def _record_relayed(self):
+        """After a straight-through call: remember an `initialize`, write a line per read (and per query call
+        the mix could not rewrite: its notes are not known then)."""
+        try:
+            if not getattr(self, "_rec", None):
+                return
+            client, ms = self._client(), self._ms()
+            for tool, args, _ in self._rec["calls"]:
+                line = (searchlog.search_line(args, None, client, ms) if tool in searchlog.SEARCH_TOOLS
+                        else searchlog.read_line(tool, args, client, ms))
+                searchlog.record(line)
+        except Exception as why:  # noqa: BLE001
+            print(f"searchlog: {why}", file=sys.stderr)
 
     def _reply(self, status, ctype, data):
         self.send_response(status)
@@ -220,15 +295,18 @@ class Proxy(BaseHTTPRequestHandler):
 
     def _handle(self):
         body = self._read_body()
+        self._start_record(body)
         try:
             if self._is_query_post(body) is not None:
                 try:
                     return self._query(json.loads(body))
                 except (ValueError, KeyError, TypeError, AttributeError) as why:
                     print(f"query rewrite failed, sent as it was: {why}", file=sys.stderr)
-            return self._relay(body)
+            self._relay(body)
+            return self._record_relayed()
         except ValueError:
-            return self._relay(body)
+            self._relay(body)
+            return self._record_relayed()
         except CallerGone:
             # The caller closed the stream or cancelled the search: nothing to answer, nothing wrong upstream, so
             # no log line (it would be a false "search server failed" each time).

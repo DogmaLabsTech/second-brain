@@ -6,6 +6,8 @@ After=second-brain-mcp.service
 [Service]
 # Claude, Codex and Gemini chats use http://localhost:8181/mcp. This adds the island's words and newer-first
 # to their `query` calls and passes everything else to qmd untouched (ask/chat_proxy.py). Python only, no models.
+# It also writes the search record: one private line per search or read, with who asked
+# (~/.local/state/second-brain/searches.jsonl, ask/searchlog.py). This computer only, never the tailnet.
 ExecStart=/usr/bin/python3 -I %h/projects/second-brain/ask/chat_proxy.py --port 8181 --upstream http://localhost:8182
 Nice=10
 Restart=always

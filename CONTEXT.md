@@ -19,6 +19,9 @@ When you add, move or retire a file here, update this file in the same commit.
   summary with the local model after the names filter, commits there. Tests: `eval/test_memory_keep.py`.
 - `index/memory-backup.sh`: the nightly copy of the agent memory store to the HDD (`agent-memory-backup.timer`, 21:15;
   `~/backups/agent-memory/`, 14 newest kept; stops if the HDD is not mounted). Tests: `index/test_memory_backup.py`.
+- `ask/searchlog.py`: the search record (2026-10-28): one private line per chat search or read and per `brain search`,
+  in `~/.local/state/second-brain/searches.jsonl` (the Deck shows it). Written by the chats' door `ask/chat_proxy.py`
+  and `ask/search_cli.py`. Tests: `ask/test_searchlog.py`.
 - `deciders/private_guard.py`: the one check of `private.json` before anything goes to an online model (empty, broken or
   unreadable = send nothing). Tests: `deciders/test_private_fail_closed.py`, `ask/test_private_fail_closed.py`.
 - `eval/README.md`: the fair test rules. `eval/scores.tsv`: the score log (add a row, newest last).
