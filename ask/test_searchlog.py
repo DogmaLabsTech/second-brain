@@ -232,6 +232,23 @@ class File(unittest.TestCase):
         with open(self.log) as f:
             self.assertEqual([json.loads(l)["n"] for l in f], [46, 47, 48, 49, 50])
 
+    def test_cli_search_writes_a_cli_line(self):
+        hits = [{"path": "/home/x/OMARCHY-BRAIN/system/top-bar.md", "file": "qmd://computer/system/top-bar.md",
+                 "score": 1.2345, "snippet": "s"}]
+        with mock.patch.object(searchlog, "SEARCHES", self.log), mock.patch.object(search_cli.ask, "search", return_value=hits):
+            self.assertEqual(search_cli.search("how do I reload the bar"), hits)
+        with open(self.log) as f:
+            r = json.loads(f.read())
+        self.assertEqual((r["from"], r["kind"], r["q"]), ("cli", "search", "how do I reload the bar"))
+        self.assertEqual(r["results"], [{"path": hits[0]["path"], "collection": "computer", "score": 1.234}])
+        self.assertTrue(r["searches"] and all(s["type"] in ("lex", "vec") for s in r["searches"]))
+
+    def test_cli_search_survives_a_broken_record(self):
+        with mock.patch.object(searchlog, "SEARCHES", "/proc/no/such/searches.jsonl"), \
+                mock.patch.object(search_cli.ask, "search", return_value=[]), mock.patch("sys.stderr"):
+            self.assertEqual(search_cli.search("x"), [])
+
+
 if __name__ == "__main__":
     try:
         unittest.main()
