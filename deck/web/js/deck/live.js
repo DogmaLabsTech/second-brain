@@ -29,4 +29,5 @@ else { const es = new EventSource('/live?k=' + LTOK);
   es.addEventListener('open', () => { feed.status('listening', 'ok'); LB.classList.add('ok'); });
   es.addEventListener('history', m => { try { JSON.parse(m.data).forEach(e => fromServer(e, true)); } catch {} });
   es.addEventListener('live', m => { try { fromServer(JSON.parse(m.data)); } catch {} });
+  es.addEventListener('data', m => { try { dispatchEvent(new CustomEvent('deck-data', { detail: JSON.parse(m.data) })); } catch {} });   // a new map (brief 28, fresh.js)
   es.onerror = () => { LB.classList.remove('ok'); feed.status(es.readyState === 2 ? 'server restarted: reload' : 'reconnecting', 'bad'); }; }

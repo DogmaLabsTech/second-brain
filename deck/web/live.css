@@ -42,3 +42,6 @@
 #livebtn{margin-left:10px;padding:1px 8px;font:inherit;font-size:.9em;letter-spacing:calc(.14em*var(--sp));color:var(--dim2);background:var(--surf);border:1px solid var(--line);border-radius:99px;cursor:pointer}
 #livebtn:hover,#livebtn.on{color:var(--c);border-color:color-mix(in srgb,var(--c) 45%,var(--line))}
 #livebtn i{font-style:normal;color:var(--dim)}#livebtn.ok i{color:var(--ok)}
+#freshbtn{margin-left:8px;padding:1px 8px;font:inherit;font-size:.9em;letter-spacing:calc(.14em*var(--sp));color:var(--c);background:var(--surf);border:1px solid color-mix(in srgb,var(--c) 55%,var(--line));border-radius:99px;cursor:pointer;animation:freshin .5s ease-out}
+#freshbtn:hover{background:color-mix(in srgb,var(--c) 14%,var(--surf))}#freshbtn[hidden]{display:none}
+@keyframes freshin{from{opacity:0;transform:translateY(-3px)}}
