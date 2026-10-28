@@ -45,7 +45,7 @@ KINDS = {"rules": "rule", "lessons": "lesson"}
 SEGMENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1")
 MODEL_TEXT_MAX = 4000
-SUMMARY_MAX = 160
+SUMMARY_MAX = 240   # about 35 words; long pinned summaries were cut at 160 (<user>, 2026-10-28)
 SYSTEM = ("You write one short line (at most 20 words) that says what a note tells an engineer. "
           "Reply with that line only: no quotes, no heading, no extra words.")
 

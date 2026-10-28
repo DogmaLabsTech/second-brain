@@ -141,6 +141,20 @@ class Keep(Case):
         self.assertEqual(self.asked, [])
         self.assertIn("summary: Given line.\n", read(os.path.join(self.store, "projects", "second-brain", "lessons", "lesson-git-rm.md")))
 
+    def test_a_long_given_summary_up_to_240_characters_is_kept_whole(self):
+        line = ("The writer refuses any write inside the business folder when NODE_ENV=test or STUDIO_DEV=1: use temp or other "
+                "scratch copies, and stop at once if a run would write there.")   # over 160 characters: was cut at 160
+        self.assertGreater(len(line), 160)
+        self.keep(summary=line)
+        text = read(os.path.join(self.store, "projects", "second-brain", "lessons", "lesson-git-rm.md"))
+        self.assertIn("would write there.", text)
+        self.assertNotIn("…", text)
+
+    def test_a_summary_over_240_characters_is_still_cut(self):
+        self.keep(summary="word " * 60)
+        text = read(os.path.join(self.store, "projects", "second-brain", "lessons", "lesson-git-rm.md"))
+        self.assertIn("…", text)
+
     def test_a_summary_with_a_colon_stays_valid_and_on_one_line(self):
         self.keep(summary="Note: do this\nnot that")
         text = read(os.path.join(self.store, "projects", "second-brain", "lessons", "lesson-git-rm.md"))
