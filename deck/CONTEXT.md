@@ -11,7 +11,16 @@ When you add, move or retire a file here, update this file in the same commit.
   `~/.local/share/second-brain/viz/data.js`, `/note`, `/search`, `/live`, `/private`, `/talk/*`. Loopback only, Host check,
   `X-Deck` header on every POST. Env: `DECK_PORT` (8765), `DECK_DATA`, `DECK_TALK_LOG`, `DECK_TEST_MAP`.
 - `server/test_server.py`: `crabbox run -- python3 -I viz/server/test_server.py` (the `/note` check needs `CRABBOX_LOCAL=1`).
-- `web/deck.html`: the page. Its live-token meta line (`<meta name="deck-live" content="">`) must stay exactly as it is: the server fills it in.
+- `web/deck.html`: the page markup only. Its live-token meta line (`<meta name="deck-live" content="">`) must stay exactly as it
+  is: the server fills it in. The small inline script at the top sets the skin before anything draws (no flash); keep it inline.
+- `web/css/deck.css`: the Deck's own styles (were the `<style>` block of `deck.html`).
+- `web/js/deck-main.js`: the start of the page script. It imports the pieces below **in this order** (they run in that
+  order, as when it was one file), then runs the frame loop and the test hash switches. Pieces import shared names back from it.
+- `web/js/deck/`: the pieces, one per section: `scene.js` (layouts, scene, drawings, skin painting, the state), `settings.js`
+  (Settings, section labels), `panels.js`, `links.js` (note links, markdown), `reader.js`, `lock-tag.js` (🔒), `hover.js`
+  (previews, dot hover, lock/unlock), `timeline-ask.js`, `live.js` (08 Live), `input.js` (mouse, keys, left column, size),
+  `voice.js` (07 Voice). `S` (in `scene.js`) holds the names more than one piece changes (`S.sel`, `S.prog`, ...); a piece
+  can't assign another file's variable, so a new shared changing value goes into `S` too.
 - `web/*.js`, `web/*.css`: the shared parts (top bar and point cloud `hud.js`, the shell, skins, panels, timeline, ask, rings, live feed).
 - `web/skins/`: one file per colour skin plus `index.js` (the list). `web/vendor/`: three.js.
 - `tools/build_data.py`, `tools/add_sim.py`: make `data.js` (read the search index read-only; output folder defaults to
