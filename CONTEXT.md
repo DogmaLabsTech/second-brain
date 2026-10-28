@@ -18,7 +18,6 @@ When you add, move or retire a file here, update this file in the same commit.
   `~/projects/shared/` (its own git, no remote; the `memory` collection in `index/index.yml`), fills the front matter, makes the
   summary with the local model after the names filter, commits there; a hand choice from `brain private` in the draft wins over the
   filter. Tests: `eval/test_memory_keep.py`.
-  summary with the local model after the names filter, commits there. Tests: `eval/test_memory_keep.py`.
 - `eval/memory_drafts.py` (`brain memory-drafts add|list|drop|expire`, 2026-10-28): the lesson drafts of the agent memory
   store (what agent-os's librarian step writes after a job): note format with `already-known` and `was-pushed`, the cap
   of 5 a week (`draft-log.jsonl` in the store), 30-day expiry to `history/expired-drafts/`. Haiku writes the draft's summary and body
@@ -62,7 +61,7 @@ When you add, move or retire a file here, update this file in the same commit.
   `eval/seen.jsonl` is the tuning set (kept drafts land here, never in heldout).
 - `viz/` (2026-10-28): the Deck, moved in from the prototype folder. `viz/CONTEXT.md` says which file is current;
   its data (`data.js`) and talk log stay outside git (`~/.local/share/second-brain/viz/`, `~/.local/state/second-brain/`).
-  Tests: `viz/server/test_server.py`.
+  Tests: `viz/server/test_server.py`, `viz/server/test_talk.py`, `viz/app/test/rules.test.js`, and the app smoke test `viz/tests/smoke.mjs`.
 - `docs/checkup.md`: the weekly check-up routine.
 - `docs/writer-race.md`: the writer race (2026-10-15). The numbers in the README come from it.
 
@@ -97,5 +96,5 @@ Moved into `docs/history/` on 2026-10-27. Do not use these for current numbers.
 | `obsidian/` | the Obsidian plugin and vault settings copy |
 | `wake/` | the wake-word model, training and tests |
 | `jobs/` | one small file per job |
-| `viz/` | the Deck (3D map of the notes): page, server, map makers; its own `CONTEXT.md` |
+| `viz/` | the Deck (3D map of the notes): page, server, app window, map makers; its own `CONTEXT.md` |
 | `docs/` | results, plans and reports (see the lists above) |

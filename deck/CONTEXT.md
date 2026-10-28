@@ -24,6 +24,9 @@ When you add, move or retire a file here, update this file in the same commit.
 - `app/deck`: starts Electron with `--ozone-platform-hint=auto`; extra switches pass on (`--disable-gpu`).
 - `tests/smoke.mjs`: the app with a hidden window on test port 8797 (page, WebGL, sections, notes, links, permissions, one copy,
   server stopped after close and after kill -9, reuse, busy port). Needs this computer's data.js: `CRABBOX_LOCAL=1 node tests/smoke.mjs`.
+  `DECK_TEST_PORT` changes the port; `DECK_SMOKE_NOTES` must be the map's note count (the default, 2385, was the count on
+  2026-10-28 morning); `DECK_SMOKE_OUT` (an existing folder) keeps the results. In a fresh worktree run `npm ci` and
+  `node node_modules/electron/install.js` first.
 - `package.json`, `package-lock.json`: Electron pinned to 45.1.0. `node_modules/` (about 290 MB) is git-ignored.
 - `server/server.py`: the server. Serves `web/` (the Deck is `/deck.html`), `/data.js` from
   `~/.local/share/second-brain/viz/data.js`, `/note`, `/search`, `/live`, `/private`, `/talk/*`. Loopback only, Host check,
@@ -31,6 +34,8 @@ When you add, move or retire a file here, update this file in the same commit.
   `DECK_PARENT_WATCH=1` (exit when the app's stdin pipe closes). `/live` also sends `data` {v}: the data.js stamp at connect and again
   when a new map is swapped in (checked every `DECK_DATA_POLL` seconds, 3; announced once the file stays the same).
 - `server/test_server.py`: `crabbox run -- python3 -I viz/server/test_server.py` (the `/note` check needs `CRABBOX_LOCAL=1`).
+- `server/test_talk.py`: the voice gate and talk helpers with a stand-in brain (no real job runs), test port 8799:
+  `crabbox run -- python3 -I viz/server/test_talk.py` (the pre-roll test needs ffmpeg: `CRABBOX_LOCAL=1`).
 - `web/deck.html`: the page markup only. Its live-token meta line (`<meta name="deck-live" content="">`) must stay exactly as it
   is: the server fills it in. The small inline script at the top sets the skin before anything draws (no flash); keep it inline.
 - `web/css/deck.css`: the Deck's own styles (were the `<style>` block of `deck.html`).
