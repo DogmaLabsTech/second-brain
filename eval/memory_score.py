@@ -10,6 +10,9 @@ For every row it runs find() against the live search (read only, localhost), twi
 rule (today's behaviour) and without it (BRAIN_MEMORY_EXACT=0). Two ranks per row, of the first wanted note:
   all       among all returned notes (pinned first, as an agent sees them): the rank the pilot bar uses
   unpinned  among the unpinned notes only: how well the search itself ranks (pinned notes take the top places by design)
+  strict    like all, but only the row's project notes count as wanted (projects/<repo>/...); a row that wants only
+            all-projects notes keeps them. Broad all-projects lessons make "any one counts" easy; strict shows the
+            project note's own place.
 A note the push does not list (the 2,000-token budget cut it) counts as one past the last listed note, so a miss
 costs something. The mean rank is over all rows with that rule; "missed" counts the rows with no wanted note listed.
 
@@ -34,7 +37,8 @@ import memory  # noqa: E402
 
 LOG = os.path.join(HERE, "memory-scores.tsv")
 SHARE = os.path.expanduser("~/.local/share/second-brain/memory-heldout.jsonl")
-HEADER = "when\tset\trule\trows\ttop3_all\ttop3_unpinned\tmean_rank_all\tmean_rank_unpinned\tmissed\tnote"
+HEADER = ("when\tset\trule\trows\ttop3_all\ttop3_unpinned\tmean_rank_all\tmean_rank_unpinned\ttop3_strict\t"
+          "mean_rank_strict\tmissed\tnote")
 TOP = 3
 
 
@@ -64,7 +68,8 @@ def score_row(row, find, store):
     out = find(row["repo"], row["task"])
     notes = [(os.path.relpath(n["path"], store), bool(n["pinned"])) for n in out["notes"]]
     want = set(row["want"])
-    return {"all": rank_of([r for r, _ in notes], want),
+    strict = {w for w in want if w.startswith("projects/")} or want
+    return {"all": rank_of([r for r, _ in notes], want), "strict": rank_of([r for r, _ in notes], strict),
             "unpinned": rank_of([r for r, p in notes if not p], want),
             "listed": len(notes), "unpinned_listed": sum(1 for _, p in notes if not p)}
 
@@ -73,7 +78,7 @@ def summarize(results):
     """top-3 hits and mean rank for both rank kinds. A miss counts as one past the last listed note."""
     n = len(results)
     out = {"rows": n, "missed": sum(1 for r in results if r["all"] is None)}
-    for kind, listed in (("all", "listed"), ("unpinned", "unpinned_listed")):
+    for kind, listed in (("all", "listed"), ("unpinned", "unpinned_listed"), ("strict", "listed")):
         ranks = [r[kind] if r[kind] is not None else r[listed] + 1 for r in results]
         out["top3_" + kind] = sum(1 for r in results if r[kind] is not None and r[kind] <= TOP)
         out["mean_rank_" + kind] = round(sum(ranks) / n, 2) if n else 0.0
@@ -103,7 +108,8 @@ def log_row(name, rule_on, s, note, when=None):
     rule = "none" if rule_on is None else "on" if rule_on else "off"
     return "\t".join([when or time.strftime("%Y-%m-%d %H:%M"), name, rule, str(s["rows"]),
                       f"{s['top3_all']}/{s['rows']}", f"{s['top3_unpinned']}/{s['rows']}",
-                      str(s["mean_rank_all"]), str(s["mean_rank_unpinned"]), str(s["missed"]), note])
+                      str(s["mean_rank_all"]), str(s["mean_rank_unpinned"]), f"{s['top3_strict']}/{s['rows']}",
+                      str(s["mean_rank_strict"]), str(s["missed"]), note])
 
 
 def append_log(lines, path=None):
@@ -138,10 +144,12 @@ def main(argv, find=None):
             results, s = run_set(rows, find if rule_on is not None else no_search(find), store, bool(rule_on))
             print(f"{name:8} rule {'none' if rule_on is None else 'on ' if rule_on else 'off'}  rows {s['rows']:2}  "
                   f"top 3: {s['top3_all']}/{s['rows']} (all) {s['top3_unpinned']}/{s['rows']} (unpinned)  "
-                  f"mean rank: {s['mean_rank_all']} (all) {s['mean_rank_unpinned']} (unpinned)  missed {s['missed']}")
+                  f"mean rank: {s['mean_rank_all']} (all) {s['mean_rank_unpinned']} (unpinned)  "
+                  f"strict: top 3 {s['top3_strict']}/{s['rows']}, mean rank {s['mean_rank_strict']}  missed {s['missed']}")
             if args.detail:
                 for row, r in zip(rows, results):
-                    print(f"   {row['id']:46} all {r['all'] or '-':>2}  unpinned {r['unpinned'] or '-':>2}")
+                    print(f"   {row['id']:46} all {r['all'] or '-':>2}  unpinned {r['unpinned'] or '-':>2}  "
+                          f"strict {r['strict'] or '-':>2}")
             lines.append(log_row(name + ("-example" if example else ""), rule_on, s, args.log or ""))
     if args.log is not None:
         append_log(lines)

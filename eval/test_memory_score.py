@@ -62,18 +62,27 @@ class Scoring(unittest.TestCase):
         r = ms.score_row({"repo": "r", "task": "t", "want": ["w1.md", "w2.md"]}, find, STORE)
         self.assertEqual(r["all"], 2)
 
+    def test_strict_counts_only_the_project_note(self):
+        find = fake_find({"t": [note("all-projects/lessons/broad.md"), note("x.md"), note("y.md"),
+                                note("projects/r/lessons/own.md")]})
+        r = ms.score_row({"repo": "r", "task": "t",
+                          "want": ["all-projects/lessons/broad.md", "projects/r/lessons/own.md"]}, find, STORE)
+        self.assertEqual((r["all"], r["strict"]), (1, 4))
+        r = ms.score_row({"repo": "r", "task": "t", "want": ["all-projects/lessons/broad.md"]}, find, STORE)
+        self.assertEqual(r["strict"], 1)   # no project note wanted: the all-projects one counts
+
     def test_summary_top3_and_mean_rank(self):
-        res = [{"all": 1, "unpinned": 1, "listed": 5, "unpinned_listed": 5},
-               {"all": 3, "unpinned": 2, "listed": 5, "unpinned_listed": 4},
-               {"all": 4, "unpinned": 3, "listed": 5, "unpinned_listed": 4}]
+        res = [{"all": 1, "strict": 1, "unpinned": 1, "listed": 5, "unpinned_listed": 5},
+               {"all": 3, "strict": 3, "unpinned": 2, "listed": 5, "unpinned_listed": 4},
+               {"all": 4, "strict": 4, "unpinned": 3, "listed": 5, "unpinned_listed": 4}]
         s = ms.summarize(res)
         self.assertEqual((s["rows"], s["top3_all"], s["top3_unpinned"], s["missed"]), (3, 2, 3, 0))
         self.assertAlmostEqual(s["mean_rank_all"], round((1 + 3 + 4) / 3, 2))
         self.assertAlmostEqual(s["mean_rank_unpinned"], 2.0)
 
     def test_a_note_the_push_does_not_list_counts_one_past_the_last(self):
-        res = [{"all": 1, "unpinned": 1, "listed": 4, "unpinned_listed": 3},
-               {"all": None, "unpinned": None, "listed": 4, "unpinned_listed": 3}]
+        res = [{"all": 1, "strict": 1, "unpinned": 1, "listed": 4, "unpinned_listed": 3},
+               {"all": None, "strict": None, "unpinned": None, "listed": 4, "unpinned_listed": 3}]
         s = ms.summarize(res)
         self.assertEqual((s["missed"], s["top3_all"], s["top3_unpinned"]), (1, 1, 1))
         self.assertEqual(s["mean_rank_all"], 3.0)        # (1 + 5) / 2
