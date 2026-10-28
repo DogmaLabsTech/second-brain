@@ -19,14 +19,23 @@ note): front matter `to:` (where it would go), `summary:`, `files:`, `pinned: fa
                             the log held paths: unknown. No matching note: no.
   "yes and pushed" means a repeat got through; the weekly list counts those (eval/memory_week.py).
 The body is the job's own text with a `Source:` line. The text goes through the names filter first (decider/names.py,
-through drafts.scrub); when it is not sure, no draft is written.
+through drafts.scrub).
+
+Who writes the summary and the body (<user>, 2026-10-28; `BRAIN_DRAFT_WRITER=haiku|fixed`, default haiku): Claude Haiku
+5.5, through the one call `brain ask` uses (ask.haiku_write: `claude -p`, no tools, no MCP, no settings), gets ONLY the
+scrubbed records and writes a one-line summary (at most 25 words, what to do) and a short body (at most 120 words: what
+happened, what to do instead, where the fix lives). Its answer is scrubbed again before it is written. The front matter
+says `written-by: haiku` or `written-by: fixed-rule` (the librarian's own title and records, as before), and a
+`fixed-rule-why:` line when Haiku was wanted but not used (switch off, slow over 30 s, failed, empty, answer not in the
+form or too long, answer not safe). When the names guard or filter is not sure, Haiku is not called and the fixed-rule
+draft is written as it came, marked `local-only: true` (with `local-only-by: filter`), so it is never sent online.
 
 Limits: at most MAX_PER_WEEK drafts per ISO week, counted by the draft's date in the store's `draft-log.jsonl` (one
 line per draft written; it also keeps the two fields, so keeping or dropping a draft does not free a place); a sixth is
 refused in plain words. One draft per job. Drafts older than 30 days that nobody kept move to
 history/expired-drafts/ (`expire`, which the weekly check-up runs): they are never deleted and never pushed.
 Drafts are not committed in the store (the inbox); a keep commits the note. The store is BRAIN_MEMORY_STORE
-(default ~/projects/shared); tests use a temp folder. Standard library only; no model is called.
+(default ~/projects/shared); tests use a temp folder. Standard library only; Haiku is called only by `add`, once per draft, after the cap check.
 """
 import json
 import os
@@ -49,6 +58,17 @@ MAX_PER_WEEK = 5
 EXPIRE_DAYS = 30
 SAME_SHARE = 0.6
 SAME_SHARED = 3
+HAIKU_SECONDS = 30
+SUMMARY_WORDS = 25
+BODY_WORDS = 120
+SUMMARY_CHARS = 240   # the same cap as keep's summary (eval/memory_keep.py)
+HAIKU_SYSTEM = (
+    "You write one lesson for an agent memory store from the records of a finished job. Use only what the records say; "
+    "do not invent files, causes or fixes. Marks like [NAME] are hidden names: leave them as they are. Reply in exactly "
+    "this form and nothing else:\n"
+    "SUMMARY: one line of at most %d words, an instruction an agent can act on, starting with what to do\n"
+    "BODY: at most %d words of plain text: what happened, what to do instead, where the fix lives"
+    % (SUMMARY_WORDS, BODY_WORDS))
 LOG = "draft-log.jsonl"
 EXPIRED = os.path.join("history", "expired-drafts")
 
@@ -145,13 +165,65 @@ def slug(text, words=6):
     return "-".join(re.findall(r"[a-z0-9]+", text.lower())[:words]) or "lesson"
 
 
-def front(to, summary, files, known, pushed, same_as, today, job):
+def front(to, summary, files, known, pushed, same_as, today, job, written_by="fixed-rule", why="", local_only=False):
     out = ["---", "to: " + to, "summary: " + memory_keep._yaml(summary)]
     out += ["files:"] + ["  - " + f for f in files] if files else ["files: []"]
     out += ["pinned: false", "already-known: " + known, "was-pushed: " + pushed]
     if same_as:
         out.append("same-as: " + same_as)
-    return "\n".join(out + ["date: " + today, "job: " + job, "---", ""])
+    out += ["date: " + today, "job: " + job, "written-by: " + written_by]
+    if why:
+        out.append("fixed-rule-why: " + memory_keep._yaml(why))
+    if local_only:
+        out += ["local-only: true", "local-only-by: filter", "local-only-at: " + today]
+    return "\n".join(out + ["---", ""])
+
+
+# ---------- Haiku writes the lesson ----------
+
+def writer_mode():
+    """'haiku' (default) or 'fixed' (BRAIN_DRAFT_WRITER)."""
+    return "fixed" if (os.environ.get("BRAIN_DRAFT_WRITER") or "").strip().lower() == "fixed" else "haiku"
+
+
+def ask_haiku(prompt, system, timeout=HAIKU_SECONDS):
+    """The answer text of Haiku: the one call `brain ask` makes (ask/ask.py haiku_write). Raises on any trouble."""
+    import ask   # loaded only here: it imports the search and jobs helpers
+    return ask.haiku_write(prompt, system=system, timeout=timeout)[0]
+
+
+def parse_lesson(answer):
+    """(summary, body) from Haiku's `SUMMARY: ...` / `BODY: ...` answer. ValueError (plain words) when it is not in
+    that form, empty or longer than the limits."""
+    text = re.sub(r"\*\*|`{3}\w*", "", answer or "")
+    m = re.search(r"^\s*SUMMARY:\s*(.+?)\s*^\s*BODY:\s*(.+?)\s*\Z", text, re.S | re.M | re.I)
+    if not m:
+        raise ValueError("the answer was empty or not in the SUMMARY / BODY form")
+    summary, body = " ".join(m.group(1).split()), "\n".join(l.rstrip() for l in m.group(2).strip().splitlines())
+    if not summary or not body.strip():
+        raise ValueError("the answer had an empty summary or body")
+    if len(summary.split()) > SUMMARY_WORDS or len(body.split()) > BODY_WORDS:
+        raise ValueError("the answer was longer than %d / %d words" % (SUMMARY_WORDS, BODY_WORDS))
+    return summary, body
+
+
+def haiku_lesson(title, body):
+    """(summary, body, '') from Haiku, written from the scrubbed records only and scrubbed again; or (None, None, why)
+    in plain words when the fixed-rule draft has to stand in. Never raises."""
+    try:
+        answer = ask_haiku("Records of the job (names hidden):\n\n%s\n\n%s" % (title, body), HAIKU_SYSTEM)
+    except TimeoutError:
+        return None, None, "Haiku was too slow (over %d s)" % HAIKU_SECONDS
+    except Exception as why:  # noqa: BLE001  not sent, not running, failing: the fixed-rule draft stands in
+        return None, None, "Haiku could not answer (%s)" % type(why).__name__
+    try:
+        summary, text = parse_lesson(answer)
+    except ValueError as why:
+        return None, None, str(why)
+    try:
+        return drafts.scrub(summary), drafts.scrub(text), ""
+    except drafts.Unsure:
+        return None, None, "Haiku's answer could not be made safe by the names filter"
 
 
 def check_limits(store, job, today):
@@ -174,7 +246,7 @@ def _file_name(store, project, title):
 
 def add(to, job, title, source, body, store=None, files=(), window=None, sessions=None, name=None, today=None,
         search="qmd", hook_rows=None):
-    """Write one lesson draft. Returns {"path", "name", "already_known", "was_pushed", "same_as"}. Raises DraftError."""
+    """Write one lesson draft. Returns {"path", "name", "already_known", "was_pushed", "same_as", "written_by"}. Raises DraftError."""
     store, today = store_path(store), today or time.strftime("%Y-%m-%d")
     if not os.path.isdir(store):
         raise DraftError("the memory store is not there (%s); set BRAIN_MEMORY_STORE if it lives elsewhere" % store)
@@ -185,25 +257,39 @@ def add(to, job, title, source, body, store=None, files=(), window=None, session
     if not (job or "").strip() or not (title or "").strip() or not (source or "").strip():
         raise DraftError("a draft needs --job, --title and --source (where the lesson came from)")
     check_limits(store, job, today)
-    try:
-        title, body = drafts.scrub(" ".join(title.split())), drafts.scrub(body.strip())
-    except drafts.Unsure:
-        raise DraftError("the names filter was not sure about this text, so no draft was written") from None
+    title, body = " ".join(title.split()), body.strip()
+    guard, local_only, why = memory_keep.guard_problem(), False, ""
+    if guard:
+        local_only, why = True, "the private names list is not usable, so nothing was sent to Haiku"
+    else:
+        try:
+            title, body = drafts.scrub(title), drafts.scrub(body)
+        except drafts.Unsure:
+            local_only, why = True, "the names filter was not sure, so nothing was sent to Haiku"
+    by = "fixed-rule"
+    if writer_mode() == "fixed":
+        why = ""
+    elif not local_only:
+        lesson, text, why = haiku_lesson(title, body)
+        if text:
+            by, title, body = "haiku", lesson, text
     note = already_known(store, project, title, body, search)
     pushed = was_pushed(note, project, window, sessions, hook_rows)
     name = name or _file_name(store, project, title)
-    text = front(to, title[:160], list(files), "yes" if note else "no", pushed, note["rel"] if note else None, today, job)
+    text = front(to, title[:SUMMARY_CHARS], list(files), "yes" if note else "no", pushed, note["rel"] if note else None,
+                 today, job, by, why, local_only)
     text += "# %s\n\n%s\n\nSource: %s\n" % (title, body, " ".join(source.split()))
     path = os.path.join(store, "drafts", name)
     drafts._write(store, path, text)
-    _log(store, today, name, job, to, note, pushed)
+    _log(store, today, name, job, to, note, pushed, by)
     return {"path": path, "name": name, "already_known": bool(note), "was_pushed": pushed,
-            "same_as": note["rel"] if note else None}
+            "same_as": note["rel"] if note else None, "written_by": by}
 
 
-def _log(store, today, name, job, to, note, pushed):
+def _log(store, today, name, job, to, note, pushed, by):
     row = {"date": today, "week": iso_week(today), "name": name, "job": job, "to": to,
-           "already_known": "yes" if note else "no", "was_pushed": pushed, "same_as": note["rel"] if note else None}
+           "already_known": "yes" if note else "no", "was_pushed": pushed, "same_as": note["rel"] if note else None,
+           "written_by": by}
     with open(os.path.join(store, LOG), "a", encoding="utf-8") as f:
         f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
@@ -281,8 +367,9 @@ def cli_add(argv):
     got = add(to, job, title, source, sys.stdin.read(), files=[f for f in (files or "").split(",") if f.strip()],
               window=tuple(window.split(",", 1)) if window and "," in window else None,
               sessions=[s for s in (sessions or "").split(",") if s], name=name)
-    print("draft written: %s (already known: %s, was pushed: %s)" % (
-        got["path"].replace(os.path.expanduser("~"), "~", 1), "yes" if got["already_known"] else "no", got["was_pushed"]))
+    print("draft written: %s (written by %s; already known: %s, was pushed: %s)" % (
+        got["path"].replace(os.path.expanduser("~"), "~", 1), got["written_by"], "yes" if got["already_known"] else "no",
+        got["was_pushed"]))
     return 0
 
 
