@@ -112,6 +112,8 @@ def with_brief(task, cwd):
     if not m:
         return task
     path = os.path.join(cwd, os.path.expanduser(m.group(1)))
+    if not os.path.isfile(path):   # a FIFO or device could block the read
+        return task
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
             text = f.read(4000)
@@ -177,8 +179,9 @@ def run(stdin_text, started):
     repo = project(event.get("cwd"))
     if not repo or not first_time(event.get("session_id")):
         return ""
-    task = with_brief(task_of(event.get("prompt") if isinstance(event.get("prompt"), str) else ""), event["cwd"])
-    out = in_time(lambda: push(repo, task), TOTAL_SECONDS - (time.monotonic() - started))
+    task = task_of(event.get("prompt") if isinstance(event.get("prompt"), str) else "")
+    # The brief is read inside the budget too: a slow disk or mount must not hold the session.
+    out = in_time(lambda: push(repo, with_brief(task, event["cwd"])), TOTAL_SECONDS - (time.monotonic() - started))
     if not out:
         return ""
     log(event["session_id"], out.pop("_log"), started)

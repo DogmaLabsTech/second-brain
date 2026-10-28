@@ -153,6 +153,12 @@ class Prompts(Hook):
         self.assertEqual(memory_hook.with_brief("Read /no/such/brief.md now", "/"), "Read /no/such/brief.md now")
         self.assertIsNone(memory_hook.with_brief(None, "/"))
 
+    def test_a_brief_that_is_a_fifo_is_skipped_not_read(self):
+        os.mkfifo(os.path.join(self.demo, "pipe.md"))   # an open() on it would block forever
+        start = time.monotonic()
+        self.assertEqual(memory_hook.with_brief("Read pipe.md now", self.demo), "Read pipe.md now")
+        self.assertLess(time.monotonic() - start, 0.5)
+
     def test_a_real_prompt_is_the_search_task(self):
         FakeQmd.results = [("qmd://memory/projects/demo/lessons/port-clash.md", 0.9)]
         text = self.context(self.hook(prompt="why does port 8181 clash?")[0])
