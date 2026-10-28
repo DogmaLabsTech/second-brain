@@ -6,8 +6,9 @@ find(repo, task) answers "what should I know for this task in this project?" fro
   - search: the brain's search (qmd's warm server, the `memory` collection), meaning-only like `brain ask`
     (expand.expanded_document), plus one word-search line per exact thing in the task (a file name, a port, error
     text in quotes, a function name: exact_things below). Results outside the scope are dropped by path;
-  - order: pinned notes first (newest first), then the matches, newer notes winning close calls (ask.newer_first).
-    No task: pinned, then the newest notes. Search down or slow: pinned + newest from the files, and the output says so;
+  - order: pinned notes first (newest first), then the matches, newer notes winning close calls (ask.newer_first's
+    rule, dated by the note's `date`), then every other note in scope, newest first: nothing is hidden. No task: pinned,
+    then the newest notes. Search down, slow, or matching no unpinned note: pinned + newest, and the output says so;
   - each note: its stored `summary` line word for word, kind, project, path. `local-only: true` notes are shown like
     any other, marked (local-only) (<user>, 2026-10-28: no hiding). No model rewrites or hides anything;
   - budget: tokens are counted as characters / 4, rounded up; the list stops before the budget and says how many
@@ -184,7 +185,7 @@ def matches(task, notes, url=None):
     hits = newer_first(hits)
     # Nothing is hidden: the notes search did not rank follow, newest first; the budget cuts the bottom.
     rest = newest([n for n in loose if n["rel"] not in seen])
-    note = None if hits else "Search matched no note for this task; showing pinned and newest notes instead."
+    note = None if hits else "Search ranked no unpinned note for this task; showing pinned and newest notes instead."
     return [h["note"] for h in hits] + rest, note
 
 
@@ -226,8 +227,6 @@ def render(repo, task, ordered, budget, note=None):
         head += f"Task: {' '.join(task.split())[:200]}\n"
     if note:
         head += note + "\n"
-    if not ordered:
-        head += "No notes matched the task.\n" if task else ""
     text, shown = head, []
     reserve = tokens("\n%d more notes did not fit in %d tokens (characters / 4).\n" % (len(ordered), budget))
     for n in ordered:

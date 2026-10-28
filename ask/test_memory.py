@@ -175,9 +175,16 @@ class Order(Base):
     def test_empty_search_results_show_pinned_and_newest_and_say_so(self):
         FakeQmd.results = []   # e.g. qmd has no memory collection yet: an empty list, not an error
         out = self.find("restart the chat door on port 8181")
-        self.assertIn("Search matched no note for this task; showing pinned and newest notes instead.", out["text"])
+        self.assertIn("Search ranked no unpinned note for this task; showing pinned and newest notes instead.", out["text"])
         self.assertEqual(len(out["notes"]), 5)
         self.assertNotIn("No notes matched", out["text"])
+
+    def test_results_only_outside_the_scope_show_pinned_and_newest_and_say_so(self):
+        FakeQmd.results = [("qmd://memory/projects/other/rules/secret.md", 1.0), ("qmd://memory/drafts/demo-draft.md", 0.9)]
+        out = self.find("what about secrets")
+        self.assertIn("Search ranked no unpinned note", out["text"])
+        self.assertNotIn("Another project's rule.", self.summaries(out))
+        self.assertEqual(len(out["notes"]), 5)
 
 
 class Output(Base):
