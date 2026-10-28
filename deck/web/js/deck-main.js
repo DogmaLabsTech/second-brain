@@ -7,85 +7,18 @@ import { H, KC, LAY, Lmap, N, S, TAU, VIEW, W, age, camFrom, camera, clamp, clou
 import { anchors, invertKey, labelCur, labelEls, labelOff, setOpen, settings, wk } from './deck/settings.js'; export * from './deck/settings.js';
 import { addLabel, animateIn, clearLabels, decode, eff, labels, lead, leadL, leadSvg, mk, refresh, renderSection, ret, shown, tip, tmp, visible, xh, xv } from './deck/panels.js'; export * from './deck/panels.js';
 import { byAny, byPath, mdRender, nh, pick, pk } from './deck/links.js'; export * from './deck/links.js';
-// notes that are not dots in the scene (notes newer than data.js; the memory store used to be one, since brief 23 its notes are dots) still open in the reader (brief 22): they are
-// kept in LOOSE and numbered from LOOSE0 up, so the reader's history works the same; docOf(i) is the note for either kind
-const LOOSE0 = 1e6, LOOSE = [], docOf = i => i >= LOOSE0 ? LOOSE[i - LOOSE0] : DOCS[i];
-function loose(h) { let k = LOOSE.findIndex(d => d.id === h.id); if (k < 0) k = LOOSE.push({ id: h.id, c: h.c, p: h.p || '', t: h.t || (h.p || '').split('/').pop(), d: '' }) - 1; return LOOSE0 + k; }
-export let readerOpen = false, readerReq = 0, readerW = 0; S.baseOffX = 30; S.targetOffX = 30; let note = null, editing = false, dirty = false, asking = false;
-const RD = id => document.getElementById(id), NARROW = 1700, STILL = location.hash.includes('still');
-// narrow windows: while the reader is open the 04 lock panel steps aside (it comes back when the window is wide or the reader closes)
-function layoutReader() { const r = RD('reader'), wide = readerOpen && W() < NARROW; document.body.classList.toggle('rdwide', wide);
-  const B = RD('bottom').getBoundingClientRect(), Lx = 16 + leftW() + 14, right = wide ? W() - 16 : RD('right').getBoundingClientRect().left - 14, top = 50 + 8 * Z;
-  readerW = clamp((right - Lx) * (wide ? .62 : .6), 460, 640 * Z); r.style.left = (right - readerW) + 'px'; r.style.width = readerW + 'px'; r.style.top = top + 'px'; r.style.height = Math.max(300, B.top - 14 - top) + 'px';
-  S.targetOffX = readerOpen ? W() / 2 - (Lx + right - readerW) / 2 : S.baseOffX; }
-function setPct() { const b = RD('rdb'), max = b.scrollHeight - b.clientHeight, p = max > 0 ? b.scrollTop / max : 1; RD('rdbar').style.width = (editing ? 0 : p * 100) + '%'; RD('rdpct').textContent = editing ? '' : Math.round(p * 100) + '% READ'; }
-function hint() { const h = RD('rdhint'); if (editing) h.innerHTML = `<span class="dirty">${dirty ? '● UNSAVED CHANGES' : 'NO CHANGES YET'}</span><span>CTRL+S SAVE</span><span>ESC CANCEL</span>`;
-  else h.innerHTML = `<span>ESC CLOSE</span><span>${note && !note.editable ? 'READ-ONLY' : 'E EDIT'}</span><span>CLICK A LINK TO JUMP</span><span>ALT ← → BACK / FORWARD</span>`; }
-function showErr(t) { const e = RD('rderr'); e.textContent = t || ''; e.classList.toggle('on', !!t); }
-// if the note's first heading is an H1 with the same words as its title (also after a status line, a quote or front matter), hide the repeat
-function dropTitle(b, ts) { const h1 = b.querySelector(':scope>h1,:scope>h2,:scope>h3'), nt = x => x.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ''), a = h1 && nt(h1.textContent);
-  if (h1 && h1.tagName === 'H1' && a && ts.some(t => { const n = t && nt(t); return n && (n === a || (Math.min(n.length, a.length) >= 12 && (n.startsWith(a) || a.startsWith(n)))); })) h1.remove(); }
-// [[Note#Heading]]: scroll the heading to the top of the box and flash it
-function jumpTo(box, h) { const n = nh(h), hs = [...box.querySelectorAll('h1,h2,h3,h4,h5,h6')], el = hs.find(x => nh(x.textContent) === n) || hs.find(x => n && nh(x.textContent).startsWith(n)); if (!el) return false;
-  box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - 10; el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit'); return true; }
-// reader history (◂ ▸ buttons, Alt+← / Alt+→): every note opened in the reader, with where you were in it
-let rdHist = [], rdPos = -1, rdScroll = [], navHist = false, pendH = ''; S.pendS = 0;
-function updNav() { RD('rdback').disabled = rdPos <= 0; RD('rdfwd').disabled = rdPos >= rdHist.length - 1; }
-function histGo(k) { const p = rdPos + k; if (p < 0 || p >= rdHist.length || !leaveEdit()) return; if (readerOpen) rdScroll[rdPos] = RD('rdb').scrollTop; navHist = true; pendH = ''; S.pendS = rdScroll[p] || 0; rdPos = p; rdHist[p] >= LOOSE0 ? openReader(rdHist[p]) : lock(rdHist[p]); }
-function follow(i, h) { pvHide(); if (i === S.sel && readerOpen) { if (!h || !jumpTo(RD('rdb'), h)) RD('rdb').scrollTop = 0; return; } pendH = h || ''; S.pendS = 0; lock(i); }
-function renderNote(quiet) { const b = RD('rdb'), j = note, d = docOf(j.i), w = (j.text.match(/\S+/g) || []).length;
-  b.innerHTML = mdRender(j.text, true, { i: j.i >= LOOSE0 ? -1 : j.i, c: d.c, p: d.p }) + (j.truncated ? '<p class="k">… the note continues (cut here for display)</p>' : ''); dropTitle(b, [d.t, j.title]); b.style.opacity = ''; b.scrollTop = 0; [...b.children].forEach((e, k) => e.style.setProperty('--n', k));
-  if (pendH) jumpTo(b, pendH); else if (S.pendS) b.scrollTop = S.pendS; pendH = ''; S.pendS = 0;
-  RD('rds').textContent = j.path; RD('rdst').textContent = `${w.toLocaleString()} WORDS · ${Math.max(1, Math.round(w / 220))} MIN READ`; ringWords(j.i, w);
-  RD('rdd').textContent = 'CHANGED ' + (j.source === 'file' && j.modified ? ago(j.modified.slice(0, 10)).toUpperCase() + ' · ' + j.modified.replace('T', ' ').slice(0, 16) : d.d ? ago(d.d).toUpperCase() + ' · ' + d.d : '');
-  const s = RD('rdsrc'); s.textContent = j.source === 'file' ? 'LIVE FILE' : 'INDEX COPY · READ-ONLY'; s.classList.toggle('idx', j.source !== 'file'); s.title = j.why || '';
-  RD('rdedit').disabled = !j.editable; RD('rdedit').title = j.editable ? 'edit this note (E)' : "can't edit: " + j.why; hint(); setPct(); }
-function openReader(i) { const r = RD('reader'), d = docOf(i), req = ++readerReq, b = RD('rdb'); r.style.setProperty('--k', KC(d.c)); lockShow(null);
-  const was = readerOpen; pvHide();
-  if (!navHist && rdHist[rdPos] !== i) { if (was && rdPos >= 0) rdScroll[rdPos] = b.scrollTop; rdHist = rdHist.slice(0, rdPos + 1); rdHist.push(i); rdPos = rdHist.length - 1; rdScroll[rdPos] = 0; }
-  navHist = false; updNav(); readerOpen = true; note = null; layoutReader(); r.style.display = 'flex'; r.classList.toggle('quiet', was); if (!was) { r.classList.remove('open'); void r.offsetWidth; r.classList.add('open'); }
-  decode(RD('rdt'), d.t, was ? 8 : 22); RD('rdg').textContent = (NICE[d.c] || d.c || '?').toUpperCase(); RD('rdd').textContent = d.d ? 'CHANGED ' + ago(d.d).toUpperCase() + ' · ' + d.d : ''; RD('rds').textContent = d.p; RD('rdst').textContent = ''; RD('rdsrc').textContent = '';
-  RD('rdedit').disabled = true; showErr(''); hint(); if (was) b.style.opacity = '.3'; else b.innerHTML = '<div class="load">DECRYPTING NOTE <span class="cur"></span></div>'; b.scrollTop = 0; b.onscroll = setPct; setPct();
-  fetch('/note?id=' + d.id, { cache: 'no-store' }).then(x => { if (!x.ok) throw x.status; return x.json(); }).then(j => { if (req !== readerReq) return; note = { ...j, i, id: d.id }; renderNote(); lockLoad(note);
-    const tg = location.hash.match(/[#&]go=(\d+)/), th = location.hash.match(/[#&]hover=(\d+)/), tl = k => b.querySelectorAll('a.nl')[k];   // test switches: follow / peek the n-th note link
-    if (tg && !S.testGone) { S.testGone = true; if (tl(+tg[1])) setTimeout(() => tl(+tg[1]).click(), 50); }
-    else if (location.hash.includes('&miss') && b.querySelector('.nl.miss')) b.querySelector('.nl.miss').scrollIntoView({ block: 'center' });
-    else if (th && tl(+th[1])) { tl(+th[1]).scrollIntoView({ block: 'center' }); setTimeout(() => pvShow(tl(+th[1])), 150); }
-    if (location.hash.includes('&edit') || (j.test && location.hash.includes('testsave'))) startEdit();
-    if (j.test && location.hash.includes('testsave')) { RD('rde').value += '\n\n- [x] Test edit from the Deck (' + new Date().toISOString().slice(0, 19) + ')\n'; RD('rde').oninput(); saveEdit(); } })
-    .catch(() => { if (req === readerReq) { b.style.opacity = ''; b.innerHTML = '<p class="am">Could not read this note.</p>'; } }); }
-// leaving the editor: fine when nothing changed, otherwise ask first (returns false = stay)
-function leaveEdit() { if (!editing) return true; if (!dirty) { exitEdit(); return true; } askDiscard(); say('SAVE OR THROW AWAY YOUR CHANGES FIRST'); return false; }
-function closeReader() { if (!leaveEdit()) return false; pvHide(); readerOpen = false; readerReq++; note = null; RD('reader').style.display = 'none'; layoutReader(); }
-function startEdit() { if (!readerOpen) return; if (!note) return say('NOTE STILL LOADING'); if (!note.editable) return say("CAN'T EDIT THIS NOTE: " + (note.why || '').toUpperCase());
-  pvHide(); const t = RD('rde'); editing = true; dirty = false; asking = false; t.value = note.text; RD('reader').classList.add('editing'); RD('rdmode').textContent = 'EDITING'; showErr(''); hint(); setPct(); t.focus(); t.setSelectionRange(0, 0); t.scrollTop = 0; }
-function exitEdit() { editing = dirty = asking = false; RD('reader').classList.remove('editing'); RD('rdask').classList.remove('on'); RD('rdmode').textContent = 'NOTE OPEN'; showErr(''); hint(); setPct(); }
-function askDiscard() { asking = true; RD('rdask').classList.add('on'); RD('rdkeep').focus(); }
-function keepEditing() { asking = false; RD('rdask').classList.remove('on'); RD('rde').focus(); }
-function cancelEdit() { if (dirty) askDiscard(); else exitEdit(); }
-function saveEdit() { if (!editing) return; if (!dirty) { exitEdit(); return say('NO CHANGES TO SAVE'); } const t = RD('rde'), sv = RD('rdsave'), text = t.value, n = note; sv.disabled = true; showErr('');
-  fetch('/note?id=' + n.id, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Deck': '1' }, body: JSON.stringify({ text, hash: n.hash }) })
-    .then(x => x.json().catch(() => ({ error: 'the server said ' + x.status })).then(j => ({ ok: x.ok, code: x.status, j })))
-    .then(({ ok, code, j }) => { sv.disabled = false; if (note !== n) return;
-      if (!ok) return showErr('NOT SAVED: ' + (j.error || 'unknown problem') + (code === 409 ? '. Your text is still here: copy it, cancel, and open the note again.' : '.'));
-      n.text = text; n.hash = j.hash; n.modified = j.modified; pvCache.delete(n.id); exitEdit(); renderNote(); const s = RD('rdsaved'); s.classList.add('on'); clearTimeout(s._t); if (!STILL) s._t = setTimeout(() => s.classList.remove('on'), 2600); say('NOTE SAVED  ·  OLD COPY BACKED UP'); })
-    .catch(() => { sv.disabled = false; showErr('NOT SAVED: the Deck server did not answer. Your text is still here.'); }); }
-RD('rdx').onclick = closeReader; RD('rdedit').onclick = startEdit; RD('rdsave').onclick = saveEdit; RD('rdcancel').onclick = cancelEdit; RD('rdkeep').onclick = keepEditing; RD('rddrop').onclick = exitEdit;
-RD('rde').oninput = () => { const was = dirty; dirty = RD('rde').value !== note.text.replace(/\r\n?/g, '\n'); if (was !== dirty) hint(); };
-RD('rde').onkeydown = e => { if (e.key === 'Tab' && !e.ctrlKey && !e.altKey) { e.preventDefault(); e.target.setRangeText('  ', e.target.selectionStart, e.target.selectionEnd, 'end'); e.target.oninput(); } };
-addEventListener('beforeunload', e => { if (editing && dirty) e.preventDefault(); });
-RD('rdback').onclick = () => histGo(-1); RD('rdfwd').onclick = () => histGo(1);
+import { RD, STILL, asking, cancelEdit, closeReader, docOf, dropTitle, editing, exitEdit, follow, histGo, jumpTo, keepEditing, layoutReader, leaveEdit, loose, note, openReader, readerOpen, readerW, renderNote, saveEdit, startEdit } from './deck/reader.js'; export * from './deck/reader.js';
 // ---- 🔒 this computer only (brief 22): memory notes only. GET /private reads the note's tag; the toggle asks the server to run
 // `brain private <note> on|off`, which changes the note (the Deck never edits it); then the note is read again. Turning it off asks first.
 let lockSt = null; const BYW = { owner: 'you', filter: 'the names filter' };
-function lockShow(st) { lockSt = st; const on = !!(st && st.local_only), who = st && st.by ? (st.local_only ? 'locked' : 'turned off') + ' by ' + (BYW[st.by] || st.by) + (st.at ? ' on ' + st.at : '') : '';
+export function lockShow(st) { lockSt = st; const on = !!(st && st.local_only), who = st && st.by ? (st.local_only ? 'locked' : 'turned off') + ' by ' + (BYW[st.by] || st.by) + (st.at ? ' on ' + st.at : '') : '';
   RD('reader').classList.toggle('mem', !!st); RD('rdlock').classList.toggle('on', on); RD('rdlockv').textContent = on ? 'ON' : 'OFF'; RD('rdlock').disabled = false;
   RD('rdlock').title = (on ? 'This computer only: online writers never get this note. Click to turn it off.' : 'Click to keep this note on this computer only: online writers will never get it.') + (who ? '\n' + who.replace(/^./, c => c.toUpperCase()) + '.' : '');
   const b = RD('rdlockb'); b.classList.toggle('on', on); b.textContent = on ? '🔒 THIS COMPUTER ONLY' + (st.by ? ' · BY ' + (BYW[st.by] || st.by).toUpperCase() : '') + (st.at ? ' · ' + st.at : '') : ''; b.title = who;
   if (!st) { lockAsk(false); lockMsg(''); } }
 function lockMsg(t, cls = '') { const m = RD('rdlockmsg'); m.textContent = t; m.className = 'rd-note' + (t ? ' on ' + cls : ''); }
 function lockAsk(on) { RD('rdlockask').classList.toggle('on', on); if (on) { lockMsg(''); RD('rdlockkeep').focus(); } }
-function lockLoad(n) { if (n.collection !== 'memory') return lockShow(null);
+export function lockLoad(n) { if (n.collection !== 'memory') return lockShow(null);
   fetch('/private?id=' + n.id, { headers: { 'X-Deck': '1' }, cache: 'no-store' }).then(x => x.json()).then(j => { if (note !== n || !j.memory) return;
     if (j.title) { docOf(n.i).t = j.title; decode(RD('rdt'), j.title, 8); }   // the note's own title (its heading or summary), not the file name
     lockShow(j.ok ? j : { local_only: false }); if (!j.ok) { RD('rdlock').disabled = true; lockMsg("Can't read this note's lock: " + (j.error || 'unknown problem') + '.', 'bad'); } }).catch(() => {}); }
@@ -104,14 +37,14 @@ RD('rdlock').onclick = () => { if (!lockSt || !note) return; if (lockSt.local_on
 RD('rdlockkeep').onclick = () => lockAsk(false); RD('rdlockoff').onclick = () => lockSet(false);
 // ---- hover preview (like Obsidian's page preview): rest on a note link ~300 ms, a small card shows the start of that note
 // the same card shows for a note dot in the scene (pvDot, placed beside the dot at pvXY): path, start of the note and its closest notes
-let pvT = 0, pvHideT = 0, pvLink = null, pvI = -1, pvH = '', pvTop = 0; S.testGone = false; let pvDot = -1, pvXY = null, pvOver = false; const pvCache = new Map(), PV = RD('pv');
+let pvT = 0, pvHideT = 0, pvLink = null, pvI = -1, pvH = '', pvTop = 0; S.testGone = false; let pvDot = -1, pvXY = null, pvOver = false; export const pvCache = new Map(), PV = RD('pv');
 const pvGet = id => { if (!pvCache.has(id)) pvCache.set(id, fetch('/note?id=' + id, { cache: 'no-store' }).then(x => { if (!x.ok) throw x.status; return x.json(); }).catch(e => { pvCache.delete(id); throw e; })); return pvCache.get(id); };
 function pvPlace() { const w = PV.offsetWidth, h = PV.offsetHeight, m = 8;
   if (pvXY) { const [x, y] = pvXY, g = 18; PV.style.left = (x + g + w <= W() - m ? x + g : Math.max(m, x - g - w)) + 'px'; PV.style.top = clamp(y - 30, m, H() - h - m) + 'px'; return; }   // beside the dot, so the way onto the card is short
   if (!pvLink) return; const r = pvLink.getBoundingClientRect();
   let top = r.bottom + m; if (top + h > H() - m) top = r.top - m - h >= m ? r.top - m - h : H() - m - h;
   PV.style.left = clamp(r.left - 12, m, W() - w - m) + 'px'; PV.style.top = Math.max(m, top) + 'px'; }
-function pvShow(a, xy) { const i = a ? +a.dataset.i : xy.i, d = DOCS[i]; if (!d) return; clearTimeout(pvHideT); if (pvLink) pvLink.classList.remove('on'); pvLink = a || null; if (a) a.classList.add('on'); pvI = i; pvH = a && a.dataset.h || ''; pvTop = RD('rdb').scrollTop;
+export function pvShow(a, xy) { const i = a ? +a.dataset.i : xy.i, d = DOCS[i]; if (!d) return; clearTimeout(pvHideT); if (pvLink) pvLink.classList.remove('on'); pvLink = a || null; if (a) a.classList.add('on'); pvI = i; pvH = a && a.dataset.h || ''; pvTop = RD('rdb').scrollTop;
   pvDot = a ? -1 : i; pvXY = a ? null : [xy.x, xy.y]; PV.classList.toggle('dot', !a); const cap = a ? 12000 : 1500, ns = d.ns || d.nb.map(() => .5);
   RD('pvp').textContent = d.c + '/' + d.p; RD('pvn').innerHTML = a ? '' : '<b>CLOSEST IN MEANING</b>' + d.nb.slice(0, 3).map((j, n) => `<a data-i="${j}" style="--k:${KC(DOCS[j].c)}"><span>${esc(DOCS[j].t)}</span><em>${Math.round(ns[n] * 100)}%</em></a>`).join('');
   PV.style.setProperty('--k', KC(d.c)); RD('pvg').textContent = NICE[d.c].toUpperCase(); RD('pvd').textContent = ago(d.d).toUpperCase() + ' · ' + d.d; RD('pvt').textContent = d.t;
