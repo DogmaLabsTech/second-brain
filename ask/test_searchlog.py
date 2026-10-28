@@ -133,10 +133,19 @@ class Door(unittest.TestCase):
             return []
 
     def test_pass_through_is_byte_for_byte(self):
-        for msg, want in ((INIT, INIT_REPLY), (LIST, LIST_REPLY), (GET, GET_REPLY)):
+        for msg, want in ((INIT, INIT_REPLY), (GET, GET_REPLY)):
             status, ctype, cache, body = post(self.port, msg)
             self.assertEqual((status, ctype, cache, body), (200, "text/event-stream", "no-cache, no-transform", want))
             self.assertEqual(json.loads(Upstream.seen[-1][1]), msg)   # the request reached qmd unchanged too
+
+    def test_tools_list_is_qmds_plus_memory_in_qmds_format(self):
+        # The one reply the door changes (2026-10-28): the memory tool is added (ask/test_memory_tool.py).
+        status, ctype, cache, body = post(self.port, LIST)
+        self.assertEqual((status, ctype, cache), (200, "text/event-stream", "no-cache, no-transform"))
+        self.assertEqual(json.loads(Upstream.seen[-1][1]), LIST)
+        want = cp.sse_messages(LIST_REPLY)
+        want["result"]["tools"].append(cp.MEMORY_TOOL)
+        self.assertEqual(cp.sse_messages(body), want)
 
     def test_a_search_writes_one_correct_line(self):
         post(self.port, INIT)

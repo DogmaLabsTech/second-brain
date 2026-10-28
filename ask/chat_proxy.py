@@ -7,6 +7,9 @@ untouched, except a `query` tool call, which gets what `brain ask` does (ask.sea
   - a plain `query` (no `searches`) becomes the island's key words + question lines, rerank off, instead of
     qmd's own expansion (40-70 s a question here, 2026-10-18);
   - newer notes win close calls (ask.newer_first): twice the results are asked for, re-sorted, cut back.
+It also adds one tool of its own, `memory` (ask/memory.py: the agent memory store's rules and lessons for a
+project): `tools/list` gets it added to qmd's list, and its `tools/call` is answered here, never sent to qmd. If
+it fails, the chat gets an MCP error result; the other tools are not touched. (A JSON-RPC batch goes as before.)
 `get`, `multi_get`, `status`, the REST /query and /health go straight through. If anything in the rewrite
 fails, the original call is sent as it was. Python standard library only; nothing leaves this computer.
 
@@ -31,6 +34,7 @@ sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import ask  # noqa: E402
+import memory  # noqa: E402
 import searchlog  # noqa: E402
 from expand import expanded_document, extra_words  # noqa: E402
 
@@ -38,6 +42,58 @@ MAX_SEARCHES = 10   # qmd's own limit on sub-queries
 HOP = {"connection", "keep-alive", "transfer-encoding", "content-length", "host", "accept-encoding"}
 CLIENTS = {}   # process number -> the MCP client's name and version, from its `initialize`
 CLIENTS_MAX = 500
+
+MEMORY_TOOL = {
+    "name": "memory",
+    "title": "Agent memory: rules and lessons for a project",
+    "description": (
+        "Rules and lessons for working on one of <user>'s code projects, from the agent memory store. Call it when you "
+        "start a task in a repo, and before you change something you are unsure about. Give `repo` (the project's "
+        "folder name in ~/projects/, case included, e.g. second-brain) and `task` in plain words; name "
+        "exact things when you have them (a file name, a port, error text in quotes, a function name). You get the "
+        "project's and the all-projects notes: pinned first, then the best matches, each as its summary line word "
+        "for word, its kind (rule or lesson), project and path, so you can read the full note with your file tools. "
+        "At most 2,000 tokens; it says how many notes did not fit. (local-only) marks a note whose text the names "
+        "filter was not sure about."),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "repo": {"type": "string", "description": "The project's folder name, e.g. second-brain"},
+            "task": {"type": "string", "description": "The task in plain words (optional: without it, pinned then newest)"},
+        },
+        "required": ["repo"],
+    },
+}
+
+
+# ---------- the memory tool (answered here; tested in ask/test_memory_tool.py) ----------
+
+def is_memory_call(m):
+    return (isinstance(m, dict) and m.get("method") == "tools/call"
+            and (m.get("params") or {}).get("name") == MEMORY_TOOL["name"])
+
+
+def is_tools_list(m):
+    return isinstance(m, dict) and m.get("method") == "tools/list"
+
+
+def memory_result(args, url):
+    """The `memory` tool's MCP result; a failure is an error result, never an exception."""
+    try:
+        args = args if isinstance(args, dict) else {}
+        out = memory.find(args.get("repo"), args.get("task"), url=url)
+        return {"content": [{"type": "text", "text": out["text"]}],
+                "structuredContent": {k: out[k] for k in ("notes", "left_out", "fallback")}}
+    except Exception as why:  # noqa: BLE001  a bad call or a broken store: the chat is told, nothing else breaks
+        return {"content": [{"type": "text", "text": f"memory: {why}"}], "isError": True}
+
+
+def add_memory_tool(msg):
+    """qmd's tools/list reply with the memory tool added (once)."""
+    tools = (msg.get("result") or {}).get("tools")
+    if isinstance(tools, list) and not any(t.get("name") == MEMORY_TOOL["name"] for t in tools):
+        tools.append(copy.deepcopy(MEMORY_TOOL))
+    return msg
 
 
 # ---------- the rewrite (no network; tested in ask/test_chat_proxy.py) ----------
@@ -216,6 +272,51 @@ class Proxy(BaseHTTPRequestHandler):
             self._reply(200, "text/event-stream", b"event: message\ndata: " + data + b"\n\n")
         self._record_searches(asked, replies)
 
+    def _answer(self, out):
+        """A JSON-RPC reply, as JSON or as an event-stream (what the caller accepts)."""
+        data = json.dumps(out).encode()
+        if "application/json" in (self.headers.get("Accept") or "application/json"):
+            self._reply(200, "application/json", data)
+        else:
+            self._reply(200, "text/event-stream", b"event: message\ndata: " + data + b"\n\n")
+
+    def _memory(self, msg):
+        url = f"{self.upstream.scheme}://{self.upstream.netloc}"
+        self._answer({"jsonrpc": "2.0", "id": msg.get("id"),
+                      "result": memory_result((msg.get("params") or {}).get("arguments"), url)})
+
+    def _tools_list(self, body):
+        """qmd's tool list with the memory tool added, in qmd's own format and headers; anything unexpected goes
+        back as qmd sent it."""
+        conn, resp = self._send_upstream(body)
+        try:
+            raw, status, headers = resp.read(), resp.status, resp.getheaders()
+        finally:
+            conn.close()
+        try:
+            out = sse_messages(raw) if status == 200 else None
+        except ValueError:
+            out = None
+        if isinstance(out, dict):
+            data = json.dumps(add_memory_tool(out)).encode()
+            stream = "text/event-stream" in dict((k.lower(), v) for k, v in headers).get("content-type", "")
+            raw = b"event: message\ndata: " + data + b"\n\n" if stream else data
+        self.send_response(status)
+        for k, v in headers:
+            if k.lower() not in HOP:
+                self.send_header(k, v)
+        self.send_header("Content-Length", str(len(raw)))
+        self._to_caller(self.end_headers)
+        self._to_caller(self.wfile.write, raw)
+
+    def _own_post(self, body):
+        """The parsed /mcp message when this POST is one memory call or one tools/list, else None."""
+        if self.command == "POST" and self.path.split("?")[0] == "/mcp" and body:
+            msg = json.loads(body)
+            if is_memory_call(msg) or is_tools_list(msg):
+                return msg
+        return None
+
     # ---------- the search record (never breaks a search) ----------
 
     def _start_record(self, body):
@@ -297,6 +398,9 @@ class Proxy(BaseHTTPRequestHandler):
         body = self._read_body()
         self._start_record(body)
         try:
+            own = self._own_post(body)
+            if own is not None:
+                return self._memory(own) if is_memory_call(own) else self._tools_list(body)
             if self._is_query_post(body) is not None:
                 try:
                     return self._query(json.loads(body))
