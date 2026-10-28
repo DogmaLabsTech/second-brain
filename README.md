@@ -266,6 +266,7 @@ does, and passes everything else through untouched. On the fair test a chat-styl
 | Settings (which folders) | `~/.config/qmd/index.yml`, copied from `index/index.yml` here |
 | The index and models | `~/.cache/qmd/` |
 | Hourly update | `~/.config/systemd/user/second-brain-reindex.timer` |
+| Agent memory backup | `~/.config/systemd/user/agent-memory-backup.timer` → `index/memory-backup.sh` (21:15 nightly: the store `~/projects/shared/` to `~/backups/agent-memory/`, 14 newest kept) |
 | Search server | `~/.config/systemd/user/second-brain-mcp.service` (qmd, http://localhost:8182, this computer only) |
 | Chats' door to it | `~/.config/systemd/user/second-brain-chat-search.service` → `ask/chat_proxy.py` (http://localhost:8181) |
 | `brain` command | `~/.local/bin/brain` → `bin/brain` here |
@@ -280,7 +281,8 @@ Numbers from the first build: `docs/history/index-report.md`.
 ## How to undo
 
 ```
-systemctl --user disable --now second-brain-day.timer second-brain-reindex.timer second-brain-chat-search.service second-brain-mcp.service second-brain-ollama.service second-brain-stt.service
+systemctl --user disable --now second-brain-day.timer second-brain-reindex.timer second-brain-chat-search.service second-brain-mcp.service second-brain-ollama.service second-brain-stt.service agent-memory-backup.timer
+rm ~/.config/systemd/user/agent-memory-backup.{timer,service}
 rm ~/.config/systemd/user/second-brain-{day,reindex}.{timer,service} ~/.config/systemd/user/second-brain-{chat-search,mcp,ollama,stt}.service
 claude mcp remove --scope user brain
 rm ~/.local/bin/brain
