@@ -57,6 +57,18 @@ line saying so.
 Claude, Codex and Gemini chats get the same answer from the `memory` tool in the brain (the chats' door adds it; it
 needs a restart of `second-brain-chat-search.service` to show up). Code: `ask/memory.py`.
 
+**How well does it find the right note?** One command scores it on two sets of agent questions (36 written for the
+notes to tune on; 16 real first prompts quoted from past run specs, measured only, never tuned on):
+
+```
+python3 -I eval/memory_score.py --floor --log "what changed"
+```
+
+It prints top-3 hits and the mean place of the right note, with and without the exact-thing word search, and `--log`
+adds the rows to `eval/memory-scores.tsv`. The pilot bar is 8 of 10 held-out questions with the right note in the
+top 3. Rules and the way to read it: `eval/README.md`, "The agent test set". You spot-check 10 questions in
+`eval/memory-spotcheck.md`.
+
 ### "This computer only" notes
 
 A memory note can be marked this computer only. Then Haiku (the online backup writer) never gets it; `brain ask`

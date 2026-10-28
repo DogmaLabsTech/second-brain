@@ -30,6 +30,10 @@ When you add, move or retire a file here, update this file in the same commit.
 - `ask/private_tag.py` (`brain private <note> on|off`, `brain private list`, `--json` for the Deck; 2026-10-28): mark a memory note
   local-only by hand (`local-only-by: owner`) or unmark it; only those front matter lines change, backup first. Tests:
   `ask/test_private_tag.py`.
+- `eval/memory_score.py` (2026-10-28): the agent memory score: runs `ask/memory.py` find on the agent test set and prints top-3
+  hits and mean place of the right note (both rules, both rank kinds). Sets: `eval/memory-tuning.jsonl` (tune on it),
+  `eval/memory-heldout.jsonl` (real run-spec prompts, git-ignored, measure only; `memory-heldout.example.jsonl` is its
+  name-free part), `eval/memory-spotcheck.md` (<user>'s 10 questions), log `eval/memory-scores.tsv`. Tests: `eval/test_memory_score.py`.
 - `deciders/private_guard.py`: the one check of `private.json` before anything goes to an online model (empty, broken or
   unreadable = send nothing). Tests: `deciders/test_private_fail_closed.py`, `ask/test_private_fail_closed.py`.
 - `eval/README.md`: the fair test rules. `eval/scores.tsv`: the score log (add a row, newest last).
