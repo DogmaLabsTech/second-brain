@@ -130,6 +130,8 @@ class Door(unittest.TestCase):
         out, ctype = self.post({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, accept="text/event-stream")
         self.assertEqual(out["result"]["tools"][-1]["name"], "memory")
         self.assertEqual(ctype, "text/event-stream")
+        out, ctype = self.post({"jsonrpc": "2.0", "id": 3, "method": "tools/list"})   # qmd's format is kept
+        self.assertEqual((out["result"]["tools"][-1]["name"], ctype), ("memory", "text/event-stream"))
 
     def test_memory_call_answered_here_with_find(self):
         res = self.call({"repo": "demo", "task": "which port"})

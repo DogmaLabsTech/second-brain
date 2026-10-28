@@ -286,19 +286,28 @@ class Proxy(BaseHTTPRequestHandler):
                       "result": memory_result((msg.get("params") or {}).get("arguments"), url)})
 
     def _tools_list(self, body):
-        """qmd's tool list, with the memory tool added; anything unexpected goes back as qmd sent it."""
-        conn, resp = self._send_upstream(body, {"Accept": "application/json, text/event-stream"})
+        """qmd's tool list with the memory tool added, in qmd's own format and headers; anything unexpected goes
+        back as qmd sent it."""
+        conn, resp = self._send_upstream(body)
         try:
-            raw, status, ctype = resp.read(), resp.status, resp.getheader("Content-Type", "")
+            raw, status, headers = resp.read(), resp.status, resp.getheaders()
         finally:
             conn.close()
         try:
             out = sse_messages(raw) if status == 200 else None
         except ValueError:
             out = None
-        if not isinstance(out, dict):
-            return self._reply(status, ctype, raw)
-        self._answer(add_memory_tool(out))
+        if isinstance(out, dict):
+            data = json.dumps(add_memory_tool(out)).encode()
+            stream = "text/event-stream" in dict((k.lower(), v) for k, v in headers).get("content-type", "")
+            raw = b"event: message\ndata: " + data + b"\n\n" if stream else data
+        self.send_response(status)
+        for k, v in headers:
+            if k.lower() not in HOP:
+                self.send_header(k, v)
+        self.send_header("Content-Length", str(len(raw)))
+        self._to_caller(self.end_headers)
+        self._to_caller(self.wfile.write, raw)
 
     def _own_post(self, body):
         """The parsed /mcp message when this POST is one memory call or one tools/list, else None."""
