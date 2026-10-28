@@ -415,6 +415,24 @@ class NoProxy(unittest.TestCase):
         self.assertEqual(model_hits, ["/api/chat"])
         self.assertEqual(proxy_hits, [])
 
+    def test_a_broken_http_reply_is_a_model_failure_not_a_crash(self):
+        import socket
+        import threading
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        sock.listen(1)
+        self.addCleanup(sock.close)
+
+        def answer():
+            conn, _ = sock.accept()
+            with conn:
+                conn.recv(65536)
+                conn.sendall(b"GARBAGE\r\n\r\n")
+        threading.Thread(target=answer, daemon=True).start()
+        with mock.patch.dict(os.environ, {"OLLAMA_HOST_URL": "127.0.0.1:%d" % sock.getsockname()[1]}):
+            with self.assertRaises(OSError):
+                memory_keep.local_summary("Some clean text.")
+
 
 class RealCommand(Case):
     """The command as bin/brain runs it: `python3 -I eval/drafts.py ...` in a new process (so -I applies). Temp store,
