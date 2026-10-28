@@ -10,29 +10,17 @@ import { byAny, byPath, mdRender, nh, pick, pk } from './deck/links.js'; export 
 import { RD, STILL, asking, cancelEdit, closeReader, docOf, dropTitle, editing, exitEdit, follow, histGo, jumpTo, keepEditing, layoutReader, leaveEdit, loose, note, openReader, readerOpen, readerW, renderNote, saveEdit, startEdit } from './deck/reader.js'; export * from './deck/reader.js';
 import './deck/lock-tag.js'; export * from './deck/lock-tag.js';
 import { dotHover, lock, pvDot, pvHide, pvI, unlock } from './deck/hover.js'; export * from './deck/hover.js';
-// 05 Timeline and 06 Ask: self-contained panels (timeline.js, ask.js), both movable by their title bar (movable.js)
-export let hits = null;
-export const tl = makeTimeline(RD('tlp'), { ages: DOCS.map(age), NOW, count: d => DOCS.filter((x, i) => age(x) >= d && visible(i)).length, onChange: c => { S.cutoff = c; refresh(); } });
-addEventListener('keydown', e => { if (e.target.id === 'q') { if (e.key === 'Escape') e.target.blur(); return; }
-  if (e.key === 'Escape' && pvI >= 0) { e.preventDefault(); S.pickQuiet = [S.mx, S.my]; return pvHide(); }   // stays shut until the mouse moves
-  if (editing) { const k = e.key.toLowerCase(); if ((e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); saveEdit(); } else if (e.key === 'Escape') { e.preventDefault(); asking ? keepEditing() : cancelEdit(); } else if (asking && k === 'd' && e.target.id !== 'rde') { e.preventDefault(); exitEdit(); } return; }
-  if (e.altKey && readerOpen && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); return histGo(e.key === 'ArrowLeft' ? -1 : 1); }
-  if (e.ctrlKey || e.metaKey || e.altKey) return; if (e.key === '/') { e.preventDefault(); document.getElementById('q').focus(); } else if (e.key === '1') go('map'); else if (e.key === '2') go('tunnel'); else if (e.key === '3') go('radar'); else if (e.key.toLowerCase() === 't') toggleLeft(); else if (e.key.toLowerCase() === 'k') { skins.next(e.shiftKey ? -1 : 1); say('SKIN  ›  ' + skins.label.toUpperCase()); } else if (e.key.toLowerCase() === 'i') invertKey(); else if (e.key === ',') settings(); else if (e.key.toLowerCase() === 'e' && readerOpen) { e.preventDefault(); startEdit(); } else if (e.key === 'Escape') { if (readerOpen) closeReader(); else unlock(); } else if (e.key === 'Enter' && S.sel >= 0 && !readerOpen) openReader(S.sel); });
-const ask = makeAsk(RD('askp'), { chips: Object.keys(BRAIN.asks), docs: DOCS, kc: KC, nice: NICE, esc, find: h => h.c ? byPath.get(h.c + ':' + pk(h.p)) : undefined, onOpen: i => lock(i), onOpenLoose: h => openReader(loose(h)),
-  live: () => liveNonce(),
-  onResults: (list, q) => { hits = list.length ? new Set(list) : null; refresh(); liveOwn({ q, who: 'Deck', kind: 'search', list }); if (!list.length) return; if (S.sel < 0) { clearLabels(); list.forEach(i => addLabel(i, DOCS[i].t)); } say('FOUND ' + list.length + ' NOTES  ›  “' + q.toUpperCase() + '”'); },
-  onClear: () => { hits = null; if (S.sel < 0) clearLabels(); refresh(); } });
-const moveTl = movable(RD('tlp'), { key: 'timeline', onMove: () => ask.place() }), moveAsk = movable(RD('askp'), { key: 'ask', onMove: () => ask.place() });
+import { ask, tl } from './deck/timeline-ask.js'; export * from './deck/timeline-ask.js';
 // ---- 08 Live (brief 15): every search and ask, from anywhere (chats, the voice island, the terminal, this Deck), as it happens.
 // GET /live on the Deck server (read-only events; the token comes in this page's html). Each one plays the live animation
 // (live.js) and gets a line in the 08 Live panel. The Ask box and the voice play their own results at once (liveOwn) and tag
 // their calls with a nonce, so the server's copy of the same search is skipped here. L / the LIVE button / ✕ show or hide the panel.
 const live = makeLive({ cur, root, camera, project, V: new THREE.Vector3(), cloud, docs: DOCS, kc: KC, cols: COLS, esc, shell, seen: i => visible(i) && shown(i) > .05, pulse: () => notePulse(), W, H });
 const LIVEP = RD('livep'), mine = new Set(), LTOK = document.querySelector('meta[name=deck-live]')?.content || '';
-function liveNonce() { const n = Math.random().toString(36).slice(2, 10); mine.add(n); return n; }
+export function liveNonce() { const n = Math.random().toString(36).slice(2, 10); mine.add(n); return n; }
 // a found note -> its dot: collection + path first, then the same path in any collection (qmd lists some files in two); undefined = newer than data.js
 const liveIdx = h => !h.p ? undefined : (h.c && byPath.get(h.c + ':' + pk(h.p))) ?? pick(byAny.get(pk(h.p)), h.c);
-function liveOwn(ev) { feed.add(ev); return live.play({ ...ev, own: true }); }
+export function liveOwn(ev) { feed.add(ev); return live.play({ ...ev, own: true }); }
 // a server event -> the feed and the animation. A read (a chat opening a note) plays light; notes newer than data.js light their section.
 const LIVELOG = /[#&]livelog/.test(location.hash);   // test switch: keep each live event and when its first line drew (window.__liveGot)
 function fromServer(e, past) { if (!e || !e.q || (e.nonce && mine.has(e.nonce))) return; const idx = (e.hits || []).map(liveIdx);
@@ -68,7 +56,7 @@ function applyLeft(anim) { const ps = [document.getElementById('viewp'), documen
   if (leftAway) { ps.forEach(p => p.classList.add('away')); setTimeout(() => { if (leftAway) { ps.forEach(p => p.style.display = 'none'); L.classList.add('hidden'); } }, anim ? 270 : 0); t.style.display = 'block'; }
   else { L.classList.remove('hidden'); ps.forEach(p => { p.style.display = ''; void p.offsetWidth; p.classList.remove('away'); }); t.style.display = 'none'; }
   if (anim) { applyZ(false); S.dT = viewDist(view); S.autoCam = true; } }
-function toggleLeft() { leftAway = !leftAway; localStorage.setItem('deckLeftAway', leftAway ? '1' : '0'); applyLeft(true); say(leftAway ? 'PANELS HIDDEN  ·  PRESS T TO SHOW' : 'PANELS SHOWN'); }
+export function toggleLeft() { leftAway = !leftAway; localStorage.setItem('deckLeftAway', leftAway ? '1' : '0'); applyLeft(true); say(leftAway ? 'PANELS HIDDEN  ·  PRESS T TO SHOW' : 'PANELS SHOWN'); }
 document.getElementById('secHide').onclick = toggleLeft; document.getElementById('viewHide').onclick = toggleLeft; document.getElementById('voiceHide').onclick = toggleLeft; document.getElementById('secTab').onclick = toggleLeft;
 // panel size: + / - keys
 const zh = location.hash.match(/z=([\d.]+)/); let userM = +(localStorage.getItem('deckM') || 1);
