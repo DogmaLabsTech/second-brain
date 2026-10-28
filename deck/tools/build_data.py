@@ -1,6 +1,6 @@
-import sqlite3, struct, json, re, sys, numpy as np, pathlib, time
-OUT = pathlib.Path(sys.argv[1])
-c = sqlite3.connect("file:~/.cache/qmd/index.sqlite?mode=ro", uri=True)
+import os, sqlite3, struct, json, re, sys, numpy as np, pathlib, time
+OUT = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/.local/share/second-brain/viz"))
+c = sqlite3.connect("file:" + os.path.expanduser("~/.cache/qmd/index.sqlite") + "?mode=ro", uri=True)
 DIM = 768
 chunks = {r: np.frombuffer(b, dtype="<f4").reshape(-1, DIM) for r, b in c.execute("select rowid,vectors from vectors_vec_vector_chunks00")}
 byhash = {}
@@ -55,7 +55,7 @@ for i, r in enumerate(rows):
     r["xyz"] = [round(float(v), 4) for v in Y3[i]]; r["uv"] = [round(float(v), 4) for v in Y2[i]]
 # scores
 scores = []
-for l in open("~/projects/second-brain/eval/scores.tsv").read().splitlines()[1:]:
+for l in open(pathlib.Path(__file__).resolve().parents[2] / "eval" / "scores.tsv").read().splitlines()[1:]:
     f = l.split("\t"); m1 = re.match(r"(\d+)/(\d+)", f[1]); m3 = re.match(r"(\d+)/(\d+)", f[2])
     if m1 and m3: scores.append(dict(when=f[0], top1=int(m1[1]), top3=int(m3[1]), of=int(m3[2]), note=f[-1][:80]))
 # canned "ask" demos via keyword search (lex) so the lighting-up can be shown
@@ -63,5 +63,5 @@ asks = {}
 for q in ["testbox handheld tests", "top bar", "weather", "voice island", "backup", "hdd offload"]:
     ids = [r[0] for r in c.execute("select rowid from documents_fts where documents_fts match ? order by bm25(documents_fts) limit 14", ('"' + q + '"',))]
     asks[q] = ids
-(OUT / "data.js").write_text("window.BRAIN=" + json.dumps(dict(docs=rows, scores=scores, asks=asks), separators=(",", ":")) + ";")
+OUT.mkdir(parents=True, exist_ok=True); (OUT / "data.js").write_text("window.BRAIN=" + json.dumps(dict(docs=rows, scores=scores, asks=asks), separators=(",", ":")) + ";")
 print("wrote", (OUT / "data.js").stat().st_size // 1024, "KB")

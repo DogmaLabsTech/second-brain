@@ -1,7 +1,7 @@
-import sqlite3, json, sys, numpy as np, pathlib
-P = pathlib.Path(sys.argv[1]) / "data.js"
+import os, sqlite3, json, sys, numpy as np, pathlib
+P = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/.local/share/second-brain/viz")) / "data.js"
 raw = P.read_text(); B = json.loads(raw[raw.index("=") + 1:].rstrip().rstrip(";")); D = B["docs"]
-c = sqlite3.connect("file:~/.cache/qmd/index.sqlite?mode=ro", uri=True); DIM = 768
+c = sqlite3.connect("file:" + os.path.expanduser("~/.cache/qmd/index.sqlite") + "?mode=ro", uri=True); DIM = 768
 chunks = {r: np.frombuffer(b, dtype="<f4").reshape(-1, DIM) for r, b in c.execute("select rowid,vectors from vectors_vec_vector_chunks00")}
 byhash = {}
 for id_, ch, off in c.execute("select id,chunk_id,chunk_offset from vectors_vec_rowids"):
