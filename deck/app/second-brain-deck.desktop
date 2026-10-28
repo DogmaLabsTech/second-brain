@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Second Brain Deck
+GenericName=Notes map
+Comment=The 3D map of your second brain: read notes and talk to the brain (this computer only)
+Exec=~/.local/bin/brain-deck
+Icon=applications-science
+Terminal=false
+Categories=Utility;
+Keywords=brain;notes;deck;map;
+StartupWMClass=second-brain-deck
+StartupNotify=true

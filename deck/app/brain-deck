@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# brain-deck: open the Deck's window (installed as ~/.local/bin/brain-deck; the app menu's "Second Brain Deck" runs it).
+# Starts the app from the main repo's viz/ (DECK_VIZ overrides). The first time, when the Electron program is missing, it runs
+# `npm ci` once (about 290 MB, a minute or two) and says so. Everything else is app/deck's: DECK_PORT (8765), DECK_DEBUG=1, switches.
+set -euo pipefail
+viz="${DECK_VIZ:-$HOME/projects/second-brain/viz}"
+[[ -x $viz/app/deck ]] || { echo "brain-deck: no Deck in $viz (app/deck is missing)" >&2; exit 1; }
+if [[ ! -x $viz/node_modules/electron/dist/electron ]]; then
+  echo "brain-deck: first start: installing the window part once (npm ci in $viz, about 290 MB)..." >&2
+  # npm 11 skips a package's own install step unless allowed (allow-scripts), so Electron's download (install.js,
+  # cached in ~/.cache/electron) is run here by name.
+  { [[ -d $viz/node_modules/electron ]] || (cd "$viz" && npm ci --no-audit --no-fund); } >&2 &&
+    (cd "$viz" && node node_modules/electron/install.js) >&2 && [[ -x $viz/node_modules/electron/dist/electron ]] ||
+    { echo "brain-deck: installing failed; try by hand: cd $viz && npm ci && node node_modules/electron/install.js" >&2; exit 1; }
+  echo "brain-deck: installed; starting the Deck" >&2
+fi
+exec "$viz/app/deck" "$@"
