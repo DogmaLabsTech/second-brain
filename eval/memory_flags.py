@@ -290,11 +290,15 @@ def retire(store, ref, why=None, today=None):
     dest = os.path.join(store, "history", note["rel"])
     if os.path.lexists(dest):
         raise ValueError("history/%s is already there; rename one of them first" % note["rel"])
+    git = os.path.exists(os.path.join(store, ".git"))
+    # A hand-made note that was never committed has no old path for git to stage: leave it out, or the add fails
+    # after the move (half done).
+    tracked = git and bool(memory_keep._git(store, "ls-files", "--", note["rel"]).strip())
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     os.replace(note["path"], dest)
     store_flags.append(store, [{"note": note["rel"], "state": "retired", "at": today, "reason": why or ""}])
-    if os.path.exists(os.path.join(store, ".git")):
-        paths = [note["rel"], os.path.join("history", note["rel"]), store_flags.FLAGS]
+    if git:
+        paths = ([note["rel"]] if tracked else []) + [os.path.join("history", note["rel"]), store_flags.FLAGS]
         memory_keep._git(store, "add", "-A", "--", *paths)
         memory_keep._git(store, "commit", "-q", "-m", "retire: %s%s" % (note["rel"], (": " + why) if why else ""), "--", *paths)
     return dest

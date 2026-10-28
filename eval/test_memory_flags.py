@@ -194,6 +194,13 @@ class Flags(Case):
         self.assertEqual(memory_flagfile.flagged(self.store), {})
         self.assertEqual(memory.scope_notes(self.store, "demo"), {})   # out of the search scope, not deleted
 
+    def test_retire_a_note_that_was_never_committed(self):
+        subprocess.run(["git", "init", "-q", self.store], check=True, timeout=30)
+        dest = memory_flags.retire(self.store, NOTE, "made by hand", "2026-10-29")
+        self.assertTrue(os.path.exists(dest))
+        self.assertEqual(git(self.store, "status", "--porcelain", "--", "history"), "")   # the move is committed
+        self.assertIn("retire: " + NOTE, git(self.store, "log", "-1", "--format=%s"))
+
     def test_retire_does_not_overwrite_a_note_already_in_history(self):
         note(self.store, os.path.join("history", NOTE))
         with self.assertRaisesRegex(ValueError, "already there"):
