@@ -22,6 +22,7 @@ A missing store, a store that is not a git repo, a bad target or a name already 
 and change nothing. The store path is a parameter (BRAIN_MEMORY_STORE, default ~/projects/shared) so tests use a
 temp folder. Standard library only.
 """
+import http.client
 import json
 import os
 import re
@@ -185,7 +186,7 @@ def local_summary(text):
     try:
         with _open(req, 60) as resp:
             answer = (json.loads(resp.read()).get("message") or {}).get("content") or ""
-    except (ValueError, AttributeError) as why:
+    except (ValueError, AttributeError, http.client.HTTPException) as why:
         raise OSError("the summary model gave no usable answer: %s" % why) from None
     line = next((l for l in str(answer).splitlines() if l.strip()), "")
     line = _oneline(line)
@@ -282,8 +283,11 @@ def _write_and_commit(store, src, dest, original, text, message):
     rel = os.path.relpath(dest, store)
     src_in = _inside(store, src)
     src_rel = os.path.relpath(src, store) if src_in else None
-    tracked = bool(src_in) and subprocess.run(["git", "-C", store, "ls-files", "--error-unmatch", "--", src_rel],
-                                              capture_output=True).returncode == 0
+    try:
+        tracked = bool(src_in) and subprocess.run(["git", "-C", store, "ls-files", "--error-unmatch", "--", src_rel],
+                                                  capture_output=True, timeout=60).returncode == 0
+    except (OSError, subprocess.SubprocessError) as why:
+        raise KeepError("git in the store did not answer (%s); nothing changed" % type(why).__name__) from None
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     try:
         drafts._write(store, dest, text)
@@ -298,7 +302,11 @@ def _write_and_commit(store, src, dest, original, text, message):
             _restore(src, original)
         if os.path.exists(dest):
             os.unlink(dest)
-        subprocess.run(["git", "-C", store, "reset", "-q", "--", rel] + ([src_rel] if tracked else []), capture_output=True)
+        try:
+            subprocess.run(["git", "-C", store, "reset", "-q", "--", rel] + ([src_rel] if tracked else []),
+                           capture_output=True, timeout=60)
+        except (OSError, subprocess.SubprocessError):
+            pass  # the first failure is the one to report
         raise
 
 
