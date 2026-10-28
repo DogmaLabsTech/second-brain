@@ -4,23 +4,7 @@ import { makeSkins } from '../skins.js';
 import { movable, replaceAll } from '../movable.js'; import { makeTimeline } from '../timeline.js'; import { makeAsk } from '../ask.js';
 import { rings, ringWords, hideRingTip } from '../rings.js'; import { makeLive, makeFeed } from '../live.js';
 import { H, KC, LAY, Lmap, N, S, TAU, VIEW, W, age, camFrom, camera, clamp, cloud, cur, delay, ease, fitView, go, hidden, mats, nbLines, paint, renderer, root, say, scanFrom, scanOp0, scanner, scene, sets, shell, skins, slice, sweepG, thM, to, view, viewDist, vis, yOf } from './deck/scene.js'; export * from './deck/scene.js';
-// ---- Settings (brief 14): gear in the top bar, the "," key, or the line in 01 View; Esc or a click outside closes. Test switch: #settings
-const SETP = document.getElementById('setp'), SETV = document.getElementById('setveil'); skins.picker(document.getElementById('setskins')); skins.wire(SETP);
-document.querySelector('#topbar .stat').insertAdjacentHTML('afterend', '<button id="gear" title="Settings  ( , )" aria-label="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>');
-const GEAR = document.getElementById('gear'); let setOpen = false;
-function settings(on = !setOpen) { setOpen = on; SETP.classList.toggle('on', on); SETV.classList.toggle('on', on); GEAR.classList.toggle('on', on); GEAR.setAttribute('aria-expanded', on);
-  if (on) { if (typeof pvHide === 'function') pvHide(); (SETP.querySelector('.sk.on') || SETP).focus({ preventScroll: true }); } else if (SETP.contains(document.activeElement)) document.activeElement.blur(); }
-GEAR.onclick = () => settings(); document.getElementById('skset').onclick = () => settings(true); document.getElementById('setx').onclick = SETV.onclick = () => settings(false);
-addEventListener('keydown', e => { if (setOpen && e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); settings(false); } }, true);   // Esc closes Settings first
-function invertKey() { if (!skins.invOk) return; skins.invert(!skins.inv); say('PALETTE  ›  ' + (skins.inv ? 'INVERTED' : 'NORMAL')); }
-if (location.hash.includes('settings')) setTimeout(() => settings(true), 300);   // (after the module has run: the hover card's state is defined further down)
-// section labels
-const anchors = { map: {}, tunnel: {}, radar: {} };
-COLS.forEach((c, k) => { const m = new THREE.Vector3(); let n = 0; DOCS.forEach((d, i) => { if (d.c === c) { m.x += Lmap[i * 3]; m.y += Lmap[i * 3 + 1]; m.z += Lmap[i * 3 + 2]; n++; } }); anchors.map[c] = m.divideScalar(n).add(new THREE.Vector3(Math.cos(thM(k)) * .9, .55, Math.sin(thM(k)) * .9));
-  anchors.tunnel[c] = new THREE.Vector3(Math.cos(thM(k)) * 3.95, yOf(0) + .35, Math.sin(thM(k)) * 3.95); anchors.radar[c] = new THREE.Vector3(Math.cos(thM(k)) * 3.95, .1, Math.sin(thM(k)) * 3.95); });
-const labelEls = COLS.map(c => { const e = document.createElement('div'); e.className = 'sec'; e.style.setProperty('--k', KC(c)); e.innerHTML = `<i></i><b>${NICE[c].toUpperCase()}</b><small>${DOCS.filter(d => d.c === c).length}</small>`; document.body.append(e); return e; });
-export let labelCur = COLS.map(c => anchors.map[c].clone()); S.labelFrom = labelCur.map(a => a.clone()); const labelOff = [];
-const wk = c => DOCS.filter(d => d.c === c && days(d.d) <= 7).length;
+import { anchors, invertKey, labelCur, labelEls, labelOff, setOpen, settings, wk } from './deck/settings.js'; export * from './deck/settings.js';
 // ---- panels
 const eff = () => S.focus || S.hoverG, mx2 = Math.max(...COLS.map(c => DOCS.filter(d => d.c === c).length));
 document.getElementById('groups').innerHTML = COLS.map(c => { const n = DOCS.filter(d => d.c === c).length; return `<div class="row" data-c="${c}" style="--k:${KC(c)};--w:${Math.max(4, n / mx2 * 100)}%"><i></i><span>${NICE[c]}</span><u></u><em>${n}</em><b class="eye" title="hide">◉</b></div>`; }).join('');
@@ -228,7 +212,7 @@ function pvShow(a, xy) { const i = a ? +a.dataset.i : xy.i, d = DOCS[i]; if (!d)
   const pb = RD('pvb'); pb.innerHTML = '<div class="load">LOADING <span class="cur"></span></div>'; pb.scrollTop = 0; PV.classList.add('on'); pvPlace();
   pvGet(d.id).then(j => { if (pvI !== i) return; const long = j.text.length > cap; pb.innerHTML = mdRender(j.text.slice(0, cap), true, { i, c: d.c, p: d.p }) + (long || j.truncated ? '<p class="k">… click to read the whole note</p>' : ''); dropTitle(pb, [d.t, j.title]); if (pvH) jumpTo(pb, pvH); pvPlace(); })
     .catch(() => { if (pvI === i) pb.innerHTML = '<p class="am">Could not read this note.</p>'; }); }
-function pvHide() { clearTimeout(pvT); clearTimeout(pvHideT); PV.classList.remove('on'); if (pvLink) pvLink.classList.remove('on'); pvLink = null; pvI = -1; pvDot = -1; pvXY = null; }
+export function pvHide() { clearTimeout(pvT); clearTimeout(pvHideT); PV.classList.remove('on'); if (pvLink) pvLink.classList.remove('on'); pvLink = null; pvI = -1; pvDot = -1; pvXY = null; }
 const pvHideSoon = () => { clearTimeout(pvHideT); pvHideT = setTimeout(pvHide, 220); };
 function linkClick(e) { const a = e.target.closest('a.nl'); if (!a) return false; e.preventDefault(); e.stopPropagation(); follow(+a.dataset.i, a.dataset.h); return true; }
 RD('rdb').addEventListener('click', linkClick);
