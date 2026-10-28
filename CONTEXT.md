@@ -2,14 +2,14 @@
 
 The code, settings and guides for <user>'s second brain: search, short answers, jobs, the day page,
 speech to text and the weekly check-up. Start with `README.md` (the plain guide for <user>).
-`AGENTS.md` has the folder map and the rules for helpers. The notes themselves are not in this folder.
+`AGENTS.md` has the folder map; the rules for helpers come from the agent memory store (`brain memory second-brain "<task>"`). The notes themselves are not in this folder.
 
 When you add, move or retire a file here, update this file in the same commit.
 
 ## Current (use these)
 
 - `README.md`: the plain guide. Keep it true when behaviour changes.
-- `AGENTS.md`: rules and the folder map.
+- `AGENTS.md`: the folder map and the short rules; the full rules come from memory.
 - `index/index.yml`: which folders are searched, and the search advice that the search server shows
   Claude. The live copy is `~/.config/qmd/index.yml`; it changes only when `index/setup.sh` runs.
 - `eval/drafts.py` (`brain drafts`): the check-up's drafts for <user> to keep or drop (test questions for the tuning set,
