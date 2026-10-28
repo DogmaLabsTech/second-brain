@@ -14,6 +14,9 @@ When you add, move or retire a file here, update this file in the same commit.
   Claude. The live copy is `~/.config/qmd/index.yml`; it changes only when `index/setup.sh` runs.
 - `eval/drafts.py` (`brain drafts`): the check-up's drafts for <user> to keep or drop (test questions for the tuning set,
   lore stories for agent-os `lore/drafts/`). Tests: `eval/test_drafts.py`.
+- `eval/memory_keep.py` (`brain drafts keep <draft> --to projects/<repo>/lessons`): `keep` for agent-memory drafts: moves a draft into the store
+  `~/projects/shared/` (its own git, no remote; the `memory` collection in `index/index.yml`), fills the front matter, makes the
+  summary with the local model after the names filter, commits there. Tests: `eval/test_memory_keep.py`.
 - `deciders/private_guard.py`: the one check of `private.json` before anything goes to an online model (empty, broken or
   unreadable = send nothing). Tests: `deciders/test_private_fail_closed.py`, `ask/test_private_fail_closed.py`.
 - `eval/README.md`: the fair test rules. `eval/scores.tsv`: the score log (add a row, newest last).

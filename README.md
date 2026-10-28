@@ -302,6 +302,8 @@ question asked again, and a short lore story when the same cause shows up twice.
 you keep it: `brain drafts` lists them, `brain drafts keep <id>` / `brain drafts drop <id>` decides. The routine: `docs/checkup.md`;
 in Claude Code: `/brain-checkup`. Unit tests: `python3 ask/test_ask_units.py` (through Crabbox).
 
+Agent memory: rules and lessons for agents live in their own store, `~/projects/shared/` (private git, no remote; searched as the `memory` collection). `brain drafts keep <draft> --to projects/<repo>/lessons` moves a draft note into it, fills the front matter, makes a one-line summary with the local model (names filter first; if it is not sure, no model sees the note and it is marked local-only) and commits there.
+
 ## What's not in this repo
 
 This folder is shared on GitHub (a private project) so helpers can work on the code somewhere else.

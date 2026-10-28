@@ -158,6 +158,21 @@ collections:
     pattern: "**/*.md"
     context:
       "/": "<user>'s content library: one numbered folder per content idea, with its read-me and copy (the words used)."
+  memory:
+    includeByDefault: false
+    path: ~/projects/shared
+    # The agent memory store (job 1, 2026-10-27): rules and lessons for agents, one note per file, under
+    # projects/<repo>/rules|lessons and all-projects/. Its own private git, no remote. Project and kind come from the path.
+    pattern: "**/*.md"
+    ignore:
+      # Not kept yet: drafts wait for <user>'s keep or drop and are never pushed to agents.
+      - "drafts/**"
+      # How the store works, not notes.
+      - "README.md"
+      - "CONTEXT.md"
+    context:
+      "/": "Agent memory (rules and lessons for agents): one short note per file, with front matter (project, kind, date, summary, files, pinned). The folder path says the project and the kind: projects/<repo>/rules or lessons, or all-projects/."
+      "/history": "History: retired agent notes, kept for the record. May be out of date; the current notes sit in projects/ and all-projects/."
   # Marked for retirement (t10b, 2026-10-22): the Hermes agent stopped in September 2026. `brain status` and the
   # check-up name it; remove it only when <user> says so (qmd collection remove hermes, then delete this block).
   hermes:
