@@ -415,6 +415,8 @@ To stop it, see "How to undo" below.
 | Settings (which folders) | `~/.config/qmd/index.yml`, copied from `index/index.yml` here |
 | The index and models | `~/.cache/qmd/` |
 | Hourly update | `~/.config/systemd/user/second-brain-reindex.timer` |
+| The Deck's map after it | `~/.config/systemd/user/second-brain-viz-refresh.service` → `viz/tools/refresh.sh`, started by the reindex (`second-brain-reindex.service.d/viz.conf`; can't fail or slow it); log `~/.local/state/second-brain/viz-refresh.log` |
+| The Deck's launcher | `~/.local/bin/brain-deck` and `~/.local/share/applications/second-brain-deck.desktop` (copies of `viz/app/`) |
 | Agent memory backup | `~/.config/systemd/user/agent-memory-backup.timer` → `index/memory-backup.sh` (21:15 nightly: the store `~/projects/shared/` to `~/backups/agent-memory/`, 14 newest kept) |
 | Search server | `~/.config/systemd/user/second-brain-mcp.service` (qmd, http://localhost:8182, this computer only) |
 | Chats' door to it | `~/.config/systemd/user/second-brain-chat-search.service` → `ask/chat_proxy.py` (http://localhost:8181) |
@@ -434,6 +436,7 @@ Numbers from the first build: `docs/history/index-report.md`.
 systemctl --user disable --now second-brain-day.timer second-brain-reindex.timer second-brain-chat-search.service second-brain-mcp.service second-brain-ollama.service second-brain-stt.service agent-memory-backup.timer
 rm ~/.config/systemd/user/agent-memory-backup.{timer,service}
 rm ~/.config/systemd/user/second-brain-{day,reindex}.{timer,service} ~/.config/systemd/user/second-brain-{chat-search,mcp,ollama,stt}.service
+rm -r ~/.config/systemd/user/second-brain-viz-refresh.service ~/.config/systemd/user/second-brain-reindex.service.d ~/.local/bin/brain-deck ~/.local/share/applications/second-brain-deck.desktop
 claude mcp remove --scope user brain
 rm ~/.local/bin/brain
 npm uninstall -g @tobilu/qmd
