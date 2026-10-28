@@ -305,7 +305,7 @@ class LocalModel(Case):
     def test_it_asks_ollama_on_this_computer_and_returns_one_line(self):
         calls = []
         with mock.patch.dict(os.environ, {"OLLAMA_HOST_URL": "127.0.0.1:11434"}), \
-                mock.patch.object(memory_keep.urllib.request, "urlopen", self.fake_urlopen(calls)):
+                mock.patch.object(memory_keep, "_open", self.fake_urlopen(calls)):
             got = memory_keep.local_summary("Some clean text.")
         self.assertEqual(got, "A short line.")
         self.assertEqual(len(calls), 1)
@@ -314,14 +314,14 @@ class LocalModel(Case):
     def test_it_refuses_a_model_host_that_is_not_this_computer(self):
         calls = []
         with mock.patch.dict(os.environ, {"OLLAMA_HOST_URL": "models.example.com:11434"}), \
-                mock.patch.object(memory_keep.urllib.request, "urlopen", self.fake_urlopen(calls)):
+                mock.patch.object(memory_keep, "_open", self.fake_urlopen(calls)):
             with self.assertRaises(OSError):
                 memory_keep.local_summary("Some clean text.")
         self.assertEqual(calls, [])
 
     def test_keep_with_the_built_in_model_sends_only_scrubbed_text_to_it(self):
         calls = []
-        with mock.patch.object(memory_keep.urllib.request, "urlopen", self.fake_urlopen(calls)):
+        with mock.patch.object(memory_keep, "_open", self.fake_urlopen(calls)):
             got = memory_keep.keep("lesson-git-rm.md", "projects/second-brain/lessons", store=self.store, today="2026-10-27")
         self.assertEqual(len(calls), 1)
         self.assertNotIn(b"Zorblax", calls[0].data)
@@ -330,7 +330,7 @@ class LocalModel(Case):
     def test_no_network_call_is_made_when_the_filter_is_unsure(self):
         self.draft("u.md", "unsure text\n")
         calls = []
-        with mock.patch.object(memory_keep.urllib.request, "urlopen", self.fake_urlopen(calls)):
+        with mock.patch.object(memory_keep, "_open", self.fake_urlopen(calls)):
             memory_keep.keep("u.md", "projects/second-brain/lessons", store=self.store, today="2026-10-27")
         self.assertEqual(calls, [])
 
@@ -374,6 +374,46 @@ class Cli(Case):
     def test_pin_flag(self):
         self.run_cli(["keep", "lesson-git-rm.md", "--to", "projects/second-brain/lessons", "--pin"])
         self.assertIn("pinned: true", read(os.path.join(self.store, "projects", "second-brain", "lessons", "lesson-git-rm.md")))
+
+
+class NoProxy(unittest.TestCase):
+    """A proxy in the environment must not catch the model call: the (scrubbed) text goes straight to this computer."""
+
+    def serve(self, hits, reply):
+        import http.server
+        import threading
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                hits.append(self.path)
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(reply)
+
+            def log_message(self, *args):
+                pass
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        return server.server_address[1]
+
+    def test_the_model_call_ignores_http_proxy_settings(self):
+        model_hits, proxy_hits = [], []
+        model_port = self.serve(model_hits, b'{"message": {"content": "Straight to the model."}}')
+        proxy_port = self.serve(proxy_hits, b'{"message": {"content": "From the proxy."}}')
+        proxy = "http://127.0.0.1:%d" % proxy_port
+        env = {"http_proxy": proxy, "HTTP_PROXY": proxy, "all_proxy": proxy, "ALL_PROXY": proxy,
+               "OLLAMA_HOST_URL": "127.0.0.1:%d" % model_port}
+        with mock.patch.dict(os.environ, env):
+            for k in ("no_proxy", "NO_PROXY"):
+                os.environ.pop(k, None)
+            got = memory_keep.local_summary("Some clean text.")
+        self.assertEqual(got, "Straight to the model.")
+        self.assertEqual(model_hits, ["/api/chat"])
+        self.assertEqual(proxy_hits, [])
 
 
 class RealCommand(Case):
@@ -429,12 +469,12 @@ class EmptyModelReply(Case):
             with self.subTest(label):
                 name = "e-%s.md" % label.replace(" ", "-")
                 self.draft(name, "# first line of the note\n\nBody.\n")
-                with mock.patch.object(memory_keep.urllib.request, "urlopen", self.reply(payload)):
+                with mock.patch.object(memory_keep, "_open", self.reply(payload)):
                     got = memory_keep.keep(name, "projects/second-brain/lessons", store=self.store, today="2026-10-27")
                 self.assertEqual((got["summary_by"], got["summary"]), ("fallback", "first line of the note"))
 
     def test_local_summary_says_oserror_for_a_null_reply(self):
-        with mock.patch.object(memory_keep.urllib.request, "urlopen", self.reply(b'{"message": {"content": null}}')):
+        with mock.patch.object(memory_keep, "_open", self.reply(b'{"message": {"content": null}}')):
             with self.assertRaises(OSError):
                 memory_keep.local_summary("Some clean text.")
 

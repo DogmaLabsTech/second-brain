@@ -162,6 +162,11 @@ def front_matter(project, kind, date, summary, files, pinned, local_only):
 
 # ---------- the local model ----------
 
+def _open(req, timeout):
+    """Open the request straight, whatever proxy settings the environment has (the text must not go to a proxy)."""
+    return urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=timeout)
+
+
 def local_summary(text):
     """One line about `text` from the model on this computer (Ollama). Raises OSError when it is not there, too slow, or
     when the model host is not this computer: nothing ever goes to an online model from here."""
@@ -178,7 +183,7 @@ def local_summary(text):
     req = urllib.request.Request("http://%s:%s/api/chat" % ("[::1]" if ":" in host else host, port),
                                  json.dumps(body).encode(), {"Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with _open(req, 60) as resp:
             answer = (json.loads(resp.read()).get("message") or {}).get("content") or ""
     except (ValueError, AttributeError) as why:
         raise OSError("the summary model gave no usable answer: %s" % why) from None
