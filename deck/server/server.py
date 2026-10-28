@@ -589,7 +589,7 @@ class H(http.server.SimpleHTTPRequestHandler):
         i = str(body.get("id") or "")
         if not re.fullmatch(r"[\w-]{3,64}", i): return s.js(400, dict(ok=False, decision="unclear", message="That job had no name, so I did nothing."))
         said = " ".join(str(body.get("said") or "").split())[:200]; d = yes_no(said) if not said_nothing(said) else "unclear"
-        try: talklog(question=said, how="voice", kind="confirm", brain_id=i, decision=d)
+        try: talklog(question=said, how="click" if body.get("how") == "click" else "voice", kind="confirm", brain_id=i, decision=d)
         except Exception: pass
         if d == "no":
             plan_take(i)
