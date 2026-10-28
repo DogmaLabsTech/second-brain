@@ -16,7 +16,8 @@ When you add, move or retire a file here, update this file in the same commit.
   lore stories for agent-os `lore/drafts/`). Tests: `eval/test_drafts.py`.
 - `eval/memory_keep.py` (`brain drafts keep <draft> --to projects/<repo>/lessons`): `keep` for agent-memory drafts: moves a draft into the store
   `~/projects/shared/` (its own git, no remote; the `memory` collection in `index/index.yml`), fills the front matter, makes the
-  summary with the local model after the names filter, commits there. Tests: `eval/test_memory_keep.py`.
+  summary with the local model after the names filter, commits there; a hand choice from `brain private` in the draft wins over the
+  filter. Tests: `eval/test_memory_keep.py`.
 - `index/memory-backup.sh`: the nightly copy of the agent memory store to the HDD (`agent-memory-backup.timer`, 21:15;
   `~/backups/agent-memory/`, 14 newest kept; stops if the HDD is not mounted). Tests: `index/test_memory_backup.py`.
 - `ask/searchlog.py`: the search record (2026-10-28): one private line per chat search or read and per `brain search`,

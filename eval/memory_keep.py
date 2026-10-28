@@ -16,7 +16,12 @@ Names: the private-list guard (deciders/private_guard.py) and then the names fil
 drafts.scrub) run before any model sees the text. The model gets the scrubbed text only. When the guard finds the list
 empty, broken or unreadable (or cannot load), or the filter is missing or not sure, no model is called at all, the first
 heading stands in for the summary, and the note gets `local-only: true` in its front matter, so nothing that reads the
-store may send it to an online model. A summary never keeps a private name: it is stored scrubbed.
+store may send it to an online model (with `local-only-by: filter` and `local-only-at: <date>`). A summary never keeps
+a private name: it is stored scrubbed.
+
+<user>'s hand choice wins (brief 20, 2026-10-28): when the draft's front matter has `local-only-by: owner` (set with
+`brain private`, ask/private_tag.py), its `local-only` true or false is kept as he set it, whatever the filter says.
+The filter still decides whether a model may see the text to make the summary.
 
 A missing store, a store that is not a git repo, a bad target or a name already taken stop `keep` with a plain message
 and change nothing. The store path is a parameter (BRAIN_MEMORY_STORE, default ~/projects/shared) so tests use a
@@ -125,6 +130,16 @@ def split_draft(text):
     return files, pinned, text[m.end():]
 
 
+def hand_choice(text):
+    """(local_only, date) when the draft's front matter holds <user>'s own choice (`local-only-by: owner`), else None."""
+    m = re.match(r"---\r?\n(.*?)\r?\n---\r?\n", text, re.S)
+    fm = dict((k.strip(), v.strip()) for k, _, v in (l.partition(":") for l in (m.group(1).splitlines() if m else []))
+              if not k[:1].isspace())
+    if fm.get("local-only-by") != "owner" or fm.get("local-only", "").lower() not in ("true", "false"):
+        return None
+    return fm["local-only"].lower() == "true", fm.get("local-only-at") or ""
+
+
 def first_line(text):
     """The first real line of the note (a heading counts), for when no model made a summary."""
     for line in text.splitlines():
@@ -152,12 +167,15 @@ def _yaml(text):
     return text
 
 
-def front_matter(project, kind, date, summary, files, pinned, local_only):
+def front_matter(project, kind, date, summary, files, pinned, local_only, hand=None):
+    """`hand` = (local_only, date) when <user> chose by hand; it is written as his, and `local_only` is ignored."""
     out = ["---", "project: " + project, "kind: " + kind, "date: " + date, "summary: " + _yaml(summary)]
     out += ["files:"] + ["  - " + f for f in files] if files else ["files: []"]
     out.append("pinned: " + ("true" if pinned else "false"))
-    if local_only:
-        out.append("local-only: true")
+    if hand:
+        out += ["local-only: " + ("true" if hand[0] else "false"), "local-only-by: owner", "local-only-at: " + (hand[1] or date)]
+    elif local_only:
+        out += ["local-only: true", "local-only-by: filter", "local-only-at: " + date]
     return "\n".join(out) + "\n---\n"
 
 
@@ -312,21 +330,23 @@ def _write_and_commit(store, src, dest, original, text, message):
 
 def keep(draft, to, store=None, summary=None, files=None, pin=None, confirm=None, summarize=None, today=None):
     """Move one draft into the store and commit it. Returns {path, project, kind, summary, summary_by, local_only,
-    guard, commit}. `summary` skips the model; `confirm(summary)` shows the line and returns the one to keep (or
+    filter_unsure, hand, guard, commit}; local_only is what the note says (<user>'s hand choice, if the draft has one). `summary` skips the model; `confirm(summary)` shows the line and returns the one to keep (or
     None/the same); `summarize(text)` is the model call (default: local_summary). Raises KeepError, with nothing changed."""
     store = _check_store(store_path(store))
     project, kind, src, dest = _plan(draft, to, store)
     with open(src, encoding="utf-8") as fh:
         original = fh.read()
     old_files, old_pin, body = split_draft(original)
-    line, by, local_only, guard = _summary_and_filter(body, summary, confirm, summarize)
+    hand = hand_choice(original)
+    line, by, unsure, guard = _summary_and_filter(body, summary, confirm, summarize)
     text = front_matter(project, kind, today or time.strftime("%Y-%m-%d"), line,
                         list(files) if files is not None else old_files,
-                        old_pin if pin is None else pin, local_only) + body.lstrip("\n")
+                        old_pin if pin is None else pin, unsure, hand) + body.lstrip("\n")
     commit = _write_and_commit(store, src, dest, original, text,
                                "keep: %s/%s: %s\n\n%s" % (project, kind, os.path.basename(dest), line))
     return {"path": dest, "project": project, "kind": kind, "summary": line, "summary_by": by,
-            "local_only": local_only, "guard": guard, "commit": commit}
+            "local_only": hand[0] if hand else unsure, "filter_unsure": unsure, "hand": bool(hand), "guard": guard,
+            "commit": commit}
 
 
 def _restore(path, text):
@@ -355,7 +375,11 @@ def cli(argv, to):
                               "fallback": " (first line; no model made one)"}[got["summary_by"]], got["summary"]))
     if got["guard"]:
         print(got["guard"])
-    if got["local_only"]:
+    if got["hand"]:
+        print("You marked this note %s by hand (brain private), so it stays that way%s." % (
+            "this computer only" if got["local_only"] else "not this computer only",
+            " although the names filter was not sure about it; no model saw it" if got["filter_unsure"] else ""))
+    elif got["local_only"]:
         print("The names filter was not sure about this note, so no model saw it and it is marked local-only "
               "(local-only: true). Check the summary line.")
     print("To change the summary later, edit its line in the note and commit in the store.")
