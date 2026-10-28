@@ -135,6 +135,19 @@ class Opposite(Case):
         self.assertEqual(self.look(search=lambda summary: [])["new"], [])   # search proposed nothing
         self.assertEqual(len(self.look(search=lambda summary: ["projects/demo/lessons/b.md"])["new"]), 1)
 
+    def test_one_failed_search_is_enough_and_the_rest_fall_back_to_the_notes(self):
+        note(self.store, NOTE, "Run the tests on the test machine with crabbox", date="2026-09-01")
+        note(self.store, "projects/demo/lessons/b.md", "Never run the tests on the test machine with crabbox", date="2026-10-20")
+        calls = []
+
+        def down(*a, **k):
+            calls.append(1)
+            raise OSError("qmd is down")
+        with mock.patch.object(memory, "search", down):
+            result = memory_flags.look(self.store, "2026-10-28")   # the default search: the brain's
+        self.assertEqual(len(calls), 1)
+        self.assertEqual([rel for rel, _, _ in result["new"]], [NOTE])
+
     def test_the_rule_on_two_summaries(self):
         yes = memory_flags.opposite
         self.assertTrue(yes("Use git mv on tracked folders", "Do not use git mv on tracked folders"))

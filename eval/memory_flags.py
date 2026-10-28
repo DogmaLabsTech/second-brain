@@ -186,10 +186,15 @@ def opposite(a, b):
 
 def qmd_candidates(notes):
     """A function summary -> rels of the notes the brain's search proposes (None for a failed search)."""
+    down = []
+
     def search(summary):
+        if down:
+            return None   # one failed search is enough: no waiting on a dead or slow server for every note
         try:
             hits = memory.search(summary)
         except Exception:  # noqa: BLE001  search down: the caller falls back to all newer notes of the project
+            down.append(True)
             return None
         rels = [memory.in_scope(h.get("file", ""), notes) for h in hits]
         return [n["rel"] for n in rels if n][:CANDIDATES]
