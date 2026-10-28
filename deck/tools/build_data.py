@@ -1,4 +1,4 @@
-import os, sqlite3, struct, json, re, sys, numpy as np, pathlib, time
+import os, sqlite3, json, re, sys, numpy as np, pathlib, time
 OUT = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/.local/share/second-brain/viz"))
 c = sqlite3.connect("file:" + (os.environ.get("VIZ_INDEX") or os.path.expanduser("~/.cache/qmd/index.sqlite")) + "?mode=ro", uri=True)
 DIM = 768
