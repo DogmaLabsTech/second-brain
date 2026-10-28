@@ -18,7 +18,7 @@ import memory  # noqa: E402
 OLD = time.mktime((2024, 1, 1, 0, 0, 0, 0, 0, -1))   # no newer-first boost left at this age
 
 
-def note(store, rel, summary, pinned=False, local_only=False, date="2026-10-20", mtime=OLD):
+def note(store, rel, summary, pinned=False, local_only=False, date="2025-01-15", mtime=OLD):
     path = os.path.join(store, rel)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     fm = ["---", "project: x", "kind: rule", f"date: {date}", f"summary: {summary}", "files: []",
@@ -114,7 +114,9 @@ class Scope(Base):
                            ("qmd://memory/projects/Demo/rules/case.md", 0.7),
                            ("qmd://memory/projects/demo/lessons/port-clash.md", 0.5)]
         got = self.summaries(self.find("what about ports"))
-        self.assertEqual(got[2:], ["Port 8181 is the go-between; qmd moved to 8182."])
+        self.assertEqual(got[2], "Port 8181 is the go-between; qmd moved to 8182.")
+        self.assertNotIn("Same name, other case.", got)
+        self.assertEqual(len(got), 5)   # the rest of the scope follows (nothing hidden), nothing from outside it
 
     def test_the_repo_name_is_exact(self):
         self.assertEqual(self.summaries(self.find(repo="Demo"))[0], "Same name, other case.")
@@ -145,19 +147,37 @@ class Order(Base):
         out = self.find("where do worktrees go")
         self.assertEqual(self.summaries(out), ["Run the tests on the test machine.", "An older pinned rule.",
                                                "Git worktrees go in ~/.agent-os/worktrees/<repo>/.",
-                                               'Summary: with a "colon" and quotes'])
+                                               'Summary: with a "colon" and quotes',
+                                               "Port 8181 is the go-between; qmd moved to 8182."])   # unranked last
         body = FakeQmd.bodies[0]
         self.assertEqual(body["collections"], ["memory"])
         self.assertFalse(body["rerank"])
 
     def test_newer_wins_a_close_call_but_not_a_clear_one(self):
-        note(self.store, "projects/demo/lessons/fresh.md", "A fresh lesson.", mtime=time.time())
+        note(self.store, "projects/demo/lessons/port-clash.md", "Port 8181 is the go-between; qmd moved to 8182.",
+             date="2025-01-15")
+        note(self.store, "projects/demo/lessons/fresh.md", "A fresh lesson.", date=time.strftime("%Y-%m-%d"))
         FakeQmd.results = [("qmd://memory/projects/demo/lessons/port-clash.md", 1.0),
                            ("qmd://memory/projects/demo/lessons/fresh.md", 0.9)]
-        self.assertEqual(self.summaries(self.find("ports"))[2:], ["A fresh lesson.", "Port 8181 is the go-between; qmd moved to 8182."])
+        self.assertEqual(self.summaries(self.find("ports"))[2:4], ["A fresh lesson.", "Port 8181 is the go-between; qmd moved to 8182."])
         FakeQmd.results = [("qmd://memory/projects/demo/lessons/port-clash.md", 1.0),
                            ("qmd://memory/projects/demo/lessons/fresh.md", 0.3)]
-        self.assertEqual(self.summaries(self.find("ports"))[2:], ["Port 8181 is the go-between; qmd moved to 8182.", "A fresh lesson."])
+        self.assertEqual(self.summaries(self.find("ports"))[2:4], ["Port 8181 is the go-between; qmd moved to 8182.", "A fresh lesson."])
+
+
+    def test_the_note_date_counts_not_the_file_time(self):
+        note(self.store, "projects/demo/lessons/copied.md", "An old note, freshly copied.", mtime=time.time())
+        FakeQmd.results = [("qmd://memory/projects/demo/lessons/port-clash.md", 1.0),
+                           ("qmd://memory/projects/demo/lessons/copied.md", 0.9)]
+        self.assertEqual(self.summaries(self.find("ports"))[2:4],
+                         ["Port 8181 is the go-between; qmd moved to 8182.", "An old note, freshly copied."])
+
+    def test_empty_search_results_show_pinned_and_newest_and_say_so(self):
+        FakeQmd.results = []   # e.g. qmd has no memory collection yet: an empty list, not an error
+        out = self.find("restart the chat door on port 8181")
+        self.assertIn("Search matched no note for this task; showing pinned and newest notes instead.", out["text"])
+        self.assertEqual(len(out["notes"]), 5)
+        self.assertNotIn("No notes matched", out["text"])
 
 
 class Output(Base):

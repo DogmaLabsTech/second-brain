@@ -17,9 +17,11 @@ Python standard library only; nothing leaves this computer.
   python3 -I ask/memory.py <repo> ["the task in words"]
 """
 import json
+import math
 import os
 import re
 import sys
+import time
 import urllib.request
 
 sys.dont_write_bytecode = True
@@ -178,10 +180,31 @@ def matches(task, notes, url=None):
         n = in_scope(r.get("file", ""), notes)
         if n and not n["pinned"] and n["rel"] not in seen:
             seen.add(n["rel"])
-            hits.append({"path": n["path"], "score": r.get("score", 0), "note": n})
-    if ask.NEWER_DAYS > 0:
-        hits = ask.newer_first(hits)
-    return [h["note"] for h in hits], None
+            hits.append({"score": r.get("score", 0), "note": n})
+    hits = newer_first(hits)
+    # Nothing is hidden: the notes search did not rank follow, newest first; the budget cuts the bottom.
+    rest = newest([n for n in loose if n["rel"] not in seen])
+    note = None if hits else "Search matched no note for this task; showing pinned and newest notes instead."
+    return [h["note"] for h in hits] + rest, note
+
+
+def note_age_days(n, now):
+    """Days since the note's `date` (front matter), else since its file last changed."""
+    try:
+        when = time.mktime(time.strptime(n["date"], "%Y-%m-%d"))
+    except (ValueError, OverflowError):
+        when = n["mtime"]
+    return max(0.0, (now - when) / 86400)
+
+
+def newer_first(hits):
+    """ask.newer_first's rule (newer wins close calls, a clearly better old note stays on top), dated by the note."""
+    if ask.NEWER_DAYS <= 0:
+        return hits
+    now = time.time()
+    for h in hits:
+        h["score"] = float(h["score"] or 0) * (1 + 0.5 * math.exp(-note_age_days(h["note"], now) / ask.NEWER_DAYS))
+    return sorted(hits, key=lambda h: -h["score"])
 
 
 # ---------- the answer ----------
