@@ -74,10 +74,16 @@ def exact_things(task):
     return out[:MAX_EXACT]
 
 
+def exact_rule_on():
+    """BRAIN_MEMORY_EXACT=0 turns the exact-thing word-search line off (the score test compares with and without)."""
+    return os.environ.get("BRAIN_MEMORY_EXACT", "1") != "0"
+
+
 def searches(task):
     """The search lines: brain ask's meaning lines, plus one word-search line per exact thing."""
     lines = [dict(zip(("type", "query"), l.split(": ", 1))) for l in expanded_document(task).splitlines()]
-    return [s for s in lines if s["type"] == "vec"] + [{"type": "lex", "query": t} for t in exact_things(task)]
+    exact = exact_things(task) if exact_rule_on() else []
+    return [s for s in lines if s["type"] == "vec"] + [{"type": "lex", "query": t} for t in exact]
 
 
 # ---------- the notes ----------

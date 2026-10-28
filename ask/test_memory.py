@@ -9,6 +9,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -232,6 +233,17 @@ class ExactThings(Base):
         self.find("the tests for chat_proxy.py fail")
         lex = [s["query"] for s in FakeQmd.bodies[-1]["searches"] if s["type"] == "lex"]
         self.assertEqual(lex, ["chat_proxy.py"])
+
+    def test_the_exact_rule_can_be_switched_off(self):
+        task = "the tests for chat_proxy.py fail"
+        with mock.patch.dict(os.environ, {"BRAIN_MEMORY_EXACT": "0"}):
+            self.find(task)
+        self.assertEqual({s["type"] for s in FakeQmd.bodies[-1]["searches"]}, {"vec"})
+        with mock.patch.dict(os.environ, {"BRAIN_MEMORY_EXACT": "1"}):
+            self.find(task)
+        self.assertIn("lex", {s["type"] for s in FakeQmd.bodies[-1]["searches"]})
+        self.find(task)   # unset = today's behaviour (on)
+        self.assertIn("lex", {s["type"] for s in FakeQmd.bodies[-1]["searches"]})
 
     def test_at_most_three_exact_things(self):
         self.assertEqual(len(memory.exact_things("a.py b.py c.py d.py e_f g_h")), 3)
