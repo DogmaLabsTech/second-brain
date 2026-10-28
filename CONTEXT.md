@@ -53,6 +53,9 @@ When you add, move or retire a file here, update this file in the same commit.
 - `eval/README.md`: the fair test rules. `eval/scores.tsv`: the score log (add a row, newest last).
   `eval/heldout.example.jsonl` shows the format; the real `eval/heldout.jsonl` stays on this computer.
   `eval/seen.jsonl` is the tuning set (kept drafts land here, never in heldout).
+- `viz/` (2026-10-28): the Deck, moved in from the prototype folder. `viz/CONTEXT.md` says which file is current;
+  its data (`data.js`) and talk log stay outside git (`~/.local/share/second-brain/viz/`, `~/.local/state/second-brain/`).
+  Tests: `viz/server/test_server.py`.
 - `docs/checkup.md`: the weekly check-up routine.
 - `docs/writer-race.md`: the writer race (2026-10-15). The numbers in the README come from it.
 
@@ -87,4 +90,5 @@ Moved into `docs/history/` on 2026-10-27. Do not use these for current numbers.
 | `obsidian/` | the Obsidian plugin and vault settings copy |
 | `wake/` | the wake-word model, training and tests |
 | `jobs/` | one small file per job |
+| `viz/` | the Deck (3D map of the notes): page, server, map makers; its own `CONTEXT.md` |
 | `docs/` | results, plans and reports (see the lists above) |
