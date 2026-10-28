@@ -6,6 +6,9 @@
                                        a draft test question -> the tuning set (eval/seen.jsonl). It needs the note
                                        (or notes) that should answer it; name them here or fill them in the draft file.
   brain drafts keep <story>            a draft lore story -> agent-os lore/ as `insight`, with its line in lore/CONTEXT.md
+  brain drafts keep <draft> --to projects/<repo>/lessons [--files a,b] [--pin] [--summary "line"]
+                                       a memory draft (rule or lesson) -> the store ~/projects/shared, committed
+                                       there (eval/memory_keep.py)
   brain drafts drop <id|story>         throw a draft away; it is not drafted again
 
 What the check-up drafts, from the week's asks (ask/asklog.py) and misses (deciders/tools/learn_misses.py):
@@ -580,6 +583,9 @@ def main(argv):
         elif cmd == "run":
             days = int(_flag(argv, "--days") or 7)
             print("\n".join(lines(run(days)) or ["nothing to draft"]))
+        elif cmd == "keep" and argv and (to := _flag(argv, "--to")) is not None:
+            import memory_keep   # a memory draft -> the store (eval/memory_keep.py)
+            return memory_keep.cli(argv, to)
         elif cmd == "keep" and argv:
             use, answer = _flag(argv, "--use"), _flag(argv, "--answer")
             name = argv.pop(0)
