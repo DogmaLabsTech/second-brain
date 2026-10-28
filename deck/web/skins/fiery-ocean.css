@@ -1,0 +1,18 @@
+/* ---- Fiery Ocean
+   palette: #780000 #C1121F #FDF0D5 #003049 #669BBC   (coolors.co trending, 2026-10-28)
+   DARK skin: deep navy water (#003049), cream text (#FDF0D5), steel-blue lines and main accent (#669BBC), ember red (#C1121F, lit up
+   to #f0505a for text on navy) as the second accent, #780000 as a low red glow in the background. Mood: a harbour at dusk. */
+[data-skin=fiery-ocean]{
+  --c:#7eb0d0;--amber:#f0505a;--ok:#8fdcb0;--bad:#ff7b7b;--violet:#c3a6cf;
+  --hi:#fff8ea;--tx-hi:#fdf0d5;--tx:#d9e0df;--tx-read:#f1e8d3;--dim:#7ea0b4;--dim2:#a2bdcb;--on-c:#00131d;--listen:#d6e8f3;
+  --bg1:#05405f;--bg2:#00263b;--bg3:#000f18;--bg-a:#78000070;--bg-b:#669bbc26;
+  --glass:#00243ac6;--glass2:#001829d2;--glass-rd:#001c2eec;--glass-pop:#001525f4;
+  --surf:#0a3a57cc;--surf-hi:#145176;--well:#00101c99;--track:#0d3550;
+  --line:#669bbc40;--edge:#000b12;--inner:#fdf0d51c;--shadow:#000b;--halo:#000b12;
+  --warn-bg:#3b1c12cc;--warn-tx:#ffe3c2;--err-bg:#500a12d0;--err-tx:#ffcdc8;--em:#ffd9ad;--quote:#e6d8bd;--link:#ff9f80;--code-tx:#abd5ec;--code-bg:#06324b;
+  --g-agent-os:#ff8a4d;--g-business:#f7d58b;--g-chats:#669bbc;--g-codex:#b58fc9;--g-computer:#58d0d6;--g-content:#ff93a4;
+  --g-days:#fdf0d5;--g-experiments:#b3cf8e;--g-hermes:#a39d90;--g-memory:#2fc398;--g-plans:#5aa5ea;--g-pm:#f5424f;--g-projects:#d99a5e;
+  --glow:.9;--corner:1;--scan-op:.22;--vig-op:1.15;--r:10px;--r-sm:6px;--blur:12px;--sat:1.2;
+  --font-ui:"Inter Display",Inter,system-ui,sans-serif;--font-read:Inter,system-ui,sans-serif;--font-mono:"JetBrainsMono Nerd Font","JetBrains Mono",monospace;
+  --s-line:#669bbc;--s-sweep:#fdf0d5;--s-slice:#e23a45;--s-scan:#fdf0d5;--s-nb:#8fbbd6;--s-shell:#669bbc;--s-listen:#cfe6f3;--s-speak:#8fc3e0;--s-think:#f0505a;--s-hot:#fdf0d5;--s-err:#ff5a5f;--s-blend:add;--s-core:.5;--s-dot:1;--s-shell-glow:1;--s-size:1;
+  --sp:.45;--skin:fiery-ocean}

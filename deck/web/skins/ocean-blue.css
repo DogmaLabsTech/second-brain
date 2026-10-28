@@ -1,0 +1,19 @@
+/* ---- Ocean Blue: Ocean Blue Serenity
+   palette: #03045E #023E8A #0077B6 #0096C7 #00B4D8 #48CAE4 #90E0EF #ADE8F4 #CAF0F8   (coolors.co trending, 2026-10-28)
+   DARK skin: the water column. Page runs from #023E8A at the centre down to #03045E and beyond; glass is deep blue, text is the pale
+   ice end (#CAF0F8, #ADE8F4), accents are the bright middle (#48CAE4, #90E0EF). Soft light blobs of #0096C7 and #48CAE4, round
+   corners, no scanlines or corner marks. Mood: calm, deep, serene. Warm sand and coral appear only for warnings, time and two groups. */
+[data-skin=ocean-blue]{
+  --c:#48cae4;--amber:#90e0ef;--ok:#7ff0c6;--bad:#ff8f9a;--violet:#a9a8ff;
+  --hi:#f4fcff;--tx-hi:#e4f7fc;--tx:#cbe9f4;--tx-read:#dff4fa;--dim:#86b3d4;--dim2:#a4cde6;--on-c:#02104a;--listen:#d6f7fc;
+  --bg1:#05358a;--bg2:#03145e;--bg3:#010230;--bg-a:#0096c744;--bg-b:#48cae420;
+  --glass:#04226ec8;--glass2:#031659d2;--glass-rd:#031553ee;--glass-pop:#021048f4;
+  --surf:#caf0f81a;--surf-hi:#caf0f82e;--well:#01062e8c;--track:#caf0f81f;
+  --line:#90e0ef38;--edge:#0000;--inner:#caf0f830;--shadow:#01032a88;--halo:#020a45;
+  --warn-bg:#3a3a2ecc;--warn-tx:#ffeab8;--err-bg:#4a1a42cc;--err-tx:#ffd2da;--em:#ade8f4;--quote:#bcdcee;--link:#90e0ef;--code-tx:#90e0ef;--code-bg:#02124f;
+  --g-agent-os:#19c3ee;--g-business:#ffe29a;--g-chats:#4d8dff;--g-codex:#8f7cff;--g-computer:#2fe0c8;--g-content:#d8a6ff;
+  --g-days:#eefcff;--g-experiments:#8ff0b8;--g-hermes:#7f9ab8;--g-memory:#71ba57;--g-plans:#90e0ef;--g-pm:#ff8f9a;--g-projects:#3fa0e0;
+  --glow:.75;--corner:0;--scan-op:0;--vig-op:.8;--r:16px;--r-sm:10px;--blur:18px;--sat:1.35;
+  --font-ui:"Inter Display",Inter,system-ui,sans-serif;--font-read:Inter,system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --s-line:#48cae4;--s-sweep:#caf0f8;--s-slice:#90e0ef;--s-scan:#caf0f8;--s-nb:#90e0ef;--s-shell:#0096c7;--s-listen:#caf0f8;--s-speak:#48cae4;--s-think:#adc8ff;--s-hot:#f4fcff;--s-err:#ff8f9a;--s-blend:add;--s-core:.5;--s-dot:1;--s-shell-glow:.95;--s-size:1;
+  --sp:.55;--skin:ocean-blue}

@@ -1,0 +1,102 @@
+@import url(skins/holo.css);
+@import url(skins/aurora.css);
+@import url(skins/amber.css);
+@import url(skins/paper.css);
+@import url(skins/fiery-ocean.css);
+@import url(skins/ocean-blue.css);
+@import url(skins/olive-garden.css);
+@import url(skins/leafy-green.css);
+@import url(skins/rose-clay.css);
+@import url(skins/autumn-harvest.css);
+@import url(skins/peachy.css);
+@import url(skins/deep-sea.css);
+@import url(skins/pastel-dream.css);
+@import url(skins/summer-fun.css);
+/* HOW TO MAKE A SKIN (brief 13a). Everything the Deck shows is a token; a skin is one file with one token block.
+   1. Edit only YOUR file skins/<name>.css (`[data-skin=<name>]{...}`; already imported above and listed in skins/index.js). Do not edit
+      this file, skins.js or other skins. Keep the `--skin:<name>` token. Palette (name, hexes, "coolors.co trending, 2026-10-28") on top.
+   2. Tokens: briefs/09-skins-report.md. Dark skins: --s-blend:add (glow). Light skins: --s-blend:normal, --glow:0 (ink), like Paper.
+   3. Look: your own test server (`DECK_PORT=<port> python3 server.py &` in brain-prototypes), then `deck.html#map!still&skin=<name>`.
+   4. Shots (2560 and 1261): node ~/.cache/tmp/sb/t13/skinshots.mjs <name> <port> <outdir>   (Map+hover, reader+rings, Voice, Timeline, Ask, Tunnel, Radar)
+   5. Contrast: node ~/.cache/tmp/sb/t13/contrast.mjs <name> <port>   (text on glass, the 13 group colours; aim for no LOW lines)
+   6. All load and switch: node ~/.cache/tmp/sb/t13/switchall.mjs <port>.   Changed holo.css? node ~/.cache/tmp/sb/t13/holo-sync.mjs.
+   7. Inverted twin (brief 14): made for you by invert.js from your tokens. If one inverted token looks off, override it by hand in your file:
+      `[data-skin=<name>][data-inv]{--g-pm:#...}`. Check: node ~/.cache/tmp/sb/t14/contrast.mjs <name> <port> inv
+   Never put @property or the cross-fade (below) in a skin file. The original brief-09 notes follow. */
+/* Skins: every colour, font, radius, border, glow and glass setting of the Deck is a token here (brief 09).
+   The page reads only these tokens; a skin is one block below (page and scene colours) plus a name in skins.js.
+   Switching: skins.js sets <html data-skin="...">; the colour/number/length tokens are registered (@property), so the
+   :root transition cross-fades them (~420 ms) and every rule that uses them follows. Fonts and blur change at once.
+   Scene tokens (--s-*, plus --g-* for the dot colours) are read by skins.js for the three.js side; --s-blend: add (glow on dark)
+   or normal (ink on light); --s-core: the dots' white centre (negative darkens); --s-dot/--s-size: dot strength and size.
+   Add a skin: see HOW TO above. */
+@property --c{syntax:'<color>';inherits:true;initial-value:#5be7ff}
+@property --amber{syntax:'<color>';inherits:true;initial-value:#ffb454}
+@property --ok{syntax:'<color>';inherits:true;initial-value:#7dffb0}
+@property --bad{syntax:'<color>';inherits:true;initial-value:#ff7a7a}
+@property --violet{syntax:'<color>';inherits:true;initial-value:#c9a2ff}
+@property --hi{syntax:'<color>';inherits:true;initial-value:#fff}
+@property --tx-hi{syntax:'<color>';inherits:true;initial-value:#e8fbff}
+@property --tx{syntax:'<color>';inherits:true;initial-value:#bfeaf5}
+@property --tx-read{syntax:'<color>';inherits:true;initial-value:#d6edf3}
+@property --dim{syntax:'<color>';inherits:true;initial-value:#5f8794}
+@property --dim2{syntax:'<color>';inherits:true;initial-value:#8fb7c4}
+@property --on-c{syntax:'<color>';inherits:true;initial-value:#02080c}
+@property --listen{syntax:'<color>';inherits:true;initial-value:#c8faff}
+@property --bg1{syntax:'<color>';inherits:true;initial-value:#0a2430}
+@property --bg2{syntax:'<color>';inherits:true;initial-value:#04101a}
+@property --bg3{syntax:'<color>';inherits:true;initial-value:#02060a}
+@property --bg-a{syntax:'<color>';inherits:true;initial-value:transparent}
+@property --bg-b{syntax:'<color>';inherits:true;initial-value:transparent}
+@property --glass{syntax:'<color>';inherits:true;initial-value:#06161fa8}
+@property --glass2{syntax:'<color>';inherits:true;initial-value:#030c12b8}
+@property --glass-rd{syntax:'<color>';inherits:true;initial-value:#05141de8}
+@property --glass-pop{syntax:'<color>';inherits:true;initial-value:#031219f0}
+@property --surf{syntax:'<color>';inherits:true;initial-value:#06202bcc}
+@property --surf-hi{syntax:'<color>';inherits:true;initial-value:#0d3140}
+@property --well{syntax:'<color>';inherits:true;initial-value:#02101799}
+@property --track{syntax:'<color>';inherits:true;initial-value:#0f2a35}
+@property --line{syntax:'<color>';inherits:true;initial-value:#5be7ff30}
+@property --edge{syntax:'<color>';inherits:true;initial-value:#02080c}
+@property --inner{syntax:'<color>';inherits:true;initial-value:#5be7ff1c}
+@property --shadow{syntax:'<color>';inherits:true;initial-value:#000a}
+@property --halo{syntax:'<color>';inherits:true;initial-value:#02080c}
+@property --warn-bg{syntax:'<color>';inherits:true;initial-value:#2a1f0ecc}
+@property --warn-tx{syntax:'<color>';inherits:true;initial-value:#ffe3b8}
+@property --err-bg{syntax:'<color>';inherits:true;initial-value:#2a0e0ecc}
+@property --err-tx{syntax:'<color>';inherits:true;initial-value:#ffc4bc}
+@property --em{syntax:'<color>';inherits:true;initial-value:#ffdcae}
+@property --quote{syntax:'<color>';inherits:true;initial-value:#ead8b8}
+@property --link{syntax:'<color>';inherits:true;initial-value:#ffc477}
+@property --code-tx{syntax:'<color>';inherits:true;initial-value:#9ff0ff}
+@property --code-bg{syntax:'<color>';inherits:true;initial-value:#0b2d3b}
+@property --g-agent-os{syntax:'<color>';inherits:true;initial-value:#ff7a45}
+@property --g-business{syntax:'<color>';inherits:true;initial-value:#ffd23f}
+@property --g-chats{syntax:'<color>';inherits:true;initial-value:#4d9bff}
+@property --g-codex{syntax:'<color>';inherits:true;initial-value:#8b7bff}
+@property --g-computer{syntax:'<color>';inherits:true;initial-value:#19d3c5}
+@property --g-content{syntax:'<color>';inherits:true;initial-value:#ff5fa2}
+@property --g-days{syntax:'<color>';inherits:true;initial-value:#f1ecc8}
+@property --g-experiments{syntax:'<color>';inherits:true;initial-value:#b8f27c}
+@property --g-hermes{syntax:'<color>';inherits:true;initial-value:#8a94a6}
+@property --g-memory{syntax:'<color>';inherits:true;initial-value:#ce9143}
+@property --g-plans{syntax:'<color>';inherits:true;initial-value:#6ee7ff}
+@property --g-pm{syntax:'<color>';inherits:true;initial-value:#ff4d5e}
+@property --g-projects{syntax:'<color>';inherits:true;initial-value:#5cd65c}
+@property --glow{syntax:'<number>';inherits:true;initial-value:1}
+@property --corner{syntax:'<number>';inherits:true;initial-value:1}
+@property --scan-op{syntax:'<number>';inherits:true;initial-value:.5}
+@property --vig-op{syntax:'<number>';inherits:true;initial-value:1}
+@property --r{syntax:'<length>';inherits:true;initial-value:12px}
+@property --r-sm{syntax:'<length>';inherits:true;initial-value:7px}
+@property --sp{syntax:'<number>';inherits:true;initial-value:1}
+
+/* the cross-fade (only while a switch runs, so hovers and loading never pay for it) */
+:root.skinfade{transition:--c .42s,--amber .42s,--ok .42s,--bad .42s,--violet .42s,--hi .42s,--tx-hi .42s,--tx .42s,--tx-read .42s,--dim .42s,--dim2 .42s,--on-c .42s,--listen .42s,
+  --bg1 .42s,--bg2 .42s,--bg3 .42s,--bg-a .42s,--bg-b .42s,--glass .42s,--glass2 .42s,--glass-rd .42s,--glass-pop .42s,--surf .42s,--surf-hi .42s,--well .42s,--track .42s,
+  --line .42s,--edge .42s,--inner .42s,--shadow .42s,--halo .42s,--warn-bg .42s,--warn-tx .42s,--err-bg .42s,--err-tx .42s,--em .42s,--quote .42s,--link .42s,--code-tx .42s,--code-bg .42s,
+  --g-agent-os .42s,--g-business .42s,--g-chats .42s,--g-codex .42s,--g-computer .42s,--g-content .42s,--g-days .42s,--g-experiments .42s,--g-hermes .42s,--g-memory .42s,--g-plans .42s,--g-pm .42s,--g-projects .42s,
+  --glow .42s,--corner .42s,--scan-op .42s,--vig-op .42s,--r .42s,--r-sm .42s,--sp .42s}
+/* plain translucency when blur costs too many frames (set by skins.js, or the test switch noblur) */
+:root.noblur{--glass:color-mix(in srgb,var(--glass-rd) 84%,transparent);--glass2:color-mix(in srgb,var(--glass-rd) 88%,transparent)}
+:root.noblur *{backdrop-filter:none!important}

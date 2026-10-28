@@ -1,0 +1,17 @@
+/* ---- Olive Garden: Olive Garden Feast
+   palette: #606C38 #283618 #FEFAE0 #DDA15E #BC6C25   (coolors.co trending, 2026-10-28)
+   DARK skin. Mood: a kitchen garden at dusk. Deep olive-green glass, cream text, tan and burnt-orange light. Quiet, warm, book-like. */
+[data-skin=olive-garden]{
+  --c:#DDA15E;--amber:#E48E3C;--ok:#AFC66A;--bad:#EE7B5C;--violet:#D2B49C;
+  --hi:#FEFAE0;--tx-hi:#FEFAE0;--tx:#E9E5C6;--tx-read:#F3EFD3;--dim:#A3AA80;--dim2:#C0C39F;--on-c:#1B2510;--listen:#FFF6C4;
+  --bg1:#334320;--bg2:#222E12;--bg3:#101709;--bg-a:#0000;--bg-b:#0000;
+  --glass:#1A2510c4;--glass2:#131C0Bcc;--glass-rd:#18220fe8;--glass-pop:#141D0Cf2;
+  --surf:#2C3A1Acc;--surf-hi:#3D4E25;--well:#0E1507a6;--track:#2A3719;
+  --line:#DDA15E36;--edge:#0A0F05;--inner:#FEFAE024;--shadow:#000a;--halo:#0A0F05;
+  --warn-bg:#3A2A12cc;--warn-tx:#FFE2B4;--err-bg:#3A1A12cc;--err-tx:#FFCDB8;--em:#F5D09A;--quote:#DCD6AE;--link:#EDB06C;--code-tx:#D4E08C;--code-bg:#24321a;
+  --g-agent-os:#F28C38;--g-business:#F5CA5C;--g-chats:#C6D3A0;--g-codex:#EE7064;--g-computer:#8CB85C;--g-content:#E9A18F;
+  --g-days:#FEFAE0;--g-experiments:#D4E03E;--g-hermes:#9C9A82;--g-memory:#ff8cb5;--g-plans:#68AA98;--g-pm:#D8683A;--g-projects:#52B06C;
+  --glow:.8;--corner:0;--scan-op:.12;--vig-op:1;--r:14px;--r-sm:9px;--blur:12px;--sat:1.15;
+  --font-ui:"iA Writer Quattro S","Inter Display",Inter,system-ui,sans-serif;--font-read:Inter,system-ui,sans-serif;--font-mono:"iA Writer Mono S","JetBrains Mono",ui-monospace,monospace;
+  --s-line:#8E9F58;--s-sweep:#DDA15E;--s-slice:#E48E3C;--s-scan:#FEFAE0;--s-nb:#C5CF86;--s-shell:#DDA15E;--s-listen:#FEFAE0;--s-speak:#E8B574;--s-think:#E48E3C;--s-hot:#FEFAE0;--s-err:#EE7B5C;--s-blend:add;--s-core:.5;--s-dot:1;--s-shell-glow:.9;--s-size:1;
+  --sp:.7;--skin:olive-garden}

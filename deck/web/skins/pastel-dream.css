@@ -1,0 +1,19 @@
+/* ---- Pastel Dream: Pastel Dreamland Adventure
+   palette: #CDB4DB #FFC8DD #FFAFCC #BDE0FE #A2D2FF   (coolors.co trending, 2026-10-28)
+   LIGHT skin (ink drawing). Mood: a soft sugar-sky morning; lavender, candy pink and baby blue washes behind frosted milk-glass.
+   The five pastels are too pale for text, so ink, accents and dots are deep shades of them (lavender -> plum, pink -> raspberry,
+   blue -> denim); the pastels themselves carry the background, the glass tint and the soft light blobs. */
+[data-skin=pastel-dream]{
+  --c:#6b3f9a;--amber:#b8306f;--ok:#17754e;--bad:#c2224a;--violet:#7a4cc0;
+  --hi:#1c1030;--tx-hi:#241638;--tx:#3a2a54;--tx-read:#2b1d44;--dim:#76658f;--dim2:#5a4973;--on-c:#fff;--listen:#4b2a8a;
+  --bg1:#fdf1f8;--bg2:#e6dcf3;--bg3:#cfe2f9;--bg-a:#ffafcc66;--bg-b:#a2d2ff80;
+  --glass:#fff6fbb8;--glass2:#f7f1fcc0;--glass-rd:#fffafdf2;--glass-pop:#fffbfef7;
+  --surf:#f1e6f8e6;--surf-hi:#e8d6f4;--well:#f7effbe6;--track:#e4d7f0;
+  --line:#6b3f9a2b;--edge:#0000;--inner:#ffffffd9;--shadow:#6b3f9a2e;--halo:#fbf0f9;
+  --warn-bg:#ffe9f1;--warn-tx:#7a1d4a;--err-bg:#fde4ea;--err-tx:#8a1736;--em:#8a2a62;--quote:#4a3560;--link:#a8286a;--code-tx:#3a3a9a;--code-bg:#ece6f8;
+  --g-agent-os:#cf4a3f;--g-business:#8a5a2b;--g-chats:#2457c5;--g-codex:#6a3fd6;--g-computer:#0f7f86;--g-content:#d02a86;
+  --g-days:#7b708f;--g-experiments:#3f8a4f;--g-hermes:#46587a;--g-memory:#b45e65;--g-plans:#1582bd;--g-pm:#9c1650;--g-projects:#a847b8;
+  --glow:0;--corner:0;--scan-op:0;--vig-op:.2;--r:22px;--r-sm:14px;--blur:22px;--sat:1.35;
+  --font-ui:"Inter Display",Inter,system-ui,sans-serif;--font-read:Inter,system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --s-line:#9a7bbd;--s-sweep:#d4488a;--s-slice:#d4488a;--s-scan:#6b3f9a;--s-nb:#6f8fd0;--s-shell:#9a7bd0;--s-listen:#4b6fd0;--s-speak:#6b3f9a;--s-think:#d4488a;--s-hot:#4b2a8a;--s-err:#c2224a;--s-blend:normal;--s-core:-.4;--s-dot:1;--s-shell-glow:.6;--s-size:.8;
+  --sp:.5;--skin:pastel-dream}

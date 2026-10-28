@@ -1,0 +1,19 @@
+/* ---- Autumn Harvest
+   palette: #6F1D1B #BB9457 #432818 #99582A #FFE6A7   (coolors.co trending, 2026-10-28)
+   DARK skin, a cellar-lit harvest: the page is the deep brown (#432818 darkened) with oxblood (#6F1D1B) glowing in the corners, glass of dark
+   wood, text in cream (#FFE6A7), gold (#BB9457 lifted) as the main accent and copper (#99582A lifted) as the second. Glow drawing like Holo,
+   but warm, with a serif reading face. Group colours are warm lifts of the palette plus a few muted leaf, rose and mist tones for separation. */
+[data-skin=autumn-harvest]{
+  --c:#d9b06a;--amber:#e48a4a;--ok:#aecb6a;--bad:#ff8272;--violet:#d9a0b4;
+  --hi:#fff6dc;--tx-hi:#fff0c8;--tx:#ecd5a2;--tx-read:#f7e4b4;--dim:#a8895e;--dim2:#c7a974;--on-c:#2a140a;--listen:#ffe6a7;
+  --bg1:#3c2213;--bg2:#1f1009;--bg3:#0d0604;--bg-a:#6F1D1B55;--bg-b:#99582A26;
+  --glass:#1e100ac4;--glass2:#150a06cc;--glass-rd:#1b0e08ec;--glass-pop:#160b06f4;
+  --surf:#2c180ecc;--surf-hi:#4a2b18;--well:#10070499;--track:#38200f;
+  --line:#bb945736;--edge:#0d0604;--inner:#ffe6a720;--shadow:#000b;--halo:#0d0604;
+  --warn-bg:#3a2810d0;--warn-tx:#ffe6a7;--err-bg:#4a1413d0;--err-tx:#ffcdc2;--em:#ffd98a;--quote:#e6cd9c;--link:#f2b768;--code-tx:#ffe6a7;--code-bg:#2e1a0e;
+  --g-agent-os:#ff7a3d;--g-business:#f0c24a;--g-chats:#ec8eaa;--g-codex:#c490e0;--g-computer:#7fc8a0;--g-content:#ff8a78;
+  --g-days:#ffe6a7;--g-experiments:#b8d058;--g-hermes:#a39a8c;--g-memory:#c29153;--g-plans:#6fb8c8;--g-pm:#d0423a;--g-projects:#86d66a;
+  --glow:.9;--corner:1;--scan-op:.25;--vig-op:1;--r:14px;--r-sm:8px;--blur:12px;--sat:1.2;
+  --font-ui:Inter,system-ui,sans-serif;--font-read:"Noto Serif","DejaVu Serif",Georgia,serif;--font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --s-line:#bb9457;--s-sweep:#ffe6a7;--s-slice:#e48a4a;--s-scan:#ffe6a7;--s-nb:#d9b06a;--s-shell:#d9b06a;--s-listen:#ffe6a7;--s-speak:#f5cc82;--s-think:#e48a4a;--s-hot:#fff1cc;--s-err:#ff7060;--s-blend:add;--s-core:.5;--s-dot:1;--s-shell-glow:1;--s-size:1;
+  --sp:.8;--skin:autumn-harvest}

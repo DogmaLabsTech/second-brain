@@ -1,0 +1,17 @@
+/* ---- Leafy Green: Leafy Green Garden
+   palette: #132A13 #31572C #4F772D #90A955 #ECF39E   (coolors.co trending, 2026-10-28)
+   DARK skin. Mood: sunlight through a forest canopy. Deep leaf-green glass, fresh lime light, soft and round. Calm and alive. */
+[data-skin=leafy-green]{
+  --c:#B9D26E;--amber:#ECF39E;--ok:#9CD26A;--bad:#F2866A;--violet:#B8C9A8;
+  --hi:#F8FBD6;--tx-hi:#F4F9CC;--tx:#D8E8B4;--tx-read:#E8F2C8;--dim:#8FAA78;--dim2:#AEC692;--on-c:#0C1D0C;--listen:#F2F8B4;
+  --bg1:#245028;--bg2:#143016;--bg3:#07130A;--bg-a:#4F772D4d;--bg-b:#ECF39E1a;
+  --glass:#12301Ac4;--glass2:#0D2411cc;--glass-rd:#0F2A14e8;--glass-pop:#0C2310f2;
+  --surf:#2B5030cc;--surf-hi:#3A6A3C;--well:#08170Ba8;--track:#21441F;
+  --line:#90A95538;--edge:#06100A;--inner:#ECF39E28;--shadow:#000a;--halo:#06100A;
+  --warn-bg:#3E3A14cc;--warn-tx:#FBEFB0;--err-bg:#431E16cc;--err-tx:#FFD0C0;--em:#E4F08C;--quote:#CFE0A8;--link:#C6E27A;--code-tx:#D2EE90;--code-bg:#1B3F20;
+  --g-agent-os:#F0A04B;--g-business:#E8D34F;--g-chats:#9FE0BE;--g-codex:#8A9F6A;--g-computer:#35A59A;--g-content:#EE9A80;
+  --g-days:#F8FBD6;--g-experiments:#C8E83C;--g-hermes:#B4B8A4;--g-memory:#e3c183;--g-plans:#7FBCD0;--g-pm:#EC6E5A;--g-projects:#4FAE3C;
+  --glow:.9;--corner:0;--scan-op:0;--vig-op:.8;--r:18px;--r-sm:11px;--blur:16px;--sat:1.3;
+  --font-ui:"Inter Display",Inter,system-ui,sans-serif;--font-read:Inter,system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --s-line:#90A955;--s-sweep:#ECF39E;--s-slice:#ECF39E;--s-scan:#F8FBD6;--s-nb:#B9D26E;--s-shell:#90A955;--s-listen:#F2F8B4;--s-speak:#C6E27A;--s-think:#ECF39E;--s-hot:#F8FBD6;--s-err:#F2866A;--s-blend:add;--s-core:.5;--s-dot:1;--s-shell-glow:1;--s-size:1;
+  --sp:.62;--skin:leafy-green}

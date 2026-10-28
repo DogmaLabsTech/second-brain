@@ -1,0 +1,15 @@
+/* ---- Amber: warm retro terminal / instrument panel, amber on near-black, monospace */
+[data-skin=amber]{
+  --c:#ffb000;--amber:#ff6a2a;--ok:#c8e05a;--bad:#ff5a3a;--violet:#ffcf7a;
+  --hi:#ffe9c2;--tx-hi:#ffdca0;--tx:#f0bf72;--tx-read:#f6d39a;--dim:#a67a3c;--dim2:#c39250;--on-c:#140b00;--listen:#fff0c8;
+  --bg1:#1a0f04;--bg2:#0c0702;--bg3:#050301;--bg-a:#0000;--bg-b:#0000;
+  --glass:#140c03c4;--glass2:#0b0602d0;--glass-rd:#110a03f0;--glass-pop:#120b03f4;
+  --surf:#2a1904cc;--surf-hi:#3d2506;--well:#0a0501b0;--track:#2e1d06;
+  --line:#ffb00038;--edge:#050301;--inner:#ffb0001a;--shadow:#000c;--halo:#050301;
+  --warn-bg:#3a1d06d0;--warn-tx:#ffd6a8;--err-bg:#3a0f06d0;--err-tx:#ffb8a0;--em:#ffd27a;--quote:#e8c48c;--link:#ff9a4a;--code-tx:#ffd27a;--code-bg:#2a1904;
+  --g-agent-os:#ff7a2a;--g-business:#ffd23a;--g-chats:#e8a24a;--g-codex:#d98a6a;--g-computer:#c8d050;--g-content:#ff6a5a;
+  --g-days:#fff0c8;--g-experiments:#a8d84a;--g-hermes:#8a7a62;--g-memory:#ed718d;--g-plans:#ffc978;--g-pm:#ff4a2a;--g-projects:#8cc85a;
+  --glow:.8;--corner:1;--scan-op:.9;--vig-op:1.2;--r:7px;--r-sm:4px;--blur:6px;--sat:1;
+  --font-ui:"iA Writer Mono S","JetBrains Mono",ui-monospace,monospace;--font-read:"iA Writer Duo S","iA Writer Mono S",ui-monospace,monospace;--font-mono:"iA Writer Mono S","JetBrains Mono",monospace;
+  --s-line:#ffb000;--s-sweep:#ffd27a;--s-slice:#ff6a2a;--s-scan:#ffe9c2;--s-nb:#ffc978;--s-shell:#ff9a1a;--s-listen:#ffe0a0;--s-speak:#ffc04a;--s-think:#ff6a2a;--s-hot:#fff0c8;--s-err:#ff4a2a;--s-blend:add;--s-core:.4;--s-dot:1;--s-shell-glow:.9;--s-size:1;
+  --sp:.9;--skin:amber}

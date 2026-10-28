@@ -1,0 +1,15 @@
+/* ---- Aurora: soft frosted glass, airy, violet/teal, calm */
+[data-skin=aurora]{
+  --c:#8fe3d6;--amber:#c4a8ff;--ok:#8ef0b8;--bad:#ff8fa3;--violet:#d9b8ff;
+  --hi:#fbfaff;--tx-hi:#f1efff;--tx:#d9dcf2;--tx-read:#e8e8f8;--dim:#9a9cc4;--dim2:#b3b5d8;--on-c:#16132e;--listen:#d8fff8;
+  --bg1:#1d1b46;--bg2:#121232;--bg3:#0a0b1f;--bg-a:#5b3fa855;--bg-b:#1b7f8a4d;
+  --glass:#28255cc4;--glass2:#1c1a48cc;--glass-rd:#1b1a3ee6;--glass-pop:#211f48f2;
+  --surf:#ffffff14;--surf-hi:#ffffff26;--well:#0b0a2280;--track:#ffffff1a;
+  --line:#ffffff26;--edge:#0000;--inner:#ffffff2e;--shadow:#05041566;--halo:#0d0c26;
+  --warn-bg:#3a2a5ccc;--warn-tx:#ecdcff;--err-bg:#4a1f35cc;--err-tx:#ffd0da;--em:#f3d2ff;--quote:#d6cdf5;--link:#c4a8ff;--code-tx:#b9f5ec;--code-bg:#ffffff14;
+  --g-agent-os:#ffab8a;--g-business:#ffe08a;--g-chats:#8ab8ff;--g-codex:#b3a6ff;--g-computer:#7fe8da;--g-content:#ff9cc8;
+  --g-days:#efeacd;--g-experiments:#c8f2a0;--g-hermes:#a7aec4;--g-memory:#b3bd51;--g-plans:#9feeff;--g-pm:#ff8f9b;--g-projects:#8fe39a;
+  --glow:.55;--corner:0;--scan-op:0;--vig-op:.6;--r:20px;--r-sm:12px;--blur:20px;--sat:1.5;
+  --font-ui:"Inter Display",Inter,system-ui,sans-serif;--font-read:Inter,system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --s-line:#a99cff;--s-sweep:#c9f5ee;--s-slice:#d4b8ff;--s-scan:#eef0ff;--s-nb:#b9f5ec;--s-shell:#9d8cff;--s-listen:#d8fff8;--s-speak:#8fe3d6;--s-think:#f0b8ff;--s-hot:#f4f0ff;--s-err:#ff8fa3;--s-blend:add;--s-core:.45;--s-dot:.95;--s-shell-glow:.9;--s-size:1;
+  --sp:.62;--skin:aurora}
