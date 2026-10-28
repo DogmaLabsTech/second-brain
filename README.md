@@ -142,6 +142,34 @@ To try it first without touching your settings: `claude --settings ~/projects/se
 **Undo:** take that entry out of `~/.claude/settings.json` again; then `rm -r ~/.local/state/second-brain/memory-hook
 ~/.local/state/second-brain/memory-hook.jsonl`.
 
+## The librarian: lesson drafts, old-note flags and the weekly list (agent memory job 6)
+
+The memory store learns without you writing notes, and you stay the one who says yes. Nothing here is pushed to an agent
+before your keep. Everything is local; no model is called.
+
+- **Lesson drafts.** When a desk job ends and something objectively went wrong (a second build round, a failed check,
+  a test alarm, a revert, a blocked tool in its records), the desk's librarian step writes **one** draft into the
+  store's inbox with `brain memory-drafts add` (code: agent-os `librarian lesson`, which reads the job's own files, never
+  the agent's story). The draft says **already known: yes/no** (a kept note says the same) and **was pushed: yes/no/unknown**
+  (that note was in the memory hook's push for that job). "Yes and pushed" means a repeat got through; it is counted in
+  the check-up. At most **5 drafts a week** (a sixth is refused in plain words). A draft nobody keeps for **30 days**
+  moves to `history/expired-drafts/` (never deleted, never pushed). `brain memory-drafts list` shows what waits; keep
+  it with `brain drafts keep <draft> --to projects/<repo>/lessons`, drop it with `brain memory-drafts drop <draft>`.
+  Code: `eval/memory_drafts.py`. Tests: `eval/test_memory_drafts.py`.
+- **Flags.** A weekly pass flags (never changes) a kept note when a file in its `files:` list is gone, or changed a lot
+  since the note's date (20 lines and half the file, by git log), or a newer note of the same project looks like the
+  opposite (same words, one with a "never"). The flags live in the store's `flags.jsonl`, not in the notes. A flagged
+  note is still pushed, marked "(may be out of date, check first)". A flag nobody confirms for **30 days** takes the note
+  out of the push (not out of the store; `brain memory` still shows it). Pinned notes get a "still true?" every **90 days**.
+  Answer with `brain memory-flags confirm <note>` (still right), edit the note and confirm, or
+  `brain memory-flags retire <note> --why "…"` (moves it to `history/`, committed; only you run it).
+  `brain memory-flags` lists them. Code: `eval/memory_flags.py`, `ask/memory_flagfile.py`. Tests: `eval/test_memory_flags.py`.
+- **The weekly list.** `brain checkup` ends with "Agent memory for <user>": new drafts (keep/drop), flags
+  (keep/edit/retire) and pinned notes due, each with its command, plus two numbers that also go in `scores.tsv`:
+  **repeats that got through** (drafts of the week that were already known and pushed) and the **second-round rate**
+  (desk jobs finished this week with `fix: 2` or more / all desk jobs finished this week, read from `~/agent-os/jobs`).
+  Skip it with `--no-memory`. Code: `eval/memory_week.py`. Tests: `eval/test_memory_week.py`.
+
 ## How to ask (a short answer)
 
 ```

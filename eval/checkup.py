@@ -9,6 +9,8 @@
   brain checkup --no-learn   skip learning from the week's likely misses (Haiku and the second decider label them)
   brain checkup --no-train   find misses, but don't start a training round even with 30+ new examples
   brain checkup --no-drafts  skip the drafts for <user> (test questions and lore stories from the week's signals)
+  brain checkup --no-memory  skip the agent memory list (lesson drafts, notes that may be out of date, pinned notes due,
+                             and the two numbers: repeats that got through, second-round rate; eval/memory_week.py)
   brain checkup --auto       what the Monday timer runs (eval/remind.sh): everything above with --no-learn --no-train
                              (no online labelling, no training round without <user>), the report saved to
                              ~/.local/state/second-brain/checkups/DATE.txt, the score row added to scores.tsv (note
@@ -37,6 +39,7 @@ import ask  # noqa: E402
 import asklog  # noqa: E402
 import freshness  # noqa: E402
 import drafts  # noqa: E402
+import memory_week  # noqa: E402
 
 HOME = os.path.expanduser("~")
 DECIDERS = os.path.join(ROOT, "deciders")
@@ -174,6 +177,14 @@ def drafts_lines(days):
         return [f"Drafts for <user>: couldn't make them ({why})"]
 
 
+def memory_block(days):
+    """The agent memory part (eval/memory_week.py): moves old lesson drafts away, looks for notes that may be out of date,
+    and returns (the lines for <user>, repeat count, second-round rate as 'again/done'). Writes only in the memory store."""
+    got = memory_week.report(days)
+    again = got["second_round"]
+    return got["lines"], got["repeats"], None if again is None else "%d/%d" % again
+
+
 def _print_search(s):
     print(f"Fair test (search, {s['n']} questions): right note first {s['top1']}/{s['n']}, "
           f"in top 3 {s['top3']}/{s['n']} ({100 * s['top3'] // max(1, s['n'])}%)")
@@ -227,17 +238,19 @@ def _print_week(asks, votes, days):
     return up, down
 
 
-def _append_scores(s, it, asks, up, down, learned):
+def _append_scores(s, it, asks, up, down, learned, memory=None):
     line = "\t".join([time.strftime("%Y-%m-%d %H:%M"), f"{s['top1']}/{s['n']}", f"{s['top3']}/{s['n']}",
                       f"{s['newer_ok']}/{s['newer_n']}", str(len(asks)), str(len(up)), str(len(down)),
                       f"{it['right']}/{it['n']}" if it else "-", f"{it['sure_wrong']}/{it['n']}" if it else "-",
                       "-" if learned is None else str(learned),
+                      "-" if memory is None or memory[1] is None else str(memory[1]),
+                      "-" if memory is None or memory[2] is None else memory[2],
                       os.environ.get("CHECKUP_NOTE", "")])
     path = os.path.join(HERE, "scores.tsv")
     new = not os.path.exists(path)
     with open(path, "a") as f:
         if new:
-            f.write("when\ttop1\ttop3\tnewer\tasks\tup\tdown\tintent\tsure_wrong\tlearned\tnote\n")
+            f.write("when\ttop1\ttop3\tnewer\tasks\tup\tdown\tintent\tsure_wrong\tlearned\trepeats\tsecond_round\tnote\n")
         f.write(line + "\n")
 
 
@@ -305,10 +318,13 @@ def run(argv):
         block = drafts_lines(days)
         if block:
             print("\n" + "\n".join(block))
+    memory = None if "--no-memory" in argv else _try(problems, "The agent memory list", lambda: memory_block(days))
+    if memory and memory[0]:
+        print("\n" + "\n".join(memory[0]))
     prev = previous_row()
     if auto and not os.environ.get("CHECKUP_NOTE"):
         os.environ["CHECKUP_NOTE"] = "auto"
-    _append_scores(s, it, asks, up, down, learned)
+    _append_scores(s, it, asks, up, down, learned, memory)
 
     if "--answers" in argv:
         _save_answers(rows)
