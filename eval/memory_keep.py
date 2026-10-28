@@ -283,8 +283,11 @@ def _write_and_commit(store, src, dest, original, text, message):
     rel = os.path.relpath(dest, store)
     src_in = _inside(store, src)
     src_rel = os.path.relpath(src, store) if src_in else None
-    tracked = bool(src_in) and subprocess.run(["git", "-C", store, "ls-files", "--error-unmatch", "--", src_rel],
-                                              capture_output=True, timeout=60).returncode == 0
+    try:
+        tracked = bool(src_in) and subprocess.run(["git", "-C", store, "ls-files", "--error-unmatch", "--", src_rel],
+                                                  capture_output=True, timeout=60).returncode == 0
+    except (OSError, subprocess.SubprocessError) as why:
+        raise KeepError("git in the store did not answer (%s); nothing changed" % type(why).__name__) from None
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     try:
         drafts._write(store, dest, text)
@@ -302,7 +305,7 @@ def _write_and_commit(store, src, dest, original, text, message):
         try:
             subprocess.run(["git", "-C", store, "reset", "-q", "--", rel] + ([src_rel] if tracked else []),
                            capture_output=True, timeout=60)
-        except subprocess.SubprocessError:
+        except (OSError, subprocess.SubprocessError):
             pass  # the first failure is the one to report
         raise
 
