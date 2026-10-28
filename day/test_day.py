@@ -1,6 +1,5 @@
 """Tests for day.py and the two day jobs. Run: python3 -I day/test_day.py (CRABBOX_LOCAL=1)."""
 import datetime as dt
-import json
 import os
 import types
 import subprocess

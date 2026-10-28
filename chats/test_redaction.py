@@ -9,7 +9,7 @@ import unittest
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from redact import MARK, redact  # noqa: E402
+from redact import redact  # noqa: E402
 
 # Fake secrets, built from pieces so this file itself never holds a real-looking key.
 FAKE = "Ab3dEf9hIj2LmN0pQr5tUv8xYz1"

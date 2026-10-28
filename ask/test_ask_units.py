@@ -1,6 +1,5 @@
 """Small tests for the check-up pieces (no network, no models): python3 ask/test_ask_units.py
 (not `-m unittest ask/…`: that imports the ask/ folder as `ask` instead of ask.py)."""
-import json
 import os
 import sys
 import tempfile

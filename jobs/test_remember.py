@@ -1,6 +1,5 @@
 """Tests for bin/remember (project tags). Never touches the real list: python3 -I jobs/test_remember.py"""
 import os
-import re
 import subprocess
 import sys
 import tempfile
