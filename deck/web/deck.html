@@ -1,0 +1,57 @@
+<!doctype html><meta charset="utf-8"><meta name="deck-live" content=""><title>Brain · Deck</title>
+<link rel="stylesheet" href="hud.css"><link rel="stylesheet" href="rings.css">
+<script>try { const s = (location.hash.match(/[#&]skin=([\w-]+)/) || [])[1] || localStorage.getItem('deckSkin'); if (/^[a-z][a-z-]{0,30}$/.test(s)) document.documentElement.dataset.skin = s;
+  // inverted palette (brief 14): on only for exactly '1' (or the test hash `invert`); last time's generated rules go in at once, skins.js rebuilds them
+  if (/[#&]invert\b/.test(location.hash) || localStorage.getItem('deckInvert') === '1') { const c = localStorage.getItem('deckInvCSS'); if (c && c.startsWith('/*inv v1*/')) { const st = document.createElement('style'); st.id = 'skin-inv'; st.textContent = c; document.head.append(st); } document.documentElement.dataset.inv = ''; } } catch {}</script>
+<link rel="stylesheet" href="css/deck.css">
+<link rel="stylesheet" href="panels.css"><link rel="stylesheet" href="live.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
+<div id="stage"></div><div class="toast" id="toast"></div>
+<div id="setveil"></div>
+<div class="panel" id="setp" role="dialog" aria-modal="true" aria-label="Settings" tabindex="-1"><div class="h"><span><i class="num">⚙</i>Settings</span><b>look and feel  ·  esc closes<span class="tg-x" id="setx" title="close (Esc)">✕</span></b></div><div id="setin">
+  <h3>SKIN <b class="skl"></b><kbd>K / SHIFT+K CYCLE</kbd></h3><div id="setskins"></div>
+  <div class="setcols"><div><h3>LOOK</h3>
+    <div class="setrow"><div><b>Invert palette</b><span>Dark skins turn light, light skins turn dark, from the same colours. One choice for every skin.</span></div><kbd>I</kbd><button class="swi" data-sw="inv" role="switch" aria-label="invert palette"><i></i></button></div>
+    <div class="setrow"><div><b>Frosted glass</b><span>Panels blur the brain behind them. Off: plain see-through panels (lighter on slow machines).</span></div><button class="swi" data-sw="blur" role="switch" aria-label="frosted glass"><i></i></button></div>
+    <div class="setrow"><div><b>Size</b><span>Bigger or smaller scene: the <b style="display:inline">+</b> and <b style="display:inline">−</b> keys.</span></div></div></div>
+  <div><h3>KEYS</h3><div class="keys"><kbd>1  2  3</kbd><span>Map, Tunnel, Radar</span><kbd>T</kbd><span>hide or show the side panels</span><kbd>K  ·  SHIFT+K</kbd><span>next or previous skin</span><kbd>I</kbd><span>invert the palette</span>
+    <kbd>+  −</kbd><span>bigger or smaller</span><kbd>/</kbd><span>search</span><kbd>SPACE</kbd><span>hold to talk</span><kbd>E</kbd><span>edit the open note</span><kbd>L</kbd><span>show or hide the live feed</span><kbd>,</kbd><span>open or close Settings</span><kbd>ESC</kbd><span>close, release, stop</span></div></div></div></div></div>
+<div id="left">
+  <div class="panel" id="viewp"><div class="h"><span><i class="num">01</i>View</span><b>keys 1 · 2 · 3<span class="hdbtn" id="viewHide" title="hide  (T)">◂</span></b></div>
+    <div class="tabs" id="tabs"><button class="tab on" data-v="map">MAP<kbd>1</kbd></button><button class="tab" data-v="tunnel">TUNNEL<kbd>2</kbd></button><button class="tab" data-v="radar">RADAR<kbd>3</kbd></button></div>
+    <div class="k" id="vdesc" style="margin-top:9px;font-size:11px;min-height:48px"></div><div class="skins" id="skins">SKIN<b class="skl"></b><button id="skset" title="all skins and the look  ( , )">SETTINGS <kbd>,</kbd></button></div></div>
+  <div class="panel" id="sections"><div class="h"><span><i class="num">02</i>Sections</span><b>click = focus<span class="hdbtn" id="secHide" title="hide  (T)">◂</span></b></div><div id="groups"></div></div>
+  <div class="panel" id="voicep" data-s="idle"><div class="h"><span><i class="num">07</i>Voice</span><b>talk to the brain<span class="hdbtn" id="voiceHide" title="hide  (T)">◂</span></b></div>
+    <button id="tbtn" title="click to talk, click again to send  ·  or hold Space"><i></i><b id="tbl">TALK</b><span>CLICK · SPACE</span></button>
+    <div id="tstat"><i></i><b id="tstate">READY</b><em id="tsub">click talk or hold space</em></div>
+    <div id="tmic" title="the microphone the Deck listens to, and how loud it hears you (the amber line is where it counts as talking)"><select id="tdev" aria-label="microphone"><option value="">system default mic</option></select><div id="tlv"><i id="tlvi"></i></div></div>
+    <div id="tcap"><div id="tq"></div><div id="ta"></div><div id="tchips"></div><div id="tjob"><b>THE BRAIN WANTS TO</b><span id="tjl"></span><div><button class="yes" id="tyes">YES, DO IT</button><button id="tno">NO</button></div></div></div></div>
+  <button id="secTab" title="show panels  (T)">▸ VIEW · SECTIONS · VOICE</button>
+</div>
+<div id="right">
+  <div class="panel"><div class="h"><span><i class="num">03</i>Section</span><b id="secn">ALL</b></div><div id="secbody"></div></div>
+  <div class="panel tgt" id="lockp" style="display:none"><div class="sweep"></div><div class="grid"></div>
+    <div class="tg-head"><span class="blip"></span><b>TARGET ACQUIRED</b><span class="tg-id" id="tid"></span><span class="tg-x" id="x" title="release (Esc)">✕</span></div>
+    <div id="tgbody"></div></div>
+</div>
+<div class="panel" id="livep"></div>
+<div id="bottom">
+  <div class="panel tl" id="tlp" style="flex:1.3"></div>
+  <div class="panel ak" id="askp" style="flex:1"></div>
+</div>
+<div class="panel rd tgt" id="reader" style="--k:var(--c)"><div class="sweep"></div><div class="grid"></div><i class="cn tr"></i><i class="cn bl"></i><i class="rail"></i>
+  <div class="rd-head"><button class="rd-btn nav" id="rdback" title="back (Alt+←)" disabled>◂</button><button class="rd-btn nav" id="rdfwd" title="forward (Alt+→)" disabled>▸</button><span class="blip"></span><b id="rdmode">NOTE OPEN</b><span class="rd-saved" id="rdsaved">✓ SAVED</span><span class="tg-id" id="rdpct">0% READ</span>
+    <button class="rd-btn lock" id="rdlock" title="This computer only: online writers never get this note">🔒 LOCAL<kbd id="rdlockv">OFF</kbd></button><button class="rd-btn edit" id="rdedit" title="edit this note (E)">✎ EDIT<kbd>E</kbd></button><button class="rd-btn hot save" id="rdsave" title="save (Ctrl+S)">SAVE<kbd>CTRL S</kbd></button><button class="rd-btn cancel" id="rdcancel" title="cancel (Esc)">CANCEL<kbd>ESC</kbd></button>
+    <span class="tg-x" id="rdx" title="close (Esc)">✕</span></div>
+  <div class="rd-bar"><i id="rdbar"></i></div>
+  <div class="rd-tb"><div class="rd-meta"><span class="tg-chip" id="rdg"></span><span id="rdd"></span><span class="rd-lockb" id="rdlockb"></span><span class="rd-src" id="rdsrc"></span></div>
+    <div class="rd-title" id="rdt"></div><div class="rd-sub"><span id="rds"></span><span id="rdst"></span></div></div>
+  <div class="rd-body" id="rdb"></div><textarea class="rd-edit" id="rde" spellcheck="true" aria-label="note text"></textarea>
+  <div class="rd-ask" id="rdask"><span>Throw away your changes to this note?</span><button class="rd-btn" id="rdkeep">KEEP EDITING<kbd>ESC</kbd></button><button class="rd-btn drop" id="rddrop">THROW AWAY<kbd>D</kbd></button></div>
+  <div class="rd-ask" id="rdlockask"><span>Turn the lock off? Online writers may then get this note.</span><button class="rd-btn" id="rdlockkeep">KEEP IT LOCKED</button><button class="rd-btn drop" id="rdlockoff">TURN OFF</button></div>
+  <div class="rd-note" id="rdlockmsg"></div>
+  <div class="rd-err" id="rderr"></div>
+  <div class="hint" id="rdhint"></div></div>
+<div class="pv" id="pv"><i class="cn tl"></i><i class="cn br"></i><div class="pv-h"><span class="tg-chip" id="pvg"></span><span id="pvd"></span><span class="go">CLICK TO OPEN ▸</span></div><div class="pv-t" id="pvt"></div><div class="pv-p" id="pvp"></div><div class="rd-body" id="pvb"></div><div class="pv-n" id="pvn"></div></div>
+<script src="data.js"></script><script src="common.js"></script>
+<script type="module" src="js/deck-main.js"></script>

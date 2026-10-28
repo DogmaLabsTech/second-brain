@@ -1,0 +1,18 @@
+/* ---- Peachy Delight
+   palette: #D8E2DC #FFE5D9 #FFCAD4 #F4ACB7 #9D8189   (coolors.co trending, 2026-10-28)
+   LIGHT skin: soft peach paper, rose-tinted glass, plum-brown ink. #FFE5D9 is the page, #FFCAD4/#F4ACB7 the washes and fills, #D8E2DC the cool sage
+   counterpoint, #9D8189 darkened gives the text and lines. Accents are deeper shades of the rose and peach so they read on pale glass. */
+[data-skin=peachy]{
+  --c:#a8415d;--amber:#b4572f;--ok:#3b7a5a;--bad:#b3203f;--violet:#7b5594;
+  --hi:#2a1820;--tx-hi:#33202a;--tx:#4a3540;--tx-read:#3b2830;--dim:#7a5f68;--dim2:#654c55;--on-c:#fff;--listen:#8c2e49;
+  --bg1:#fff2ec;--bg2:#ffe5d9;--bg3:#f0cdd0;--bg-a:#ffcad47a;--bg-b:#d8e2dc99;
+  --glass:#fff9f6b3;--glass2:#fff1ebbc;--glass-rd:#fffaf7f2;--glass-pop:#fffbf9f7;
+  --surf:#ffeee6e6;--surf-hi:#ffd9ce;--well:#fff6f1e6;--track:#f0d2d0;
+  --line:#6e4a5a2e;--edge:#0000;--inner:#ffffffd0;--shadow:#7a3a4c30;--halo:#fff2ec;
+  --warn-bg:#ffecd8;--warn-tx:#76310f;--err-bg:#ffe0e5;--err-tx:#86182f;--em:#8a3a2a;--quote:#5a4046;--link:#a23654;--code-tx:#6a3458;--code-bg:#fbe6e6;
+  --g-agent-os:#c64820;--g-business:#946608;--g-chats:#3f6fb0;--g-codex:#7c46a6;--g-computer:#237f74;--g-content:#d02a6e;
+  --g-days:#8a6a58;--g-experiments:#587510;--g-hermes:#5d7080;--g-memory:#923748;--g-plans:#13789c;--g-pm:#bd1d32;--g-projects:#1a8240;
+  --glow:0;--corner:0;--scan-op:0;--vig-op:.2;--r:18px;--r-sm:11px;--blur:18px;--sat:1.15;
+  --font-ui:"Inter Display",Inter,system-ui,sans-serif;--font-read:Inter,system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --s-line:#9d8189;--s-sweep:#c8506f;--s-slice:#b4572f;--s-scan:#c8506f;--s-nb:#7a5a65;--s-shell:#8a6a75;--s-listen:#c04468;--s-speak:#a8415d;--s-think:#b4572f;--s-hot:#8c2e49;--s-err:#b3203f;--s-blend:normal;--s-core:-.35;--s-dot:1;--s-shell-glow:.6;--s-size:.78;
+  --sp:.55;--skin:peachy}

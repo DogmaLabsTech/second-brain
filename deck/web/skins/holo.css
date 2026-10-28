@@ -1,0 +1,15 @@
+/* ---- Holo: today's cyan HUD, refined with rounded glass (the default). skins.js carries a copy (HOLO_CSS, the fallback): keep it in step */
+:root,[data-skin=holo]{
+  --c:#5be7ff;--amber:#ffb454;--ok:#7dffb0;--bad:#ff7a7a;--violet:#c9a2ff;
+  --hi:#fff;--tx-hi:#e8fbff;--tx:#bfeaf5;--tx-read:#d6edf3;--dim:#6a93a0;--dim2:#8fb7c4;--on-c:#02080c;--listen:#c8faff;
+  --bg1:#0a2430;--bg2:#04101a;--bg3:#02060a;--bg-a:#0000;--bg-b:#0000;
+  --glass:#06161fbd;--glass2:#030c12c8;--glass-rd:#05141de8;--glass-pop:#031219f2;
+  --surf:#06202bcc;--surf-hi:#0d3140;--well:#02101799;--track:#0f2a35;
+  --line:#5be7ff30;--edge:#02080c;--inner:#5be7ff1f;--shadow:#000a;--halo:#02080c;
+  --warn-bg:#2a1f0ecc;--warn-tx:#ffe3b8;--err-bg:#2a0e0ecc;--err-tx:#ffc4bc;--em:#ffdcae;--quote:#ead8b8;--link:#ffc477;--code-tx:#9ff0ff;--code-bg:#0b2d3b;
+  --g-agent-os:#ff7a45;--g-business:#ffd23f;--g-chats:#4d9bff;--g-codex:#8b7bff;--g-computer:#19d3c5;--g-content:#ff5fa2;
+  --g-days:#f1ecc8;--g-experiments:#b8f27c;--g-hermes:#8a94a6;--g-memory:#ce9143;--g-plans:#6ee7ff;--g-pm:#ff4d5e;--g-projects:#5cd65c;
+  --glow:1;--corner:1;--scan-op:.5;--vig-op:1;--r:12px;--r-sm:7px;--blur:10px;--sat:1.25;
+  --font-ui:"JetBrainsMono Nerd Font","JetBrains Mono",ui-monospace,monospace;--font-read:Inter,system-ui,sans-serif;--font-mono:"JetBrainsMono Nerd Font","JetBrains Mono",monospace;
+  --s-line:#5be7ff;--s-sweep:#aef6ff;--s-slice:#ffb454;--s-scan:#d8fbff;--s-nb:#8cf0ff;--s-shell:#5be7ff;--s-listen:#b4f7ff;--s-speak:#7beeff;--s-think:#ffb454;--s-hot:#d8fbff;--s-err:#ff6a6a;--s-blend:add;--s-core:.5;--s-dot:1;--s-shell-glow:1;--s-size:1;
+  --sp:1;--skin:holo}

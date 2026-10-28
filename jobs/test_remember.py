@@ -95,6 +95,19 @@ LIST = """# Remembered
 PLAIN = LIST.replace(" (repo: omarchy-setup)", "")
 
 
+class RememberWords(unittest.TestCase):
+    """What is kept from the words (jobs.remember_text): the "add this to my remember list" part is left out (brief 27, the Deck's voice)."""
+    def test_lead_words_are_left_out(self):
+        import jobs
+        for said, want in (("add this to my remember list: buy new mic foam", "buy new mic foam"),
+                           ("Add buy new mic foam to my remember list.", "buy new mic foam"),
+                           ("put this on the remembered list, call the bank", "call the bank"),
+                           ("remember that the dentist is on friday", "the dentist is on friday"),
+                           ("add this to my remember list", "")):
+            with self.subTest(said=said):
+                self.assertEqual(jobs.remember_text(said), want)
+
+
 class Downstream(unittest.TestCase):
     def mk(self, text):
         p = os.path.join(tempfile.mkdtemp(), "remembered.md")

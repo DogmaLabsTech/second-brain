@@ -379,6 +379,11 @@ It also says whether the Codex vectors made on the test machine worked: `index/c
 `brain checkup` prints the same warnings first (lines starting `!!`). `hermes` is named there as a group to retire
 (the agent stopped in September 2026); nothing is removed until <user> says so.
 
+## The Deck (the map of your brain)
+
+The 3D map of all your notes (views 1 Map, 2 Tunnel, 3 Radar; click a dot to read it; the voice panel) lives in `viz/`.
+How to start it and refresh it: `viz/README.md`. It only runs on this computer.
+
 ## How it works (the short version)
 
 The engine is **qmd** (by Tobi Lütke). It mixes word search and meaning search. Its models run on
@@ -475,6 +480,7 @@ working.
 | Your notes and their copies, the chat notes | your private writing | your note folders, `~/.local/share/second-brain/chats/` |
 | The search index and its models | big, and built from your notes | `~/.cache/qmd/` |
 | Ask logs, 👍/👎 ratings, check-up answers | your questions and answers | `~/.local/state/second-brain/` |
+| The Deck's map data (`data.js`) and its talk log | every note's title and path; what you said to the Deck | `~/.local/share/second-brain/viz/`, `~/.local/state/second-brain/talk-log.jsonl` |
 | Wake word training audio and test clips, recordings | big, and recordings stay private | `~/.local/share/second-brain/wake-data/` |
 | Virtual environments, model files (except the 400 KB wake word model) | big, rebuilt on each computer | `~/.local/share/second-brain/*-venv`, `~/.local/share/decider/checkpoints/` |
 | `deciders/private.json` | the real names (family, clients) the privacy check looks for | here; start one from `deciders/private.example.json` |

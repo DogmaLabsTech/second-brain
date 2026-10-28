@@ -1,0 +1,19 @@
+/* ---- Rose Clay: Rose Clay (no name on coolors; <user>: "call it Rose Clay")
+   palette: #724319 #D88180 #F7B1B0 #FEEAC7 #CAD182   (coolors.co trending, 2026-10-28)
+   LIGHT skin, warm and soft: cream paper (#FEEAC7) washed with rose and sage light, glass of warm cream, text in deep clay brown (#724319 darkened),
+   rose for the second accent, sage for "ok". Ink drawing like Paper, but rounder and gentler. The 12 groups are shades of the palette's brown, rose
+   and sage, spread in lightness and hue so neighbours stay apart. */
+[data-skin=rose-clay]{
+  --c:#724319;--amber:#b34a4c;--ok:#4d6a14;--bad:#b3261e;--violet:#85486e;
+  --hi:#2a1608;--tx-hi:#35200e;--tx:#4a2e16;--tx-read:#3b2410;--dim:#7a5535;--dim2:#614021;--on-c:#fff3da;--listen:#724319;
+  --bg1:#fff4de;--bg2:#fde6c2;--bg3:#f0c7ad;--bg-a:#F7B1B05c;--bg-b:#CAD18259;
+  --glass:#fff7e6c8;--glass2:#fcefd6d0;--glass-rd:#fffaf0f4;--glass-pop:#fffaf0f8;
+  --surf:#f8e2bfe8;--surf-hi:#f2d3a9;--well:#fdf0d8ea;--track:#ebd0a8;
+  --line:#72431930;--edge:#0000;--inner:#ffffffcc;--shadow:#5a2e1436;--halo:#fdeccb;
+  --warn-bg:#fff0cc;--warn-tx:#6a3708;--err-bg:#fbdfdb;--err-tx:#86201b;--em:#8c3a2c;--quote:#5a3a20;--link:#9c3436;--code-tx:#5b3a10;--code-bg:#f3dfba;
+  --g-agent-os:#9c2a22;--g-business:#8a6410;--g-chats:#b83f72;--g-codex:#6f4a96;--g-computer:#3f6a1c;--g-content:#ae530c;
+  --g-days:#7d6d5a;--g-experiments:#66760e;--g-hermes:#5c7078;--g-memory:#803e44;--g-plans:#1f6f80;--g-pm:#d23b30;--g-projects:#1a7a4a;
+  --glow:0;--corner:0;--scan-op:0;--vig-op:.2;--r:18px;--r-sm:12px;--blur:18px;--sat:1.15;
+  --font-ui:Inter,system-ui,sans-serif;--font-read:Inter,system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --s-line:#8b5a35;--s-sweep:#b34a4c;--s-slice:#b34a4c;--s-scan:#724319;--s-nb:#724319;--s-shell:#724319;--s-listen:#a8504f;--s-speak:#b34a4c;--s-think:#8a6a10;--s-hot:#5a2e0e;--s-err:#b3261e;--s-blend:normal;--s-core:-.4;--s-dot:1;--s-shell-glow:.6;--s-size:.72;
+  --sp:.55;--skin:rose-clay}

@@ -1,0 +1,19 @@
+/* ---- Summer Fun: Refreshing Summer Fun
+   palette: #8ECAE6 #219EBC #023047 #FFB703 #FB8500   (coolors.co trending, 2026-10-28)
+   DARK skin (glow drawing). Mood: a warm evening at the pool; deep navy water, sky-blue light, sunshine yellow and tangerine sparks.
+   Navy #023047 is the water (page and glass), light blue #8ECAE6 and teal #219EBC the cool accents, yellow #FFB703 and orange
+   #FB8500 the sun. Greens and corals in the dot colours are mixes of those five (teal + yellow, orange + sky). */
+[data-skin=summer-fun]{
+  --c:#8ecae6;--amber:#ffb703;--ok:#6fe0a8;--bad:#ff7a6b;--violet:#b4c4ff;
+  --hi:#fff;--tx-hi:#f2fbff;--tx:#d3ebf6;--tx-read:#e2f3fa;--dim:#7fb0c8;--dim2:#a2cde0;--on-c:#022536;--listen:#d6f1fb;
+  --bg1:#04506f;--bg2:#023047;--bg3:#01141e;--bg-a:#0000;--bg-b:#0000;
+  --glass:#02273abf;--glass2:#011c2bc9;--glass-rd:#022536e8;--glass-pop:#012030f2;
+  --surf:#06415dcc;--surf-hi:#0b5a7e;--well:#01182499;--track:#0a3a52;
+  --line:#8ecae33d;--edge:#01141e;--inner:#8ecae32e;--shadow:#000a;--halo:#01141e;
+  --warn-bg:#3a2a06cc;--warn-tx:#ffe6a8;--err-bg:#3a1410cc;--err-tx:#ffcdc4;--em:#ffd36b;--quote:#f3e2bd;--link:#ffc247;--code-tx:#a8e4f8;--code-bg:#07384f;
+  --g-agent-os:#fb8500;--g-business:#ffd23d;--g-chats:#4fb4e8;--g-codex:#9aa8ff;--g-computer:#27c1b0;--g-content:#ff6f61;
+  --g-days:#f4ead0;--g-experiments:#9bdc5a;--g-hermes:#92adbf;--g-memory:#dfb56d;--g-plans:#9fe3f5;--g-pm:#ff6a93;--g-projects:#5fd49a;
+  --glow:1;--corner:0;--scan-op:0;--vig-op:.9;--r:18px;--r-sm:11px;--blur:14px;--sat:1.3;
+  --font-ui:"Inter Display",Inter,system-ui,sans-serif;--font-read:Inter,system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --s-line:#5db8d8;--s-sweep:#ffd36b;--s-slice:#fb8500;--s-scan:#fff1c4;--s-nb:#8ecae6;--s-shell:#4fb4d8;--s-listen:#bfe9f8;--s-speak:#8ecae6;--s-think:#ffb703;--s-hot:#fff1c4;--s-err:#ff6a5c;--s-blend:add;--s-core:.5;--s-dot:1;--s-shell-glow:1;--s-size:1;
+  --sp:.8;--skin:summer-fun}

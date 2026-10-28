@@ -1,0 +1,18 @@
+/* ---- Deep Sea
+   palette: #0D1321 #1D2D44 #3E5C76 #748CAB #F0EBD8   (coolors.co trending, 2026-10-28)
+   DARK skin: night water. #0D1321 is the abyss, #1D2D44 the lit water in the middle, #3E5C76/#748CAB the lines and glow, #F0EBD8 (sand cream) the text and
+   the second accent. Calm: soft glow, faint scan, serif reader like a ship's log. Group colours are sea-life tints (coral, kelp, sand, plankton). */
+[data-skin=deep-sea]{
+  --c:#8fb0d6;--amber:#f0e2ae;--ok:#6fd6b0;--bad:#ff8189;--violet:#aaa4e6;
+  --hi:#fffdf3;--tx-hi:#f0ebd8;--tx:#c5d0df;--tx-read:#e4e2d3;--dim:#8299b4;--dim2:#a1b4ca;--on-c:#0d1321;--listen:#d3e4f8;
+  --bg1:#1d2d44;--bg2:#0d1321;--bg3:#070b14;--bg-a:#3e5c7644;--bg-b:#0000;
+  --glass:#0d1626c2;--glass2:#0a111fcc;--glass-rd:#0c1424e8;--glass-pop:#0a111ff2;
+  --surf:#162338cc;--surf-hi:#243a55;--well:#0a121f99;--track:#1d2d44;
+  --line:#748cab36;--edge:#070b14;--inner:#748cab24;--shadow:#000a;--halo:#070b14;
+  --warn-bg:#2b2412cc;--warn-tx:#f6e8bb;--err-bg:#2c1416cc;--err-tx:#ffc9cb;--em:#f0e2ae;--quote:#e1dac0;--link:#f0d98c;--code-tx:#bdd4f0;--code-bg:#15233a;
+  --g-agent-os:#ff8a5c;--g-business:#f2cf5e;--g-chats:#5fa3ff;--g-codex:#9d8cf5;--g-computer:#35d1c3;--g-content:#ff6fae;
+  --g-days:#f0ebd8;--g-experiments:#b5e86f;--g-hermes:#8097b4;--g-memory:#9da957;--g-plans:#7fdcf5;--g-pm:#ff5468;--g-projects:#4fd47a;
+  --glow:1;--corner:1;--scan-op:.22;--vig-op:1;--r:16px;--r-sm:9px;--blur:14px;--sat:1.15;
+  --font-ui:"Inter Display",Inter,system-ui,sans-serif;--font-read:"DejaVu Serif",Georgia,serif;--font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --s-line:#748cab;--s-sweep:#a7c0de;--s-slice:#f0e2ae;--s-scan:#cfe0f3;--s-nb:#8fb0d6;--s-shell:#8fb0d6;--s-listen:#c3d8f0;--s-speak:#a7c8ea;--s-think:#f0e2ae;--s-hot:#f0ebd8;--s-err:#ff7078;--s-blend:add;--s-core:.4;--s-dot:1;--s-shell-glow:.9;--s-size:1;
+  --sp:.8;--skin:deep-sea}

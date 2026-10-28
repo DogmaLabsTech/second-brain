@@ -1,0 +1,15 @@
+/* ---- Paper: light, clean and minimal, white/grey glass, ink-coloured dots, readable in daylight */
+[data-skin=paper]{
+  --c:#2459d6;--amber:#c2410c;--ok:#15803d;--bad:#c81e1e;--violet:#7c3aed;
+  --hi:#0b1220;--tx-hi:#111827;--tx:#273244;--tx-read:#1f2937;--dim:#5b6678;--dim2:#4b5567;--on-c:#fff;--listen:#0b3fb3;
+  --bg1:#f7f8fa;--bg2:#eceff3;--bg3:#dde2e8;--bg-a:#ffffff99;--bg-b:#dbe4f366;
+  --glass:#ffffffb0;--glass2:#f6f7f9b8;--glass-rd:#fffffff2;--glass-pop:#fffffff7;
+  --surf:#eef1f5e6;--surf-hi:#e1e7f0;--well:#f1f3f6e6;--track:#dfe4ea;
+  --line:#0f172a1f;--edge:#0000;--inner:#ffffffcc;--shadow:#1e293b2e;--halo:#f4f6f9;
+  --warn-bg:#fff4e5;--warn-tx:#7c2d12;--err-bg:#fdecec;--err-tx:#8f1d1d;--em:#7a3b0c;--quote:#4b3a26;--link:#b4500f;--code-tx:#1e3a8a;--code-bg:#e9eef7;
+  --g-agent-os:#d24f0f;--g-business:#a8740a;--g-chats:#1f5fe0;--g-codex:#6a3fd6;--g-computer:#0d8a7e;--g-content:#c4246e;
+  --g-days:#78716c;--g-experiments:#4f8a12;--g-hermes:#64748b;--g-memory:#95404c;--g-plans:#0b7bb8;--g-pm:#cf2030;--g-projects:#1b8a42;
+  --glow:0;--corner:0;--scan-op:0;--vig-op:.25;--r:14px;--r-sm:9px;--blur:16px;--sat:1.2;
+  --font-ui:Inter,system-ui,sans-serif;--font-read:Inter,system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --s-line:#64748b;--s-sweep:#2459d6;--s-slice:#c2410c;--s-scan:#2459d6;--s-nb:#334155;--s-shell:#475569;--s-listen:#2459d6;--s-speak:#1d4ed8;--s-think:#c2410c;--s-hot:#1e3a8a;--s-err:#c81e1e;--s-blend:normal;--s-core:-.4;--s-dot:1;--s-shell-glow:.6;--s-size:.72;
+  --sp:.55;--skin:paper}

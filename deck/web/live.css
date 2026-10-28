@@ -1,0 +1,44 @@
+/* Live searches (brief 15): the drawing over the scene (live.js makeLive) and the 08 Live panel (makeFeed). Skin tokens only. */
+#livesvg{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;overflow:visible}
+.lv-ln{stroke:var(--k);stroke-width:1.5;stroke-linecap:round;filter:drop-shadow(0 0 calc(3px*var(--glow)) var(--k))}
+.lv-sp{fill:var(--hi);filter:drop-shadow(0 0 calc(5px*var(--glow)) var(--c)) drop-shadow(0 0 2px var(--c))}
+.lv-ring{fill:none;stroke:var(--k);stroke-width:1.4}
+.lv-qd{fill:var(--c);filter:drop-shadow(0 0 calc(6px*var(--glow)) var(--c))}
+.lv-qr{fill:none;stroke:var(--c);stroke-width:1}
+.lv-q{position:fixed;z-index:5;pointer-events:none;display:flex;align-items:center;gap:7px;max-width:calc(380px*var(--z));transform:translate(-50%,calc(-100% - 9px));
+  padding:2px 8px;font-size:calc(11px*var(--z));color:var(--tx-hi);white-space:nowrap;background:var(--glass-pop);border:1px solid color-mix(in srgb,var(--c) 40%,var(--line));border-radius:calc(var(--r-sm)*.7)}
+.lv-q i{flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:var(--c)}
+.lv-q .t{overflow:hidden;text-overflow:ellipsis}.lv-q .t::before{content:"“"}.lv-q .t::after{content:"”"}
+.lv-q .w{flex:0 0 auto;color:var(--amber);font-size:.86em;letter-spacing:calc(.08em*var(--sp));text-transform:uppercase}
+.lv-tag{transition:none}
+/* brief 18: a read (a chat opening a note) is lighter; a note newer than the snapshot gets a dashed line to the middle of its section */
+.lv-ev.light .lv-ln{stroke-width:1;filter:none}.lv-ev.light .lv-qd{r:2.5px}.lv-ev.light .lv-qr{display:none}
+.lv-q.light{font-size:calc(10px*var(--z));padding:1px 6px;gap:5px;border-color:var(--line);color:var(--tx)}.lv-q.light i{width:4px;height:4px}
+.lv-ln.sec{stroke-dasharray:3 5;stroke-width:1.2}
+/* 08 Live: docked at the top left of the scene, movable, hidden with L */
+#livep{position:fixed;z-index:6;zoom:var(--z);top:calc((50px + 8px*var(--z))/var(--z));left:calc((16px + 272px*var(--z) + 14px)/var(--z));width:280px;padding:9px 11px 8px;display:flex;flex-direction:column}
+#livep.off{display:none}
+#livep .h{margin-bottom:4px}
+.lf-st{font-style:normal;color:var(--dim);margin-right:2px;font-size:.92em}.lf-st::before{content:"● ";color:var(--dim)}
+.lf-st.ok::before{color:var(--ok)}.lf-st.bad{color:var(--amber)}.lf-st.bad::before{color:var(--amber)}
+.lf-list{max-height:calc(5 * 42px);overflow-y:auto;scrollbar-width:thin;display:flex;flex-direction:column;gap:2px}
+.lf-empty{font-size:11px;color:var(--dim2);padding:4px 2px}
+.lf-row{display:flex;flex-direction:column;gap:1px;width:100%;text-align:left;padding:4px 6px;font:inherit;color:var(--tx);background:none;border:0;border-left:2px solid transparent;border-radius:calc(var(--r-sm)*.6);cursor:pointer;animation:lfin .5s ease-out both}
+.lf-row:hover{background:var(--surf-hi);border-left-color:var(--c)}
+.lf-row.past{animation:none;opacity:.72}
+.lf-l1{display:flex;gap:8px;align-items:baseline;font-size:10px;letter-spacing:calc(.06em*var(--sp))}
+.lf-l1 time{color:var(--dim2)}.lf-who{color:var(--amber);text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}.lf-l1 em{font-style:normal;color:var(--c)}
+.lf-q{font-size:12px;color:var(--tx-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lf-q i{font-style:normal;color:var(--dim2)}
+@keyframes lfin{from{background:color-mix(in srgb,var(--c) 22%,transparent)}to{background:transparent}}
+.lf-pop{display:none;position:absolute;left:calc(100% + 8px);width:290px;padding:8px 10px;background:var(--glass-pop);border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:0 10px 30px var(--shadow);pointer-events:auto;font-size:11px}
+.lf-pop.left{left:auto;right:calc(100% + 8px)}.lf-pop.on{display:block}
+#livep:has(.lf-pop.on){z-index:10}   /* brief 22: the pop shows (and takes clicks) above an open reader */
+.lf-pop b{display:block;color:var(--tx-hi);font-weight:600;margin-bottom:5px;white-space:normal}
+.lf-pop div{display:flex;gap:7px;align-items:baseline;padding:1px 0;border-left:2px solid var(--k);padding-left:6px;margin:2px 0}
+.lf-pop div i{font-style:normal;color:var(--k);font-weight:700}.lf-pop div span{flex:1;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lf-pop div em{font-style:normal;color:var(--dim2);font-size:.9em}
+.lf-pop p{margin:4px 0 0;color:var(--dim2)}
+.lf-pop div.new span{color:var(--dim)}
+.lf-pop div.go{cursor:pointer;border-radius:calc(var(--r-sm)*.5)}.lf-pop div.go:hover{background:var(--surf-hi)}.lf-pop div.go:hover span{color:var(--tx-hi)}   /* brief 22: a click opens the note */
+#livebtn{margin-left:10px;padding:1px 8px;font:inherit;font-size:.9em;letter-spacing:calc(.14em*var(--sp));color:var(--dim2);background:var(--surf);border:1px solid var(--line);border-radius:99px;cursor:pointer}
+#livebtn:hover,#livebtn.on{color:var(--c);border-color:color-mix(in srgb,var(--c) 45%,var(--line))}
+#livebtn i{font-style:normal;color:var(--dim)}#livebtn.ok i{color:var(--ok)}

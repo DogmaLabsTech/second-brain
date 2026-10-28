@@ -1,0 +1,35 @@
+/* note rings: the three instruments in 04 Target acquired (brief 11). Colours only from skin tokens; rings.js draws and animates them. */
+@property --b{syntax:'<color>';inherits:true;initial-value:#5be7ff}
+:root{--ring-hi:var(--ok);--ring-mid:var(--amber);--ring-lo:var(--bad)}
+[data-skin=amber]{--ring-mid:var(--c)}   /* Amber's second accent is orange, too close to its red */
+.rgs{display:flex;justify-content:space-between;margin:8px -4px 12px}
+.nr{--b0:color-mix(in oklab,var(--b) 26%,var(--track));width:98px;text-align:center;cursor:help;transition:--b .6s ease}
+.nr.go{cursor:pointer}
+.nr-dial{position:relative;width:92px;height:92px;margin:0 auto;transition:transform .25s ease}
+.nr:hover .nr-dial{transform:scale(1.045)}
+.nr-dial svg,.nr-glow,.nr-arc{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.nr-dial svg{pointer-events:none}
+.nr-glow{filter:drop-shadow(0 0 calc(3.5px*var(--glow)) color-mix(in srgb,var(--b) 55%,transparent))}
+.nr-arc{background:conic-gradient(from 225deg,var(--b0) 0deg,var(--b) calc(var(--p,0)*270deg),#0000 0);
+  -webkit-mask:radial-gradient(closest-side,#0000 calc(65% - .5px),#000 65%,#000 79%,#0000 calc(79% + .5px));mask:radial-gradient(closest-side,#0000 calc(65% - .5px),#000 65%,#000 79%,#0000 calc(79% + .5px))}
+.nr .face{fill:color-mix(in srgb,var(--b) 6%,transparent);stroke:color-mix(in srgb,var(--b) 18%,transparent);stroke-width:.6}
+.nr .trk{fill:none;stroke:var(--track);stroke-width:7;stroke-linecap:round}
+.nr .mn{stroke:color-mix(in srgb,var(--dim) 55%,transparent);stroke-width:.7;transition:stroke .2s}
+.nr .mn.on{stroke:color-mix(in srgb,var(--b) 80%,transparent)}
+.nr .mj{stroke:var(--dim2);stroke-width:1.3;stroke-linecap:round}
+.nr .sc{fill:var(--dim);font:600 7.5px var(--font-mono);text-anchor:middle;letter-spacing:.02em}
+.nr .c0{fill:var(--b0)}.nr .c1{fill:var(--b);filter:drop-shadow(0 0 calc(2.5px*var(--glow)) var(--b))}.nr .c2{fill:color-mix(in oklab,var(--b) 30%,#fff)}
+.nr-val{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:1px;padding-bottom:2px;
+  font:700 23px/1 var(--font-ui);color:var(--hi);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.nr-val b{font-weight:inherit}.nr-val small{font-size:10.5px;font-weight:600;color:var(--b);letter-spacing:.04em;margin-left:1px}
+.nr-val.word{font-size:15.5px;letter-spacing:.01em}
+.nr-val.wait{opacity:.45}
+.nr-lb{display:block;margin-top:1px;font-size:9.5px;font-weight:700;letter-spacing:calc(.2em*var(--sp));color:var(--tx)}
+.nr-sub{display:block;margin-top:2px;font-size:10px;color:var(--dim2);white-space:nowrap}
+#nrtip{position:fixed;z-index:31;pointer-events:none;max-width:calc(250px*var(--z));padding:.65em .85em;font:calc(11px*var(--z))/1.45 var(--font-ui);color:var(--tx);
+  background:var(--glass-pop);border:1px solid color-mix(in srgb,var(--b) 45%,transparent);border-radius:var(--r-sm);
+  box-shadow:0 0 0 1px var(--edge),0 0 calc(18px*var(--glow)) color-mix(in srgb,var(--b) 18%,transparent),0 10px 30px var(--shadow);
+  opacity:0;transform:translateY(-3px);transition:opacity .15s,transform .15s}
+#nrtip.on{opacity:1;transform:none}
+#nrtip b{display:block;margin-bottom:.25em;color:var(--b);font-size:.92em;letter-spacing:calc(.12em*var(--sp))}
+#nrtip em{font-style:normal;color:var(--hi)}#nrtip i{display:block;margin-top:.35em;font-style:normal;color:var(--dim2);font-size:.92em}
