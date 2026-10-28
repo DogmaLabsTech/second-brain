@@ -1,0 +1,9 @@
+[Unit]
+Description=Agent memory: copy the store to the HDD
+
+[Service]
+Type=oneshot
+ExecStart=%h/projects/second-brain/index/memory-backup.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=10min
