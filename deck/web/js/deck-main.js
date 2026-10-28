@@ -14,6 +14,7 @@ import { ask, tl } from './deck/timeline-ask.js'; export * from './deck/timeline
 import { live, liveNonce, liveOwn } from './deck/live.js'; export * from './deck/live.js';
 import { PICK, dotXY, leftAway, leftW, nearDot } from './deck/input.js'; export * from './deck/input.js';
 import { notePulse, tState, talkFrame } from './deck/voice.js'; export * from './deck/voice.js';
+import './deck/fresh.js';
 // frame
 let last = performance.now(); renderSection();
 function frame(t) {

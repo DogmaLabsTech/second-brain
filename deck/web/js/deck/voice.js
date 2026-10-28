@@ -10,6 +10,7 @@ let talk = 'idle', tgen = 0, tAbort = null, ac = null, mic = null, rec = null, r
 const talkBuf = new Float32Array(2048);   // ~43 ms of sound per reading: a steadier loudness than one short window
 export function tState(st, sub) { talk = st; if (st !== 'speaking' && st !== 'thinking') bargeOff(); if (st !== 'speaking' && st !== 'thinking' && voiceEv) { live.release(voiceEv); voiceEv = null; }   /* the voice finished (or stopped): its lines fade calmly now */ TV.dataset.s = st; shell.set(st === 'job' || st === 'unheard' ? 'idle' : st); RD('tbl').textContent = TBL[st] || 'TALK'; RD('tstate').textContent = st === 'error' ? 'ERROR' : st === 'job' ? 'WAITING FOR YOU' : st === 'unheard' ? "I DIDN'T HEAR YOU" : st === 'idle' ? 'READY' : st.toUpperCase(); RD('tsub').textContent = sub ?? TSUB[st] ?? ''; RD('tsub').title = RD('tsub').textContent; }
 function tErr(t) { tState('error', t); }
+export const talkBusy = () => !['idle', 'error', 'unheard'].includes(talk);   // a voice turn is on (fresh.js waits for it)
 export const notePulse = () => shell.voice * 1.1;   // the answer's notes pulse with the voice
 const audio = () => ac || (ac = new AudioContext());
 function rms(an) { an.getFloatTimeDomainData(talkBuf); let a = 0; for (let k = 0; k < talkBuf.length; k++) a += talkBuf[k] * talkBuf[k]; return Math.sqrt(a / talkBuf.length); }
