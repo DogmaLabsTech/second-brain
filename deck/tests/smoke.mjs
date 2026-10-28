@@ -86,6 +86,17 @@ async function main() {
   check('a request to the internet is blocked (nothing leaves the computer)',
     await t.run(`fetch('https://example.net/x').then(() => 'loaded', () => 'blocked')`) === 'blocked' && /blocked a request: https:\/\/example\.net\/x/.test(app.log));
 
+  // 2b. permissions (fake media devices: no real mic is opened)
+  const gum = c => `navigator.mediaDevices.getUserMedia(${c}).then(s => { s.getTracks().forEach(x => x.stop()); return 'allowed'; }, e => e.name)`;
+  check('microphone: allowed for the Deck', await t.run(gum('{ audio: true }')) === 'allowed');
+  check('mic names readable after that (the permission check)', await t.run(`navigator.mediaDevices.enumerateDevices().then(l => l.filter(d => d.kind === 'audioinput').every(d => d.label))`) === true);
+  check('camera: refused', await t.run(gum('{ video: true }')) === 'NotAllowedError');
+  check('microphone + camera together: refused', await t.run(gum('{ audio: true, video: true }')) === 'NotAllowedError');
+  check('screen sharing: refused', /NotAllowed|NotSupported/.test(await t.run(`navigator.mediaDevices.getDisplayMedia({ video: true }).then(() => 'allowed', e => e.name)`)));
+  check('notifications: refused', await t.run(`Notification.requestPermission()`) === 'denied');
+  check('location: refused', await t.run(`new Promise(r => navigator.geolocation.getCurrentPosition(() => r('allowed'), e => r(e.code)))`) === 1);
+  // F11 is not checked here: keys sent over the DevTools protocol skip the app's key hook (before-input-event). <user>'s check.
+
   // 3. start twice = one window
   const two = launch(home, { cdp: false }), twoEnd = await ended(two, 15000);
   check('a second start ends at once by itself', twoEnd && twoEnd.code === 0, twoEnd);
@@ -98,6 +109,8 @@ async function main() {
   check('closing the window quits the app', end && end.code === 0, end);
   check("the app's server is gone after close", await until(() => !alive(h.pid), 5000), h?.pid);
   check('the port is free again', await portFree(PORT));
+  let ws = null; try { ws = JSON.parse(fs.readFileSync(path.join(home, 'window.json'), 'utf8')); } catch {}
+  check("the window's size is remembered in the app's folder (window.json)", ws && ws.width === 2560 && ws.height === 1380, ws);
   fs.writeFileSync(path.join(OUT, 'app-log-1.txt'), app.log);
 
   // 5. a forced kill leaves no orphan server

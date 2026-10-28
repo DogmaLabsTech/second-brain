@@ -2,19 +2,22 @@
 // (server/server.py) as its child, or uses one that already answers /health, and stops its own server when the window closes.
 // Loopback only: the window shows only http://127.0.0.1:<port>, web links open in the normal browser, new windows are refused.
 // Env: DECK_PORT (8765), DECK_DEBUG=1 (dev tools), DECK_USER_DATA (the app's folder, ~/.config/second-brain-deck),
+// F11 full screen. The window's size and place are kept in window.json in the app's folder. The window class (Wayland app_id)
+// is second-brain-deck, for a Hyprland rule later. Only the microphone may be used, only by the Deck's own page.
 // DECK_TEST_HIDDEN=1 (tests: a window that is never shown, fixed size, web links only logged, errors printed instead of asked).
 // Privacy: no crash reporter and no auto-updater are started (Electron sends neither by itself), spell-check is off (it would
 // download dictionaries), and every request that is not the Deck's own server is blocked.
 'use strict';
-const { app, BrowserWindow, Menu, dialog, session, shell } = require('electron');
-const { spawn } = require('child_process'), http = require('http'), path = require('path');
-const { linkAction, mayLoad } = require('./rules');
+const { app, BrowserWindow, Menu, dialog, screen, session, shell } = require('electron');
+const { spawn } = require('child_process'), fs = require('fs'), http = require('http'), path = require('path');
+const { allowPermission, fitBounds, linkAction, mayLoad } = require('./rules');
 
 const VIZ = path.resolve(__dirname, '..'), PORT = Number(process.env.DECK_PORT || 8765), ORIGIN = `http://127.0.0.1:${PORT}`;
 const HIDDEN = process.env.DECK_TEST_HIDDEN === '1', DEBUG = process.env.DECK_DEBUG === '1', TITLE = 'Second Brain Deck';
 const say = m => console.error('deck: ' + m);
 
 app.setName('second-brain-deck');
+app.setDesktopName('second-brain-deck.desktop');   // the window class / Wayland app_id: second-brain-deck
 app.setPath('userData', process.env.DECK_USER_DATA || path.join(app.getPath('appData'), 'second-brain-deck'));
 app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
 app.enableSandbox();
@@ -78,8 +81,19 @@ function outside(url) {   // a link or a new window that is not the Deck's own p
   shell.openExternal(url).catch(() => {});
 }
 
+// window.json: the last size and place (and whether it was maximized), read back made safe for today's screens
+const STATE = () => path.join(app.getPath('userData'), 'window.json');
+function savedState() { try { return JSON.parse(fs.readFileSync(STATE(), 'utf8')); } catch { return null; } }
+function saveState() {
+  if (!win || win.isDestroyed()) return;
+  const b = win.getNormalBounds(), f = STATE(), tmp = f + '.tmp';
+  try { fs.writeFileSync(tmp, JSON.stringify({ x: b.x, y: b.y, width: b.width, height: b.height, maximized: win.isMaximized() }) + '\n'); fs.renameSync(tmp, f); }
+  catch (e) { say('could not save the window size: ' + e.message); }
+}
+
 function openWindow() {
-  win = new BrowserWindow({ width: 1600, height: 1000, show: false, title: TITLE, backgroundColor: '#05080c', autoHideMenuBar: true,
+  const saved = savedState();
+  win = new BrowserWindow({ ...fitBounds(saved, screen.getAllDisplays().map(d => d.workArea)), show: false, title: TITLE, backgroundColor: '#05080c', autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false, webviewTag: false, devTools: DEBUG || HIDDEN, ...(HIDDEN ? { offscreen: true } : {}) } });
   const wc = win.webContents;
   wc.setWindowOpenHandler(({ url }) => { outside(url); return { action: 'deny' }; });
@@ -87,7 +101,15 @@ function openWindow() {
   wc.on('will-navigate', guard); wc.on('will-redirect', guard);
   wc.on('will-attach-webview', e => e.preventDefault());
   wc.on('render-process-gone', (e, d) => say('page process gone: ' + d.reason));
-  if (!HIDDEN) win.once('ready-to-show', () => win.show());
+  wc.on('before-input-event', (e, k) => {
+    if (k.type !== 'keyDown') return;
+    if (k.key === 'F11') { e.preventDefault(); win.setFullScreen(!win.isFullScreen()); }
+    if (k.key === 'F12' && DEBUG) { e.preventDefault(); wc.toggleDevTools(); }
+  });
+  if (DEBUG) wc.once('did-finish-load', () => wc.openDevTools({ mode: 'detach' }));
+  if (!HIDDEN) win.once('ready-to-show', () => { if (saved && saved.maximized) win.maximize(); win.show(); });
+  let later = null; const soon = () => { clearTimeout(later); later = setTimeout(saveState, 500); };   // also kept after a crash
+  win.on('resize', soon); win.on('move', soon); win.on('close', () => { clearTimeout(later); saveState(); });
   if (HIDDEN) win.setContentSize(2560, 1380);   // a hidden window starts at 1x1
   win.on('closed', () => { win = null; });
   win.loadURL(ORIGIN + '/deck.html').then(() => { if (HIDDEN) win.setContentSize(2560, 1380); },
@@ -106,7 +128,11 @@ app.on('will-quit', stopServer);
 process.on('exit', stopServer);
 
 app.whenReady().then(async () => {
-  session.defaultSession.webRequest.onBeforeRequest((d, done) => {   // nothing leaves the computer
+  const ses = session.defaultSession;   // the microphone for the Deck's own page; everything else (camera, notifications, ...) refused
+  ses.setPermissionRequestHandler((wc, perm, done, d) => { const ok = allowPermission(perm, d.requestingUrl, d, ORIGIN); if (!ok) say('refused permission: ' + perm + (d.mediaTypes ? ' ' + d.mediaTypes.join('+') : '')); done(ok); });
+  ses.setPermissionCheckHandler((wc, perm, origin, d) => allowPermission(perm, (d && d.requestingUrl) || origin, d, ORIGIN));
+  ses.setDevicePermissionHandler(() => false);   // no USB, serial or HID devices
+  ses.webRequest.onBeforeRequest((d, done) => {   // nothing leaves the computer
     const ok = mayLoad(d.url, ORIGIN);
     if (!ok) say('blocked a request: ' + d.url.slice(0, 200));
     done({ cancel: !ok });
