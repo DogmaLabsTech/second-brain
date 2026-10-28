@@ -25,7 +25,7 @@ When you add, move or retire a file here, update this file in the same commit.
   and `ask/search_cli.py`. `caller()` names who ran a `brain search` or `brain ask` (walks up the parent processes to
   the first known agent; also used by `ask/asklog.py`). Tests: `ask/test_searchlog.py`, `ask/test_caller.py`.
 - `ask/memory.py` (`brain memory <repo> ["task"]`, 2026-10-28): the agent memory store's notes for a project and a task
-  (scope, pinned first, summaries word for word, 2,000-token ceiling). The chats' door `ask/chat_proxy.py` serves the
+  (scope, pinned first, summaries word for word, 2,000-token ceiling; all-projects notes only when pinned or matched, <user> 2026-10-28). The chats' door `ask/chat_proxy.py` serves the
   same as its `memory` tool. Tests: `ask/test_memory.py`, `ask/test_memory_tool.py`.
 - `ask/private_tag.py` (`brain private <note> on|off`, `brain private list`, `--json` for the Deck; 2026-10-28): mark a memory note
   local-only by hand (`local-only-by: owner`) or unmark it; only those front matter lines change, backup first. Tests:

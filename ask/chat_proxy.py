@@ -51,15 +51,16 @@ MEMORY_TOOL = {
         "start a task in a repo, and before you change something you are unsure about. Give `repo` (the project's "
         "folder name in ~/projects/, case included, e.g. second-brain) and `task` in plain words; name "
         "exact things when you have them (a file name, a port, error text in quotes, a function name). You get the "
-        "project's and the all-projects notes: pinned first, then the best matches, each as its summary line word "
-        "for word, its kind (rule or lesson), project and path, so you can read the full note with your file tools. "
+        "project's notes (pinned first, then the best matches, then its newest) and the all-projects notes that are "
+        "pinned or match your task, each as its summary line word for word, its kind (rule or lesson), project and "
+        "path, so you can read the full note with your file tools. "
         "At most 2,000 tokens; it says how many notes did not fit. (local-only) marks a note whose text the names "
         "filter was not sure about."),
     "inputSchema": {
         "type": "object",
         "properties": {
             "repo": {"type": "string", "description": "The project's folder name, e.g. second-brain"},
-            "task": {"type": "string", "description": "The task in plain words (optional: without it, pinned then newest)"},
+            "task": {"type": "string", "description": "The task in plain words (optional: without it, only pinned and the project's newest notes)"},
         },
         "required": ["repo"],
     },

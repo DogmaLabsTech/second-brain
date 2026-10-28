@@ -7,8 +7,10 @@ find(repo, task) answers "what should I know for this task in this project?" fro
     (expand.expanded_document), plus one word-search line per exact thing in the task (a file name, a port, error
     text in quotes, a function name: exact_things below). Results outside the scope are dropped by path;
   - order: pinned notes first (newest first), then the matches, newer notes winning close calls (ask.newer_first's
-    rule, dated by the note's `date`), then every other note in scope, newest first: nothing is hidden. No task: pinned,
-    then the newest notes. Search down, slow, or matching no unpinned note: pinned + newest, and the output says so;
+    rule, dated by the note's `date`), then the rest of the project's own notes, newest first. All-projects notes come
+    only when pinned or when the search ranks them for the task ("only on a match", <user>, 2026-10-28), so a small
+    project's push stays small; the header says how many were left out and how to ask. No task: pinned (both scopes),
+    then the project's newest notes. Search down, slow, or matching no unpinned note: the same, and the output says so;
   - each note: its stored `summary` line word for word, kind, project, path. `local-only: true` notes are shown like
     any other, marked (local-only) (<user>, 2026-10-28: no hiding). No model rewrites or hides anything;
   - budget: tokens are counted as characters / 4, rounded up; the list stops before the budget and says how many
@@ -36,7 +38,8 @@ SEARCH_SECONDS = float(os.environ.get("BRAIN_MEMORY_SECONDS", "10"))   # slower 
 POOL = 50   # results asked for before the path filter (a project with few notes must not look empty)
 MAX_EXACT = 3
 COLLECTION = "memory"
-SCOPES = ("projects/{repo}", "all-projects")
+ALL = "all-projects"
+SCOPES = ("projects/{repo}", ALL)
 KINDS = {"rules": "rule", "lessons": "lesson"}
 
 
@@ -173,15 +176,17 @@ def in_scope(file, notes):
 
 
 def matches(task, notes, url=None):
-    """(the unpinned notes in order, a fallback message or None). Best match first, newer wins close calls."""
-    loose = [n for n in notes.values() if not n["pinned"]]
+    """(the unpinned notes in order, a fallback message or None). Best match first, newer wins close calls.
+    All-projects notes come only when the search ranks them (or pinned): unranked, only the project's own notes follow
+    (<user>, 2026-10-28: "only on a match"), so a small project's push stays small. find() counts the ones left out."""
+    loose = [n for n in notes.values() if not n["pinned"] and n["project"] != ALL]
     if not task:
         return newest(loose), None
     try:
         results = search(task, url)
     except Exception as why:  # noqa: BLE001  down, slow, or no memory collection: the files still answer
         why = "slower than %gs" % SEARCH_SECONDS if "timed out" in str(why) else str(why)[:120]
-        return newest(loose), f"Search was not reachable ({why}); showing pinned and newest notes instead."
+        return newest(loose), f"Search was not reachable ({why}); showing pinned and this project's newest notes instead."
     hits, seen = [], set()
     for r in results:
         n = in_scope(r.get("file", ""), notes)
@@ -189,9 +194,9 @@ def matches(task, notes, url=None):
             seen.add(n["rel"])
             hits.append({"score": r.get("score", 0), "note": n})
     hits = newer_first(hits)
-    # Nothing is hidden: the notes search did not rank follow, newest first; the budget cuts the bottom.
+    # None of the project's own notes is hidden: those search did not rank follow, newest first; the budget cuts the bottom.
     rest = newest([n for n in loose if n["rel"] not in seen])
-    note = None if hits else "Search ranked no unpinned note for this task; showing pinned and newest notes instead."
+    note = None if hits else "Search ranked no unpinned note for this task; showing pinned and this project's newest notes instead."
     return [h["note"] for h in hits] + rest, note
 
 
@@ -226,13 +231,17 @@ def entry(i, n):
     return f"{i}. {n['summary']}\n   {n['kind']}, {n['project']}{marks}: {n['path']}\n"
 
 
-def render(repo, task, ordered, budget, note=None):
-    """The text an agent gets: header, as many notes as fit in the budget, and how many did not."""
-    head = f"Memory for {repo} (its notes and all-projects), best first.\n"
+def render(repo, task, ordered, budget, note=None, skipped=0):
+    """The text an agent gets: header, as many notes as fit in the budget, and how many did not.
+    `skipped`: all-projects notes left out for not matching (one header line says so)."""
+    head = f"Memory for {repo}: pinned, then matches, then its own newest notes.\n"
     if task:
         head += f"Task: {' '.join(task.split())[:200]}\n"
     if note:
         head += note + "\n"
+    if skipped:
+        head += (f"{skipped} all-projects note{'' if skipped == 1 else 's'} left out (no match): "
+                 f"ask `memory` with a task to find them.\n")
     text, shown = head, []
     reserve = tokens("\n%d more notes did not fit in %d tokens (characters / 4).\n" % (len(ordered), budget))
     for n in ordered:
@@ -259,7 +268,9 @@ def find(repo, task=None, store=None, budget=BUDGET, url=None):
         return plain(f"No notes for {repo} in the memory store yet, and none for all projects.")
     pinned = newest([n for n in notes.values() if n["pinned"]])
     rest, fallback = matches(task, notes, url)
-    text, shown, left = render(repo, task, pinned + rest, budget, fallback)
+    shown_rels = {n["rel"] for n in pinned + rest}
+    skipped = sum(1 for n in notes.values() if n["rel"] not in shown_rels)   # only unpinned all-projects notes can be
+    text, shown, left = render(repo, task, pinned + rest, budget, fallback, skipped)
     keys = ("summary", "kind", "project", "path", "pinned", "local_only")
     return {"text": text, "notes": [{k: n[k] for k in keys} for n in shown], "left_out": left, "fallback": fallback}
 
