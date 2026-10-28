@@ -22,7 +22,8 @@ When you add, move or retire a file here, update this file in the same commit.
   `~/backups/agent-memory/`, 14 newest kept; stops if the HDD is not mounted). Tests: `index/test_memory_backup.py`.
 - `ask/searchlog.py`: the search record (2026-10-28): one private line per chat search or read and per `brain search`,
   in `~/.local/state/second-brain/searches.jsonl` (the Deck shows it). Written by the chats' door `ask/chat_proxy.py`
-  and `ask/search_cli.py`. Tests: `ask/test_searchlog.py`.
+  and `ask/search_cli.py`. `caller()` names who ran a `brain search` or `brain ask` (walks up the parent processes to
+  the first known agent; also used by `ask/asklog.py`). Tests: `ask/test_searchlog.py`, `ask/test_caller.py`.
 - `ask/memory.py` (`brain memory <repo> ["task"]`, 2026-10-28): the agent memory store's notes for a project and a task
   (scope, pinned first, summaries word for word, 2,000-token ceiling). The chats' door `ask/chat_proxy.py` serves the
   same as its `memory` tool. Tests: `ask/test_memory.py`, `ask/test_memory_tool.py`.

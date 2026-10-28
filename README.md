@@ -302,7 +302,9 @@ does, and passes everything else through untouched. On the fair test a chat-styl
 **Every search is written down (since 2026-10-28).** Each time a chat searches your brain, the same go-between writes
 one line in a private list on this computer: what was asked, which notes came back, how long it took, and which chat
 asked (its name and the folder it was working in). Opening a note (`get`) gets a shorter line. `brain search` writes
-a line too. The Deck reads this list to show searches as they happen. The list is
+a line too, and so does `brain ask` (in its own question list): since 2026-10-28 both say which chat or program ran
+them (for example Claude, working in `second-brain`, with its nodeterm node's title), or "terminal" if you typed it
+yourself. The Deck reads this list to show searches as they happen. The list is
 `~/.local/state/second-brain/searches.jsonl` (only you can read it); it keeps the last 5,000 searches or 30 days,
 whichever is less. If writing a line ever fails, the search still works. Nothing secret is kept (no passwords or keys).
 To stop it, see "How to undo" below.

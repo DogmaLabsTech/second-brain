@@ -1,7 +1,8 @@
 """The question record: every `brain ask` answer and <user>'s 👍/👎, for the weekly check-up.
 
   ~/.local/state/second-brain/asks.jsonl     one line per question (what was asked, the answer, who
-                                            wrote it, the notes used, timings, from where)
+                                            wrote it, the notes used, timings, from where, and
+                                            `client`: the chat or program that ran it, see searchlog.caller)
   ~/.local/state/second-brain/ratings.jsonl  one line per 👍/👎 (`brain rate <id> up|down [why]`)
   ~/.local/state/second-brain/outcomes.jsonl what happened next on the island (`brain outcome <id> <what>
                                             [detail]`): declined (No or Esc on a job card), stopped (Esc while
@@ -34,9 +35,19 @@ def new_id():
     return time.strftime("%m%d-%H%M%S-") + uuid.uuid4().hex[:4]
 
 
-def log_ask(qid, q, result, source):
+def _caller():
+    """Who ran `brain ask` (the chat, the island, the Deck ...), in the shape of the search record's client."""
     try:
-        _append(ASKS, {"id": qid, "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "from": source, "q": q,
+        import searchlog
+        return searchlog.caller("brain ask")
+    except Exception:  # noqa: BLE001  never break an answer over who asked
+        return {"name": "brain ask", "pid": os.getppid(), "program": "terminal", "folder": None}
+
+
+def log_ask(qid, q, result, source, client=None):
+    try:
+        _append(ASKS, {"id": qid, "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "from": source,
+                       "client": client or _caller(), "q": q,
                        "kind": result.get("kind"), "answer": result.get("answer"),
                        "writer": result.get("writer"), "found": result.get("found", True),
                        "job": (result.get("job") or {}).get("id"),
