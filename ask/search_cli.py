@@ -2,7 +2,8 @@
 With BRAIN_SEARCH_SCORES=1 each line starts with the note's score and a tab ("0.718<TAB>path — snippet"), so a caller
 (agent-os `think`) can drop weak hits. The scores are rank-based (1, 1/2, 1/3 … with a boost for new notes), not a
 measure of how well a note fits.
-Each search also writes a "from": "cli" line to the search record (ask/searchlog.py)."""
+Each search also writes a "from": "cli" line to the search record (ask/searchlog.py), naming the chat or program that
+ran it (searchlog.caller)."""
 import os
 import sys
 import time
@@ -27,7 +28,7 @@ def search(q):
         sent = [dict(zip(("type", "query"), l.split(": ", 1))) for l in expanded_document(q).splitlines()]
     except Exception:  # noqa: BLE001  the record must never break a search
         sent = []
-    searchlog.record(searchlog.cli_line(q, sent, hits, round((time.monotonic() - t0) * 1000)))
+    searchlog.record(searchlog.cli_line(q, sent, hits, round((time.monotonic() - t0) * 1000), searchlog.caller("brain search")))
     return hits
 
 

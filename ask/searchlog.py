@@ -4,7 +4,7 @@
 
 Chats' `query` calls through the chat door (ask/chat_proxy.py, localhost:8181) are "from": "mcp", "kind": "search";
 their `get` / `multi_get` calls are a lighter "kind": "read" line (what was opened, no reply parsed). `brain search`
-writes "from": "cli". A line:
+writes "from": "cli" (and `brain ask` the same `client` in asks.jsonl, see caller()). A line:
 
   {"at", "from", "kind", "client", "q", "searches": [{"type", "query"}], "intent", "collections",
    "results": [{"path", "collection", "score"}], "ms"}
@@ -81,9 +81,9 @@ def read_line(tool, args, client, ms):
                                                                             "score": None}] if what else [], "ms": ms}
 
 
-def cli_line(q, searches, hits, ms):
+def cli_line(q, searches, hits, ms, client=None):
     """`brain search`: the question, the search lines it sent and the notes it printed."""
-    return {"at": _now(), "from": "cli", "kind": "search", "client": {"name": "brain search", "pid": os.getppid()},
+    return {"at": _now(), "from": "cli", "kind": "search", "client": client or {"name": "brain search", "pid": os.getppid()},
             "q": q, "searches": searches, "intent": None, "collections": [],
             "results": [{"path": h.get("path"), "collection": _collection(h.get("file")),
                          "score": round(float(h.get("score") or 0), 3)} for h in hits], "ms": ms}
@@ -214,13 +214,16 @@ def _pid_of(inode):
     return None
 
 
+def _home_rel(path):
+    return "~" + path[len(HOME):] if path == HOME or path.startswith(HOME + "/") else path
+
+
 def _program(pid):
     out = {"pid": pid}
     try:
         with open(f"/proc/{pid}/comm") as f:
             out["program"] = f.read().strip()
-        cwd = os.readlink(f"/proc/{pid}/cwd")
-        out["folder"] = "~" + cwd[len(HOME):] if cwd == HOME or cwd.startswith(HOME + "/") else cwd
+        out["folder"] = _home_rel(os.readlink(f"/proc/{pid}/cwd"))
     except OSError:
         pass
     return out
@@ -250,3 +253,94 @@ class Caller:
     def result(self, wait=1.0):
         self._t.join(wait)
         return dict(self.found)
+
+
+# ---------- who ran `brain search` / `brain ask` (walk up the parent processes when the line is written) ----------
+
+AGENTS = ("claude", "codex", "gemini", "opencode", "grok", "copilot", "cursor-agent", "node-terminal", "nodeterm")
+RUNNERS = ("node", "bun", "deno", "python", "python3")   # an agent started as `node .../codex.js`: look at the script
+MAX_HOPS = 32
+MAX_MS = 50
+
+
+def _proc(pid, proc="/proc"):
+    """(comm, argv, ppid) of a process, or None. comm can hold spaces and brackets ("tmux: server"), so ppid is read
+    after the last ")"."""
+    try:
+        with open(f"{proc}/{pid}/stat", encoding="utf-8", errors="replace") as f:
+            stat = f.read()
+        with open(f"{proc}/{pid}/cmdline", "rb") as f:
+            argv = [a.decode(errors="replace") for a in f.read().split(b"\0") if a]
+        comm, ppid = stat[stat.index("(") + 1:stat.rindex(")")], int(stat.rsplit(")", 1)[1].split()[1])
+        return comm, argv, ppid
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def known_program(comm, argv):
+    """The caller's name if this process is one we know ("claude", "codex", ..., "deck", "island", "obsidian"), else None."""
+    names = [comm] + [os.path.basename(a) for a in argv[:1]]
+    if argv and os.path.basename(argv[0]) in RUNNERS:
+        names += [os.path.basename(a) for a in argv[1:2]]
+    for n in names:
+        n = n.lower().removesuffix(".js").removesuffix(".mjs").removesuffix(".cjs")
+        if n in AGENTS:
+            return "node-terminal" if n == "nodeterm" else n
+        if n.startswith("cursor-agent"):
+            return "cursor-agent"
+        if n in ("quickshell", "qs"):
+            return "island"
+        if n == "obsidian":
+            return "obsidian"
+    cmd = " ".join(argv)
+    if "server.py" in cmd and "brain-prototypes" in cmd:
+        return "deck"
+    if comm.startswith("tmux") and "-L node-terminal" in cmd:
+        return "node-terminal"   # a plain terminal node on the nodeterm canvas
+    return None
+
+
+def node_title(env=None):
+    """The nodeterm node's title (what the canvas shows), from its status file, by the node id nodeterm sets. Only the
+    title is read out; the file's other fields (account, session) and the NODETERM_* tokens are never logged."""
+    env = os.environ if env is None else env
+    node = env.get("NODETERM_NODE_ID")
+    if not node:
+        return None
+    data = env.get("NODETERM_DATA_DIR") or os.path.join(HOME, ".config", "node-terminal")
+    try:
+        with open(os.path.join(data, "agent-status.json"), encoding="utf-8") as f:
+            name = ((json.load(f).get("nodes") or {}).get(node) or {}).get("name")
+        return (" ".join(name.split())[:80] or None) if isinstance(name, str) else None
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def caller(name, start=None, proc="/proc", env=None):
+    """Who ran this command: {"name", "pid", "program", "folder"[, "title"]}, the shape of an MCP line's client.
+    Walks up from the parent process to the first program we know; none found: program "terminal" with the parent's
+    pid and folder. A few /proc reads (MAX_MS at most); never raises."""
+    start = os.getppid() if start is None else start
+    out = {"name": name, "pid": start, "program": "terminal", "folder": None}
+    try:
+        deadline = time.monotonic() + MAX_MS / 1000
+        pid, hops = start, 0
+        while pid > 1 and hops < MAX_HOPS and time.monotonic() < deadline:
+            p = _proc(pid, proc)
+            if not p:
+                break
+            found = known_program(p[0], p[1])
+            if found:
+                out.update(pid=pid, program=found)
+                break
+            pid, hops = p[2], hops + 1
+        try:
+            out["folder"] = _home_rel(os.readlink(f"{proc}/{out['pid']}/cwd"))
+        except OSError:
+            pass
+        title = node_title(env)
+        if title:
+            out["title"] = title
+    except Exception:  # noqa: BLE001  best effort only: the line is still written
+        pass
+    return out
