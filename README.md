@@ -45,13 +45,15 @@ gets for a project and a task:
 brain memory second-brain "fix the chat door on port 8181"
 ```
 
-You get that project's notes and the all-projects notes: pinned notes first, then the best matches (newer notes win
-close calls, by the note's date), then every other note newest first, so nothing is hidden; without a task, pinned then
-newest. Each note shows its summary line exactly as stored, rule or lesson,
+You get that project's notes, and the all-projects notes only on a match (<user>, 2026-10-28): pinned notes first (both
+scopes), then the best matches (newer notes win close calls, by the note's date), then the rest of the project's own
+notes newest first. An all-projects note that is not pinned shows only when the search ranks it for the task; the
+header then says how many were left out, so an agent knows to ask again with a task. Without a task, or when the
+search ranks nothing: pinned plus the project's newest notes. Each note shows its summary line exactly as stored, rule or lesson,
 the project and the path. Notes marked `(local-only)` are shown too, with that mark. It stops at 2,000 tokens
 (characters / 4) and says how many notes did not fit. Drafts and retired notes (`history/`) never show. The search is
 by meaning; a word search is added only for exact things in the task (a file name, a port, text in quotes, a function
-name). If the search server is down or slow (10 s), or matches no note, you get the pinned and newest notes and a
+name). If the search server is down or slow (10 s), or matches no note, you get the pinned and the project's newest notes and a
 line saying so.
 
 Claude, Codex and Gemini chats get the same answer from the `memory` tool in the brain (the chats' door adds it; it
@@ -96,12 +98,12 @@ cleared after 3 days). Code: `ask/memory_hook.py` (shell entry `bin/brain-memory
 
 - **Which project:** the git repo's name, worktrees included (`~/.agent-os/worktrees/second-brain/<branch>` counts as
   second-brain); only names that are folders in `~/projects/`. Anywhere else: nothing.
-- **What it adds:** the same list as `brain memory <repo> "<first prompt>"` (pinned first, best match, then newest,
-  at most 2,000 tokens), under one header line that points to the `memory` tool and `brain memory`. A prompt like
+- **What it adds:** the same list as `brain memory <repo> "<first prompt>"` (pinned first, best match, then the project's
+  newest; all-projects notes only when pinned or matched; at most 2,000 tokens), under one header line that points to the `memory` tool and `brain memory`. A prompt like
   "Read /…/builder.md and do what it says" also searches with the start of that brief. A prompt with no meaning
-  ("continue", "yes", "ok") gets the pinned and newest notes. You see one line: `Memory: 24 notes pushed (1580 tokens)
+  ("continue", "yes", "ok") gets the pinned and the project's newest notes. You see one line: `Memory: 24 notes pushed (1580 tokens)
   for example-game.` Each push is logged in `~/.local/state/second-brain/memory-hook.jsonl`.
-- **Never in the way:** the search gets 1.5 s (slower: pinned and newest), the whole answer 2.5 s (slower: nothing).
+- **Never in the way:** the search gets 1.5 s (slower: pinned and the project's newest), the whole answer 2.5 s (slower: nothing).
   Measured: 0.3 to 0.4 s normally, 1.7 s with a hung search. Store missing (the test machine), no notes, bad input or any error:
   no output, and Claude starts as usual.
 

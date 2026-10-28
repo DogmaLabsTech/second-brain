@@ -1,12 +1,13 @@
 """The Claude start-of-session memory push: a UserPromptSubmit hook (agent memory job 5, 2026-10-28).
 
 On the first prompt of a Claude session in one of <user>'s projects, it adds that project's notes from the agent memory
-store (memory.find: pinned first, then the best match for the prompt, then newest) to the session's context.
+store (memory.find: pinned first, then the best match for the prompt, then the project's newest;
+all-projects notes only when pinned or matched) to the session's context.
   - once per session: a marker file per session_id in ~/.local/state/second-brain/memory-hook/ (older than 3 days:
     pruned); later prompts get nothing;
   - the project: the git repo's name (a worktree counts as its main repo, via the git common dir; also
     ~/.agent-os/worktrees/<repo>/...), only if it is a folder in ~/projects/. Anything else: nothing;
-  - a prompt with no meaning ("continue", "yes", "ok"): no task, so pinned + newest. A prompt that names a brief
+  - a prompt with no meaning ("continue", "yes", "ok"): no task, so pinned + the project's newest. A prompt that names a brief
     ("Read /.../builder.md and do what it says") also searches with the start of that brief;
   - a hard budget of TOTAL_SECONDS: the search gets SEARCH_SECONDS (slower = find's pinned + newest fallback), and if
     the whole answer is not ready in time the hook says nothing;

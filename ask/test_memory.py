@@ -105,8 +105,9 @@ class Scope(Base):
         got = self.summaries(self.find())
         self.assertEqual(sorted(got), sorted(["Run the tests on the test machine.", "An older pinned rule.",
                                               "Port 8181 is the go-between; qmd moved to 8182.",
-                                              'Summary: with a "colon" and quotes',
-                                              "Git worktrees go in ~/.agent-os/worktrees/<repo>/."]))
+                                              'Summary: with a "colon" and quotes']))   # the unpinned all-projects note waits for a match
+        FakeQmd.results = [("qmd://memory/all-projects/rules/worktrees.md", 1.0)]
+        self.assertIn("Git worktrees go in ~/.agent-os/worktrees/<repo>/.", self.summaries(self.find("where do worktrees go")))   # ...and the scope still holds it
 
     def test_search_results_outside_the_scope_are_dropped(self):
         FakeQmd.results = [("qmd://memory/projects/other/rules/secret.md", 1.0), ("qmd://memory/drafts/demo-draft.md", 0.9),
@@ -117,7 +118,7 @@ class Scope(Base):
         got = self.summaries(self.find("what about ports"))
         self.assertEqual(got[2], "Port 8181 is the go-between; qmd moved to 8182.")
         self.assertNotIn("Same name, other case.", got)
-        self.assertEqual(len(got), 5)   # the rest of the scope follows (nothing hidden), nothing from outside it
+        self.assertEqual(len(got), 4)   # the rest of the project's own notes follows, nothing from outside the scope
 
     def test_the_repo_name_is_exact(self):
         self.assertEqual(self.summaries(self.find(repo="Demo"))[0], "Same name, other case.")
@@ -138,7 +139,7 @@ class Order(Base):
     def test_no_task_pinned_then_newest(self):
         self.assertEqual(self.summaries(self.find()), [
             "Run the tests on the test machine.", "An older pinned rule.", "Port 8181 is the go-between; qmd moved to 8182.",
-            "Git worktrees go in ~/.agent-os/worktrees/<repo>/.", 'Summary: with a "colon" and quotes'])
+            'Summary: with a "colon" and quotes'])   # no unpinned all-projects note
         self.assertEqual(FakeQmd.bodies, [])   # no task, no search
 
     def test_with_a_task_pinned_first_then_best_match(self):
@@ -176,8 +177,9 @@ class Order(Base):
     def test_empty_search_results_show_pinned_and_newest_and_say_so(self):
         FakeQmd.results = []   # e.g. qmd has no memory collection yet: an empty list, not an error
         out = self.find("restart the chat door on port 8181")
-        self.assertIn("Search ranked no unpinned note for this task; showing pinned and newest notes instead.", out["text"])
-        self.assertEqual(len(out["notes"]), 5)
+        self.assertIn("Search ranked no unpinned note for this task; showing pinned and this project's newest notes instead.",
+                      out["text"])
+        self.assertEqual(len(out["notes"]), 4)
         self.assertNotIn("No notes matched", out["text"])
 
     def test_results_only_outside_the_scope_show_pinned_and_newest_and_say_so(self):
@@ -185,12 +187,61 @@ class Order(Base):
         out = self.find("what about secrets")
         self.assertIn("Search ranked no unpinned note", out["text"])
         self.assertNotIn("Another project's rule.", self.summaries(out))
-        self.assertEqual(len(out["notes"]), 5)
+        self.assertEqual(len(out["notes"]), 4)
+
+
+class OnlyOnAMatch(Base):
+    """<user>, 2026-10-28: the project's own notes always come; all-projects notes only when pinned or ranked."""
+    WORKTREES = "Git worktrees go in ~/.agent-os/worktrees/<repo>/."
+
+    def test_no_task_no_unpinned_all_projects_note(self):
+        out = self.find()
+        self.assertNotIn(self.WORKTREES, self.summaries(out))
+        self.assertTrue(all(n["project"] == "demo" for n in out["notes"]))
+        self.assertIn("1 all-projects note left out", out["text"])   # the header says so, and how to ask
+        self.assertIn("`memory`", out["text"])
+        self.assertEqual(FakeQmd.bodies, [])
+
+    def test_a_ranked_all_projects_note_is_shown_and_nothing_is_left_out(self):
+        FakeQmd.results = [("qmd://memory/all-projects/rules/worktrees.md", 1.0)]
+        out = self.find("where do worktrees go")
+        self.assertEqual(self.summaries(out)[2], self.WORKTREES)   # after the two pinned, before the unranked own notes
+        self.assertNotIn("left out", out["text"])
+
+    def test_an_unranked_all_projects_note_stays_out_when_the_search_ranks_other_notes(self):
+        FakeQmd.results = [("qmd://memory/projects/demo/lessons/port-clash.md", 1.0)]
+        out = self.find("ports")
+        self.assertNotIn(self.WORKTREES, self.summaries(out))
+        self.assertIn("1 all-projects note left out", out["text"])
+
+    def test_a_pinned_all_projects_note_always_comes(self):
+        note(self.store, "all-projects/rules/worktrees.md", "Git worktrees go in ~/.agent-os/worktrees/<repo>/.",
+             pinned=True, date="2026-10-15")
+        for task, results in ((None, []), ("ports", []), ("ports", [("qmd://memory/projects/demo/lessons/port-clash.md", 1.0)])):
+            FakeQmd.results = results
+            out = self.find(task)
+            self.assertEqual(self.summaries(out)[0], self.WORKTREES, task)   # pinned, newest pinned first
+            self.assertIn("(pinned)", out["text"])
+            self.assertNotIn("left out", out["text"])
+        out = self.find("ports", url=f"http://127.0.0.1:{free_port()}")   # search down
+        self.assertEqual(self.summaries(out)[0], self.WORKTREES)
+
+    def test_search_down_shows_pinned_and_own_notes_only_and_says_so(self):
+        out = self.find("ports", url=f"http://127.0.0.1:{free_port()}")
+        self.assertEqual(len(out["notes"]), 4)
+        self.assertNotIn(self.WORKTREES, self.summaries(out))
+        self.assertIn("showing pinned and this project's newest notes instead", out["text"])
+        self.assertIn("1 all-projects note left out", out["text"])
+
+    def test_the_left_out_count_is_not_a_budget_cut(self):
+        out = self.find(budget=60)
+        self.assertEqual(len(out["notes"]) + out["left_out"], 4)   # left_out counts only notes that were in line to show
 
 
 class Output(Base):
     def test_summary_word_for_word_kind_project_path(self):
-        out = self.find()
+        FakeQmd.results = [("qmd://memory/all-projects/rules/worktrees.md", 1.0)]   # an all-projects note shows on a match
+        out = self.find("where do worktrees go")
         text = out["text"]
         self.assertIn("1. Run the tests on the test machine.\n   rule, demo (pinned): " +
                       os.path.join(self.store, "projects/demo/rules/tests-on-testbox.md"), text)
@@ -256,13 +307,13 @@ class Budget(Base):
         out = self.find()
         self.assertLessEqual(memory.tokens(out["text"]), 2000)
         self.assertGreater(out["left_out"], 0)
-        self.assertEqual(len(out["notes"]) + out["left_out"], 65)
+        self.assertEqual(len(out["notes"]) + out["left_out"], 64)
         self.assertIn(f"{out['left_out']} more notes did not fit in 2000 tokens", out["text"])
 
     def test_a_small_budget(self):
         out = self.find(budget=60)
         self.assertLessEqual(memory.tokens(out["text"]), 60)
-        self.assertEqual(len(out["notes"]) + out["left_out"], 5)
+        self.assertEqual(len(out["notes"]) + out["left_out"], 4)
 
     def test_everything_fits_no_line_about_it(self):
         self.assertNotIn("did not fit", self.find()["text"])
@@ -282,19 +333,21 @@ class Missing(Base):
         finally:
             os.rmdir(empty)
 
-    def test_no_notes_for_the_repo_still_gets_all_projects(self):
-        self.assertEqual(self.summaries(self.find(repo="newrepo")), ["Git worktrees go in ~/.agent-os/worktrees/<repo>/."])
+    def test_no_notes_for_the_repo_gets_all_projects_only_on_a_match(self):
+        self.assertEqual(self.summaries(self.find(repo="newrepo")), [])
+        FakeQmd.results = [("qmd://memory/all-projects/rules/worktrees.md", 1.0)]
+        self.assertEqual(self.summaries(self.find("where do worktrees go", repo="newrepo")), ["Git worktrees go in ~/.agent-os/worktrees/<repo>/."])
 
     def test_a_broken_note_is_skipped_not_a_crash(self):
         with open(os.path.join(self.store, "projects/demo/rules/bin.md"), "wb") as f:
             f.write(b"\xff\xfe\x00 not text")
-        self.assertEqual(len(self.find()["notes"]), 5)
+        self.assertEqual(len(self.find()["notes"]), 4)
 
 
 class Fallback(Base):
     def check_fallback(self, out):
         self.assertIn("Search was not reachable", out["text"])
-        self.assertIn("showing pinned and newest notes instead", out["fallback"])
+        self.assertIn("showing pinned and this project's newest notes instead", out["fallback"])
         self.assertEqual(self.summaries(out)[:3], ["Run the tests on the test machine.", "An older pinned rule.",
                                                    "Port 8181 is the go-between; qmd moved to 8182."])
 

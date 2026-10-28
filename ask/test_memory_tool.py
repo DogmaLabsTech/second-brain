@@ -146,7 +146,7 @@ class Door(unittest.TestCase):
 
     def test_memory_call_without_a_task(self):
         res = self.call({"repo": "demo"})
-        self.assertEqual(len(res["structuredContent"]["notes"]), 5)
+        self.assertEqual(len(res["structuredContent"]["notes"]), 4)   # no unpinned all-projects note without a task
         self.assertEqual(Upstream.got, [])
 
     def test_local_only_reaches_the_chat_marked(self):

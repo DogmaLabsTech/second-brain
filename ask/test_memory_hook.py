@@ -163,8 +163,22 @@ class Prompts(Hook):
         FakeQmd.results = [("qmd://memory/projects/demo/lessons/port-clash.md", 0.9)]
         text = self.context(self.hook(prompt="why does port 8181 clash?")[0])
         self.assertIn("Task: why does port 8181 clash?", text)
-        self.assertLess(text.index("Port 8181 is the go-between"), text.index("Git worktrees go in"))
+        self.assertLess(text.index("Port 8181 is the go-between"), text.index("Summary: with a"))   # ranked before unranked
+        self.assertNotIn("Git worktrees go in", text)   # an all-projects note that search did not rank stays out
+        self.assertIn("1 all-projects note left out", text)
         self.assertEqual(len(FakeQmd.bodies), 1)
+
+
+    def test_a_ranked_all_projects_note_is_pushed(self):
+        FakeQmd.results = [("qmd://memory/all-projects/rules/worktrees.md", 0.9)]
+        text = self.context(self.hook(prompt="where do git worktrees go?")[0])
+        self.assertIn("Git worktrees go in", text)
+        self.assertNotIn("left out", text)
+
+    def test_a_prompt_with_no_meaning_pushes_no_all_projects_note(self):
+        text = self.context(self.hook(prompt="continue")[0])
+        self.assertNotIn("Git worktrees go in", text)
+        self.assertIn("1 all-projects note left out", text)
 
 
 class Budget(Hook):
@@ -198,7 +212,7 @@ class Budget(Hook):
         self.hook()
         with open(os.path.join(self.state, "memory-hook.jsonl")) as f:
             line = json.loads(f.read())
-        self.assertEqual((line["repo"], line["session"], line["notes"]), ("demo", "s1", 5))
+        self.assertEqual((line["repo"], line["session"], line["notes"]), ("demo", "s1", 4))
         self.assertLess(line["seconds"], 3)
 
 
@@ -211,9 +225,9 @@ class Shape(Hook):
         self.assertEqual(sorted(data["hookSpecificOutput"]), ["additionalContext", "hookEventName"])
         self.assertEqual(data["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit")
         text = data["hookSpecificOutput"]["additionalContext"]
-        self.assertTrue(text.startswith("Agent memory for demo: 5 notes from <user>'s memory store"))
+        self.assertTrue(text.startswith("Agent memory for demo: 4 notes from <user>'s memory store"))
         self.assertIn('`memory` tool (brain MCP) or `brain memory demo "task"`', text)
-        self.assertEqual(data["systemMessage"], f"Memory: 5 notes pushed ({memory.tokens(text)} tokens) for demo.")
+        self.assertEqual(data["systemMessage"], f"Memory: 4 notes pushed ({memory.tokens(text)} tokens) for demo.")
 
     def test_bad_input_says_nothing(self):
         for stdin in ("", "not json", "[]", "null", '"text"', "{}", '{"cwd": 5, "session_id": "a"}',
