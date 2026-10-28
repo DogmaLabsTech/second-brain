@@ -11,6 +11,9 @@ find(repo, task) answers "what should I know for this task in this project?" fro
     then the newest notes. Search down, slow, or matching no unpinned note: pinned + newest, and the output says so;
   - each note: its stored `summary` line word for word, kind, project, path. `local-only: true` notes are shown like
     any other, marked (local-only) (<user>, 2026-10-28: no hiding). No model rewrites or hides anything;
+  - flags (job 6, ask/memory_flagfile.py): a flagged note is marked "(may be out of date, check first)". With
+    for_push=True (the memory hook) a note whose flag nobody confirmed for 30 days is left out; every other caller
+    still shows it, marked as lapsed. Nothing leaves the store;
   - budget: tokens are counted as characters / 4, rounded up; the list stops before the budget and says how many
     notes did not fit.
 Python standard library only; nothing leaves this computer.
@@ -29,6 +32,7 @@ sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import ask  # noqa: E402
+import memory_flagfile  # noqa: E402
 from expand import expanded_document  # noqa: E402
 
 BUDGET = 2000
@@ -139,6 +143,9 @@ def scope_notes(store, repo):
                     note = read_note(store, rel)
                     if note:
                         notes[rel] = note
+    since = memory_flagfile.flagged(store)
+    for rel, note in notes.items():
+        note["flagged"] = since.get(rel)
     return notes
 
 
@@ -217,7 +224,13 @@ def check_repo(repo):
 
 def entry(i, n):
     marks = (" (pinned)" if n["pinned"] else "") + (" (local-only)" if n["local_only"] else "")
+    if n.get("flagged"):
+        marks += " (may be out of date, check first" + ("; flag over 30 days old, not pushed" if lapsed(n) else "") + ")"
     return f"{i}. {n['summary']}\n   {n['kind']}, {n['project']}{marks}: {n['path']}\n"
+
+
+def lapsed(n):
+    return memory_flagfile.lapsed(n.get("flagged"))
 
 
 def render(repo, task, ordered, budget, note=None):
@@ -241,8 +254,9 @@ def render(repo, task, ordered, budget, note=None):
     return text, shown, left
 
 
-def find(repo, task=None, store=None, budget=BUDGET, url=None):
-    """{"text", "notes", "left_out", "fallback"} for one project and an optional task (see the top of this file)."""
+def find(repo, task=None, store=None, budget=BUDGET, url=None, for_push=False):
+    """{"text", "notes", "left_out", "fallback"} for one project and an optional task (see the top of this file).
+    for_push: the memory hook's call; notes with a lapsed flag are left out."""
     check_repo(repo)
     task = (task or "").strip() or None
     root = store_path(store)
@@ -251,10 +265,14 @@ def find(repo, task=None, store=None, budget=BUDGET, url=None):
     notes = scope_notes(root, repo)
     if not notes:
         return plain(f"No notes for {repo} in the memory store yet, and none for all projects.")
+    if for_push:
+        notes = {r: n for r, n in notes.items() if not lapsed(n)}
+        if not notes:
+            return plain(f"No notes to push for {repo}.")
     pinned = newest([n for n in notes.values() if n["pinned"]])
     rest, fallback = matches(task, notes, url)
     text, shown, left = render(repo, task, pinned + rest, budget, fallback)
-    keys = ("summary", "kind", "project", "path", "pinned", "local_only")
+    keys = ("summary", "kind", "project", "path", "pinned", "local_only", "flagged")
     return {"text": text, "notes": [{k: n[k] for k in keys} for n in shown], "left_out": left, "fallback": fallback}
 
 

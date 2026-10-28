@@ -17,6 +17,15 @@ When you add, move or retire a file here, update this file in the same commit.
 - `eval/memory_keep.py` (`brain drafts keep <draft> --to projects/<repo>/lessons`): `keep` for agent-memory drafts: moves a draft into the store
   `~/projects/shared/` (its own git, no remote; the `memory` collection in `index/index.yml`), fills the front matter, makes the
   summary with the local model after the names filter, commits there. Tests: `eval/test_memory_keep.py`.
+- `eval/memory_drafts.py` (`brain memory-drafts add|list|drop|expire`, 2026-10-28): the lesson drafts of the agent memory
+  store (what agent-os's librarian step writes after a job): note format with `already-known` and `was-pushed`, the cap
+  of 5 a week (`draft-log.jsonl` in the store), 30-day expiry to `history/expired-drafts/`. Tests: `eval/test_memory_drafts.py`.
+- `eval/memory_flags.py` (`brain memory-flags [run|list|confirm|retire]`) and `ask/memory_flagfile.py`: which kept notes may
+  be out of date (file gone, file changed a lot, a newer note says the opposite), `flags.jsonl` in the store, the 30-day
+  lapse out of the push, the 90-day "still true?" for pinned notes, <user>'s confirm and retire. `ask/memory.py` marks
+  flagged notes. Tests: `eval/test_memory_flags.py`.
+- `eval/memory_week.py`: the "Agent memory for <user>" block of `brain checkup` (drafts, flags, pinned due) and its two numbers
+  (repeats that got through, second-round rate; both in `scores.tsv`). Tests: `eval/test_memory_week.py`.
 - `index/memory-backup.sh`: the nightly copy of the agent memory store to the HDD (`agent-memory-backup.timer`, 21:15;
   `~/backups/agent-memory/`, 14 newest kept; stops if the HDD is not mounted). Tests: `index/test_memory_backup.py`.
 - `ask/searchlog.py`: the search record (2026-10-28): one private line per chat search or read and per `brain search`,

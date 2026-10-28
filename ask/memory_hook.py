@@ -13,7 +13,9 @@ store (memory.find: pinned first, then the best match for the prompt, then newes
   - output: one JSON object, additionalContext under one short header, at most 2,000 tokens (characters / 4);
   - switched off while ~/.local/state/second-brain/memory-hook.off exists;
   - empty store, no notes, store missing (the test machine), bad input, any error: exit 0 with no output. It never blocks.
-A line per push goes to ~/.local/state/second-brain/memory-hook.jsonl (what was pushed, how long it took).
+A line per push goes to ~/.local/state/second-brain/memory-hook.jsonl (what was pushed, with the paths of the notes,
+how long it took; the librarian reads the paths to know whether a lesson was pushed: eval/memory_drafts.py).
+A note whose flag nobody confirmed for 30 days is not pushed (ask/memory_flagfile.py).
 Python standard library only; nothing leaves this computer.
 
   echo '{"session_id": "...", "cwd": "...", "prompt": "..."}' | python3 -I ask/memory_hook.py
@@ -135,7 +137,7 @@ def push(repo, task):
     import memory
     memory.SEARCH_SECONDS = SEARCH_SECONDS
     room = BUDGET - memory.tokens(header(repo, 999))
-    out = memory.find(repo, task, budget=room)
+    out = memory.find(repo, task, budget=room, for_push=True)
     if not out["notes"]:
         return None
     text = header(repo, len(out["notes"])) + out["text"]
@@ -143,7 +145,8 @@ def push(repo, task):
     return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": text},
             "systemMessage": f"Memory: {len(out['notes'])} notes pushed ({used} tokens) for {repo}.",
             "_log": {"repo": repo, "task": (task or "")[:200], "notes": len(out["notes"]), "left_out": out["left_out"],
-                     "tokens": used, "fallback": out["fallback"]}}
+                     "tokens": used, "fallback": out["fallback"],
+                     "paths": [n["path"] for n in out["notes"]]}}
 
 
 def in_time(fn, seconds):

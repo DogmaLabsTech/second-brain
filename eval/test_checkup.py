@@ -125,6 +125,7 @@ class Auto(unittest.TestCase):
                    mock.patch.object(checkup, "week", lambda days: ([{"id": "a1", "q": "x", "kind": "answer"}], {})),
                    mock.patch.object(checkup, "learn", self.learn),
                    mock.patch.object(checkup, "drafts_lines", lambda days: []),
+                   mock.patch.object(checkup, "memory_block", lambda days: ([], None, None)),
                    mock.patch.object(checkup.drafts, "auto_rate", lambda days: []),
                    mock.patch.object(checkup, "notify", lambda t, b: self.notes.append((t, b))),
                    mock.patch.dict(os.environ, {"CHECKUP_NOTE": ""})]
