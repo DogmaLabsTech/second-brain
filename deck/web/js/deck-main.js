@@ -11,34 +11,7 @@ import { RD, STILL, asking, cancelEdit, closeReader, docOf, dropTitle, editing, 
 import './deck/lock-tag.js'; export * from './deck/lock-tag.js';
 import { dotHover, lock, pvDot, pvHide, pvI, unlock } from './deck/hover.js'; export * from './deck/hover.js';
 import { ask, tl } from './deck/timeline-ask.js'; export * from './deck/timeline-ask.js';
-// ---- 08 Live (brief 15): every search and ask, from anywhere (chats, the voice island, the terminal, this Deck), as it happens.
-// GET /live on the Deck server (read-only events; the token comes in this page's html). Each one plays the live animation
-// (live.js) and gets a line in the 08 Live panel. The Ask box and the voice play their own results at once (liveOwn) and tag
-// their calls with a nonce, so the server's copy of the same search is skipped here. L / the LIVE button / ✕ show or hide the panel.
-const live = makeLive({ cur, root, camera, project, V: new THREE.Vector3(), cloud, docs: DOCS, kc: KC, cols: COLS, esc, shell, seen: i => visible(i) && shown(i) > .05, pulse: () => notePulse(), W, H });
-const LIVEP = RD('livep'), mine = new Set(), LTOK = document.querySelector('meta[name=deck-live]')?.content || '';
-export function liveNonce() { const n = Math.random().toString(36).slice(2, 10); mine.add(n); return n; }
-// a found note -> its dot: collection + path first, then the same path in any collection (qmd lists some files in two); undefined = newer than data.js
-const liveIdx = h => !h.p ? undefined : (h.c && byPath.get(h.c + ':' + pk(h.p))) ?? pick(byAny.get(pk(h.p)), h.c);
-export function liveOwn(ev) { feed.add(ev); return live.play({ ...ev, own: true }); }
-// a server event -> the feed and the animation. A read (a chat opening a note) plays light; notes newer than data.js light their section.
-const LIVELOG = /[#&]livelog/.test(location.hash);   // test switch: keep each live event and when its first line drew (window.__liveGot)
-function fromServer(e, past) { if (!e || !e.q || (e.nonce && mine.has(e.nonce))) return; const idx = (e.hits || []).map(liveIdx);
-  const ev = { key: 's' + e.id + '.' + e.sent, q: e.q, who: e.who, kind: e.kind, at: e.at, hits: e.hits, idx, list: idx.filter(i => i !== undefined), secs: e.hits.filter((h, k) => idx[k] === undefined && h.c).map(h => h.c), light: e.kind === 'read', past: past || e.past };
-  feed.add(ev); const pl = ev.past ? null : live.play(ev); if (LIVELOG && !ev.past) (window.__liveGot ||= []).push({ id: e.id, q: e.q, kind: e.kind, who: e.who, at: e.at, sent: e.sent, got: Date.now(), n: ev.list.length, secs: ev.secs.length, hits: e.hits.length, pl }); }
-const feed = makeFeed(LIVEP, { docs: DOCS, kc: KC, nice: NICE, esc, onOpen: (i, h) => i !== undefined ? lock(i) : h && h.id && openReader(loose(h)), onReplay: ev => live.play({ ...ev, own: false, hold: false }), onHide: () => liveShow(false) });
-const moveLive = movable(LIVEP, { key: 'live' });
-document.querySelector('#topbar .stat').insertAdjacentHTML('afterend', '<button id="livebtn" title="the live feed of searches  (L)"><i>●</i> LIVE</button>');
-const LB = RD('livebtn'); let liveOn = localStorage.getItem('deckLiveHidden') !== '1';
-function liveShow(on) { liveOn = on; try { localStorage.setItem('deckLiveHidden', on ? '0' : '1'); } catch {} LIVEP.classList.toggle('off', !on); LB.classList.toggle('on', on); if (on) moveLive.place(false); }
-LB.onclick = () => liveShow(!liveOn); liveShow(liveOn);
-addEventListener('keydown', e => { if (e.key.toLowerCase() !== 'l' || e.ctrlKey || e.metaKey || e.altKey || editing || setOpen || typingIn(e.target)) return; liveShow(!liveOn); say(liveOn ? 'LIVE FEED SHOWN' : 'LIVE FEED HIDDEN  ·  PRESS L TO SHOW'); });
-if (!LTOK) feed.status('restart the Deck server', 'bad');
-else { const es = new EventSource('/live?k=' + LTOK);
-  es.addEventListener('open', () => { feed.status('listening', 'ok'); LB.classList.add('ok'); });
-  es.addEventListener('history', m => { try { JSON.parse(m.data).forEach(e => fromServer(e, true)); } catch {} });
-  es.addEventListener('live', m => { try { fromServer(JSON.parse(m.data)); } catch {} });
-  es.onerror = () => { LB.classList.remove('ok'); feed.status(es.readyState === 2 ? 'server restarted: reload' : 'reconnecting', 'bad'); }; }
+import { live, liveNonce, liveOwn } from './deck/live.js'; export * from './deck/live.js';
 // input
 // picking: the nearest shown dot within PICK px of the mouse (screen space, this frame's camera and layout) wins
 export const PICK = 16, dotXY = i => { tmp.set(cur[i * 3], cur[i * 3 + 1], cur[i * 3 + 2]).applyMatrix4(root.matrixWorld); return project(tmp, camera, W(), H()); };
@@ -77,7 +50,7 @@ let talk = 'idle', tgen = 0, tAbort = null, ac = null, mic = null, rec = null, r
 const talkBuf = new Float32Array(2048);   // ~43 ms of sound per reading: a steadier loudness than one short window
 function tState(st, sub) { talk = st; if (st !== 'speaking' && st !== 'thinking' && voiceEv) { live.release(voiceEv); voiceEv = null; }   /* the voice finished (or stopped): its lines fade calmly now */ TV.dataset.s = st; shell.set(st === 'job' || st === 'unheard' ? 'idle' : st); RD('tbl').textContent = TBL[st] || 'TALK'; RD('tstate').textContent = st === 'error' ? 'ERROR' : st === 'job' ? 'WAITING FOR YOU' : st === 'unheard' ? "I DIDN'T HEAR YOU" : st === 'idle' ? 'READY' : st.toUpperCase(); RD('tsub').textContent = sub ?? TSUB[st] ?? ''; RD('tsub').title = RD('tsub').textContent; }
 function tErr(t) { tState('error', t); }
-const notePulse = () => shell.voice * 1.1;   // the answer's notes pulse with the voice
+export const notePulse = () => shell.voice * 1.1;   // the answer's notes pulse with the voice
 const audio = () => ac || (ac = new AudioContext());
 function rms(an) { an.getFloatTimeDomainData(talkBuf); let a = 0; for (let k = 0; k < talkBuf.length; k++) a += talkBuf[k] * talkBuf[k]; return Math.sqrt(a / talkBuf.length); }
 const LVI = RD('tlvi'), LVB = RD('tlv'); let floor = .2, lvShown = -1, barLv = 0, barT = 0;   // floor: the room's noise level, so a quiet mic still counts as talking above it
@@ -166,7 +139,7 @@ RD('tyes').onclick = () => { if (!tJob) return; const job = tJob, g = ++tgen; RD
     .catch(() => { if (g === tgen) { tJob = null; RD('tjob').classList.remove('on'); tErr('the Deck server did not answer'); } }); };
 RD('tno').onclick = () => { if (!tJob) return; if (tId) post('/talk/outcome', { id: tId, what: 'declined' }).catch(() => {}); tJob = null; RD('tjob').classList.remove('on'); stopTalk(); caption(undefined, "Okay, I won't."); tState('idle'); };
 TB.onclick = () => { if (tFake) return; if (talk === 'listening') stopRec(true); else if (talk === 'thinking' || talk === 'speaking') stopTalk(true); else startRec('click'); };
-const typingIn = el => el && el.closest && el.closest('input,textarea,select,[contenteditable=""],[contenteditable="true"]');
+export const typingIn = el => el && el.closest && el.closest('input,textarea,select,[contenteditable=""],[contenteditable="true"]');
 addEventListener('keydown', e => { if (e.key === 'Escape' && (talk === 'listening' || talk === 'thinking' || talk === 'speaking')) { e.preventDefault(); e.stopImmediatePropagation(); return stopTalk(true); }
   if (e.code !== 'Space' || e.ctrlKey || e.metaKey || e.altKey || editing || typingIn(e.target) || leftAway) return; e.preventDefault(); e.stopImmediatePropagation(); if (e.repeat) return;
   if (talk === 'thinking' || talk === 'speaking') stopTalk(true); startRec('hold'); }, true);
