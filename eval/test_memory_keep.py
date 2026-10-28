@@ -376,6 +376,69 @@ class Cli(Case):
         self.assertIn("pinned: true", read(os.path.join(self.store, "projects", "second-brain", "lessons", "lesson-git-rm.md")))
 
 
+class RealCommand(Case):
+    """The command as bin/brain runs it: `python3 -I eval/drafts.py ...` in a new process (so -I applies). Temp store,
+    temp names list, temp state; the model address is a closed local port, so no model answers and nothing real is used."""
+
+    def run_real(self, argv, store=None):
+        env = {k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "all_proxy")}
+        env.update(GIT_ENV)
+        empty = os.path.join(self.tmp, "business")
+        os.makedirs(empty, exist_ok=True)
+        env.update({"BRAIN_MEMORY_STORE": store or self.store, "DECIDER_PRIVATE_NAMES": self.names_file,
+                    "DECIDER_BUSINESS_DIR": empty, "BRAIN_STATE": os.path.join(self.tmp, "state"),
+                    "OLLAMA_HOST_URL": "127.0.0.1:1"})
+        return subprocess.run([sys.executable, "-I", os.path.join(HERE, "drafts.py")] + argv, capture_output=True,
+                              text=True, env=env, cwd=self.tmp, timeout=120)
+
+    def test_keep_through_the_real_command_moves_the_draft_and_commits(self):
+        done = self.run_real(["keep", "lesson-git-rm.md", "--to", "projects/second-brain/lessons"])
+        self.assertEqual((done.returncode, done.stderr), (0, ""), done.stdout)
+        dest = os.path.join(self.store, "projects", "second-brain", "lessons", "lesson-git-rm.md")
+        text = read(dest)
+        self.assertIn("project: second-brain\nkind: lesson\n", text)
+        self.assertNotIn("Zorblax", text.split("---\n", 2)[1])   # the front matter (summary) never holds the name
+        self.assertFalse(os.path.exists(os.path.join(self.store, "drafts", "lesson-git-rm.md")))
+        self.assertEqual(git(self.store, "status", "--porcelain"), "")
+        self.assertIn("keep: second-brain/lesson: lesson-git-rm.md", git(self.store, "log", "-1", "--format=%s"))
+
+    def test_the_real_command_with_the_store_missing_says_so_and_exits_1(self):
+        done = self.run_real(["keep", "lesson-git-rm.md", "--to", "projects/second-brain/lessons"],
+                             store=os.path.join(self.tmp, "no-such-store"))
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("memory store is not there", done.stderr)
+        self.assertNotIn("Traceback", done.stderr)
+        self.assertEqual(done.stdout, "")
+
+
+class EmptyModelReply(Case):
+    """The model answers, but with nothing usable: no summary, so the first line stands in. Never a crash."""
+
+    def reply(self, payload):
+        def urlopen(req, timeout=None):
+            resp = mock.MagicMock()
+            resp.__enter__.return_value.read.return_value = payload
+            return resp
+        return urlopen
+
+    def test_a_null_or_empty_reply_gives_the_first_line_and_keeps_the_note(self):
+        for label, payload in (("content null", b'{"message": {"content": null}}'),
+                               ("content empty", b'{"message": {"content": ""}}'),
+                               ("message null", b'{"message": null}'),
+                               ("no message", b"{}")):
+            with self.subTest(label):
+                name = "e-%s.md" % label.replace(" ", "-")
+                self.draft(name, "# first line of the note\n\nBody.\n")
+                with mock.patch.object(memory_keep.urllib.request, "urlopen", self.reply(payload)):
+                    got = memory_keep.keep(name, "projects/second-brain/lessons", store=self.store, today="2026-10-27")
+                self.assertEqual((got["summary_by"], got["summary"]), ("fallback", "first line of the note"))
+
+    def test_local_summary_says_oserror_for_a_null_reply(self):
+        with mock.patch.object(memory_keep.urllib.request, "urlopen", self.reply(b'{"message": {"content": null}}')):
+            with self.assertRaises(OSError):
+                memory_keep.local_summary("Some clean text.")
+
+
 class IndexBlock(unittest.TestCase):
     """index/index.yml (repo copy): the store is a collection, off by default like the others."""
 

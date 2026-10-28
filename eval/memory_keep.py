@@ -179,10 +179,10 @@ def local_summary(text):
                                  json.dumps(body).encode(), {"Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
-            answer = json.loads(resp.read()).get("message", {}).get("content", "")
+            answer = (json.loads(resp.read()).get("message") or {}).get("content") or ""
     except (ValueError, AttributeError) as why:
         raise OSError("the summary model gave no usable answer: %s" % why) from None
-    line = next((l for l in answer.splitlines() if l.strip()), "")
+    line = next((l for l in str(answer).splitlines() if l.strip()), "")
     line = _oneline(line)
     if not line:
         raise OSError("the summary model gave an empty answer")
@@ -211,17 +211,19 @@ def guard_problem():
 
 # ---------- keep ----------
 
-def keep(draft, to, store=None, summary=None, files=None, pin=None, confirm=None, summarize=None, today=None):
-    """Move one draft into the store and commit it. Returns {path, project, kind, summary, summary_by, local_only,
-    commit}. `summary` skips the model; `confirm(summary)` shows the line and returns the one to keep (or None/the same);
-    `summarize(text)` is the model call (default: local_summary). Raises KeepError, with nothing changed."""
-    store = store_path(store)
+def _check_store(store):
+    """The store folder as a path; KeepError (plain words) when it is missing or not a git repo."""
+    shown = store.replace(os.path.expanduser("~"), "~")
     if not os.path.isdir(store):
         raise KeepError("the memory store is not there (%s). Nothing was kept. The store is made by agent memory job 1; "
-                        "set BRAIN_MEMORY_STORE if it lives somewhere else." % store.replace(os.path.expanduser("~"), "~"))
+                        "set BRAIN_MEMORY_STORE if it lives somewhere else." % shown)
     if not os.path.exists(os.path.join(store, ".git")):
-        raise KeepError("the memory store (%s) is not a git repo, so keep cannot commit there. Nothing was kept."
-                        % store.replace(os.path.expanduser("~"), "~"))
+        raise KeepError("the memory store (%s) is not a git repo, so keep cannot commit there. Nothing was kept." % shown)
+    return store
+
+
+def _plan(draft, to, store):
+    """(project, kind, source draft, destination) for this keep. KeepError when the target or the name is not fine."""
     project, kind, folder, name = parse_target(to)
     src = _find_draft(draft, store)
     name = name or os.path.basename(src)
@@ -233,11 +235,12 @@ def keep(draft, to, store=None, summary=None, files=None, pin=None, confirm=None
     if os.path.lexists(dest):
         raise KeepError("%s is already in the store; keep it under another name or retire the old one first"
                         % os.path.relpath(dest, store))
-    with open(src, encoding="utf-8") as fh:
-        original = fh.read()
-    old_files, old_pin, body = split_draft(original)
+    return project, kind, src, dest
 
-    # The names filter first. Unsure (or no filter): no model sees anything and the note is marked local-only.
+
+def _summary_and_filter(body, summary, confirm, summarize):
+    """(summary line, who made it, local_only, guard words). The guard and the names filter run first; unsure (or no
+    filter) means no model sees anything and the note is local-only. The line is shown to `confirm` for <user>'s edit."""
     guard = guard_problem()   # a bad names list counts as unsure, whatever the filter says
     local_only, scrubbed = bool(guard), ""
     if not guard:
@@ -265,10 +268,12 @@ def keep(draft, to, store=None, summary=None, files=None, pin=None, confirm=None
         line = _oneline(drafts.scrub(line))   # what agents get word for word never holds a private name
     except drafts.Unsure:
         local_only = True
+    return line, by, local_only, guard
 
-    text = front_matter(project, kind, today or time.strftime("%Y-%m-%d"), line,
-                        list(files) if files is not None else old_files,
-                        old_pin if pin is None else pin, local_only) + body.lstrip("\n")
+
+def _write_and_commit(store, src, dest, original, text, message):
+    """Write the note, remove the draft and commit both in the store; returns the short commit hash. On any failure the
+    draft is put back and the new file removed."""
     rel = os.path.relpath(dest, store)
     src_in = _inside(store, src)
     src_rel = os.path.relpath(src, store) if src_in else None
@@ -280,8 +285,8 @@ def keep(draft, to, store=None, summary=None, files=None, pin=None, confirm=None
         os.unlink(src)
         paths = [rel] + ([src_rel] if tracked else [])
         _git(store, "add", "-A", "--", *paths)
-        _git(store, "commit", "-q", "-m", "keep: %s/%s: %s\n\n%s" % (project, kind, name, line), "--", *paths)
-        commit = _git(store, "rev-parse", "--short", "HEAD").strip()
+        _git(store, "commit", "-q", "-m", message, "--", *paths)
+        return _git(store, "rev-parse", "--short", "HEAD").strip()
     except BaseException:
         # Put everything back: the draft where it was, nothing new in the store.
         if not os.path.exists(src):
@@ -290,6 +295,23 @@ def keep(draft, to, store=None, summary=None, files=None, pin=None, confirm=None
             os.unlink(dest)
         subprocess.run(["git", "-C", store, "reset", "-q", "--", rel] + ([src_rel] if tracked else []), capture_output=True)
         raise
+
+
+def keep(draft, to, store=None, summary=None, files=None, pin=None, confirm=None, summarize=None, today=None):
+    """Move one draft into the store and commit it. Returns {path, project, kind, summary, summary_by, local_only,
+    guard, commit}. `summary` skips the model; `confirm(summary)` shows the line and returns the one to keep (or
+    None/the same); `summarize(text)` is the model call (default: local_summary). Raises KeepError, with nothing changed."""
+    store = _check_store(store_path(store))
+    project, kind, src, dest = _plan(draft, to, store)
+    with open(src, encoding="utf-8") as fh:
+        original = fh.read()
+    old_files, old_pin, body = split_draft(original)
+    line, by, local_only, guard = _summary_and_filter(body, summary, confirm, summarize)
+    text = front_matter(project, kind, today or time.strftime("%Y-%m-%d"), line,
+                        list(files) if files is not None else old_files,
+                        old_pin if pin is None else pin, local_only) + body.lstrip("\n")
+    commit = _write_and_commit(store, src, dest, original, text,
+                               "keep: %s/%s: %s\n\n%s" % (project, kind, os.path.basename(dest), line))
     return {"path": dest, "project": project, "kind": kind, "summary": line, "summary_by": by,
             "local_only": local_only, "guard": guard, "commit": commit}
 

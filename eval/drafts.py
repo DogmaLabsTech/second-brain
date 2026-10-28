@@ -584,6 +584,7 @@ def main(argv):
             days = int(_flag(argv, "--days") or 7)
             print("\n".join(lines(run(days)) or ["nothing to draft"]))
         elif cmd == "keep" and argv and (to := _flag(argv, "--to")) is not None:
+            sys.path.insert(0, HERE)   # python3 -I (bin/brain) leaves the script's own folder off the path
             import memory_keep   # a memory draft -> the store (eval/memory_keep.py)
             return memory_keep.cli(argv, to)
         elif cmd == "keep" and argv:
