@@ -11,6 +11,7 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+os.environ["BRAIN_MEMORY_DECIDER"] = "off"   # tests never ask the decider (the second decider); test_memory_decide.py tests it with a fake
 import memory  # noqa: E402
 import memory_hook  # noqa: E402
 from test_memory import Base, FakeQmd, free_port, note  # noqa: E402

@@ -56,3 +56,6 @@ wake-data/
 *.gguf
 *.onnx
 !wake/models/hey_claude.onnx
+
+# agent memory job 9: label sets hold private text (prompts, notes, job records)
+eval/labels/

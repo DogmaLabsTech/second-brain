@@ -30,12 +30,18 @@ says `written-by: haiku` or `written-by: fixed-rule` (the librarian's own title 
 form or too long, answer not safe). When the names guard or filter is not sure, Haiku is not called and the fixed-rule
 draft is written as it came, marked `local-only: true` (with `local-only-by: filter`), so it is never sent online.
 
+Two choices are asked of the decider first (ask/memory_decide.py; BRAIN_MEMORY_DECIDER=off turns that off), the word rules
+above are the fallback whenever it is not sure: "already-known" asks memory-same-note about the first SAME_ASKED
+candidate notes, and a "no" from memory-lesson-worth (is this finished job worth a lesson?) skips the draft after the
+fixed signals fired (NotWorth, logged as `skipped` in memory-decider.jsonl; nothing counts against the weekly limit).
+
 Limits: at most MAX_PER_WEEK drafts per ISO week, counted by the draft's date in the store's `draft-log.jsonl` (one
 line per draft written; it also keeps the two fields, so keeping or dropping a draft does not free a place); a sixth is
 refused in plain words. One draft per job. Drafts older than 30 days that nobody kept move to
 history/expired-drafts/ (`expire`, which the weekly check-up runs): they are never deleted and never pushed.
 Drafts are not committed in the store (the inbox); a keep commits the note. The store is BRAIN_MEMORY_STORE
-(default ~/projects/shared); tests use a temp folder. Standard library only; Haiku is called only by `add`, once per draft, after the cap check.
+(default ~/projects/shared); tests use a temp folder. Standard library only; Haiku is called only by `add`, once per draft, after the cap check
+(and after the lesson-worth gate); the decider (the second decider) is asked the two choices above.
 """
 import json
 import os
@@ -49,12 +55,14 @@ ROOT = os.path.dirname(HERE)
 sys.path[:0] = [HERE, os.path.join(ROOT, "ask")]
 import drafts  # noqa: E402
 import memory  # noqa: E402
+import memory_decide  # noqa: E402
 import memory_flagfile  # noqa: E402
 import memory_flags  # noqa: E402
 import memory_hook  # noqa: E402
 import memory_keep  # noqa: E402
 
 MAX_PER_WEEK = 5
+SAME_ASKED = 3         # the decider (memory-same-note) looks at this many candidate notes; the word rule at the rest
 EXPIRE_DAYS = 30
 SAME_SHARE = 0.6
 SAME_SHARED = 3
@@ -75,6 +83,10 @@ EXPIRED = os.path.join("history", "expired-drafts")
 
 class DraftError(ValueError):
     """The draft cannot be written; the message is plain words. Nothing was written."""
+
+
+class NotWorth(DraftError):
+    """The decider (memory-lesson-worth) said the job is not worth a lesson. Nothing was written; the skip is logged."""
 
 
 def store_path(store=None):
@@ -118,8 +130,9 @@ def says_the_same(title, body, note):
         and memory_flags.negated(title) == memory_flags.negated(note["summary"])
 
 
-def already_known(store, project, title, body, search="qmd"):
-    """The kept note (a note dict) of the scope that says the same, or None."""
+def already_known(store, project, title, body, search="qmd", decide=True):
+    """The kept note (a note dict) of the scope that says the same, or None. The decider (memory-same-note) judges the
+    first SAME_ASKED candidates (not at all when `decide` is False: text the names filter could not clean stays local); a note it is not sure about (or every note, when it is off) goes through the word rule."""
     notes = memory.scope_notes(store, project)
     rels = None
     if search == "qmd":
@@ -130,8 +143,18 @@ def already_known(store, project, title, body, search="qmd"):
             rels = None
     elif search:
         rels = search(title)
-    for rel in (rels if rels is not None else sorted(notes)):
-        if rel in notes and says_the_same(title, body, notes[rel]):
+    if rels is None:     # search down: the likeliest notes first, by shared words, so the decider sees the best few
+        want = memory_flags.content_words(title + " " + body)
+        rels = sorted(notes, key=lambda r: (-len(want & memory_flags.content_words(notes[r]["summary"])), r))
+    asked = 0
+    for rel in rels:
+        if rel not in notes:
+            continue
+        verdict = None
+        if decide and asked < SAME_ASKED:
+            asked += 1
+            verdict = memory_decide.same_note(title, body, notes[rel]["summary"])
+        if verdict if verdict is not None else says_the_same(title, body, notes[rel]):
             return notes[rel]
     return None
 
@@ -266,6 +289,11 @@ def add(to, job, title, source, body, store=None, files=(), window=None, session
             title, body = drafts.scrub(title), drafts.scrub(body)
         except drafts.Unsure:
             local_only, why = True, "the names filter was not sure, so nothing was sent to Haiku"
+    if not local_only and memory_decide.lesson_worth(title, body) is False:
+        # The librarian's fixed signals decided that a draft is considered; this only decides whether it is worth
+        # writing. Text that the names filter could not clean is never sent (local_only), so it is never asked.
+        memory_decide.note("skipped", task="memory-lesson-worth", job=job, to=to)
+        raise NotWorth("the decider says job %s is not worth a lesson (memory-lesson-worth); no draft was written" % job)
     by = "fixed-rule"
     if writer_mode() == "fixed":
         why = ""
@@ -273,7 +301,7 @@ def add(to, job, title, source, body, store=None, files=(), window=None, session
         lesson, text, why = haiku_lesson(title, body)
         if text:
             by, title, body = "haiku", lesson, text
-    note = already_known(store, project, title, body, search)
+    note = already_known(store, project, title, body, search, decide=not local_only)
     pushed = was_pushed(note, project, window, sessions, hook_rows)
     name = name or _file_name(store, project, title)
     text = front(to, title[:SUMMARY_CHARS], list(files), "yes" if note else "no", pushed, note["rel"] if note else None,

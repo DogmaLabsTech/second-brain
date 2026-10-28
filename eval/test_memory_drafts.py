@@ -15,6 +15,7 @@ from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+os.environ["BRAIN_MEMORY_DECIDER"] = "off"   # tests never ask the decider (the second decider); test_memory_decide.py tests it with a fake
 os.environ["BRAIN_STATE"] = tempfile.mkdtemp(prefix="mdraft-test-state-")
 import drafts  # noqa: E402
 import memory_drafts  # noqa: E402
