@@ -60,7 +60,6 @@ INTRAY_SECONDS = 60
 # For a safe test run of eod: no voice, picks made for you ("1. …,Done").
 TEST_QUIET = os.environ.get("BRAIN_DAY_QUIET") == "1"
 TEST_PICKS = [p for p in os.environ.get("BRAIN_DAY_TEST_PICKS", "").split(",") if p]
-PM = os.path.join(HOME, "projects/project-manager/bin/pm")
 ISLAND_SAY = os.path.join(HOME, ".config/omarchy/plugins/user.brain-island/bin/say")
 # Folders whose children are watched for "appeared / went away without a note".
 WATCHED = ["", "projects", "projects", "projects/experiments", "projects/third-party",
@@ -412,7 +411,7 @@ def busy():
 
 
 def waiting_line():
-    """whats-waiting's own sentence: who needs <user> (Claudes, helpers, PM runs) and who still works."""
+    """whats-waiting's own sentence: who needs <user> (Claudes, helpers) and who still works."""
     try:
         out = subprocess.run([os.path.join(ROOT, "jobs/bin/whats-waiting")], capture_output=True, text=True, timeout=30)
         return json.loads(out.stdout.strip().splitlines()[-1])["message"]

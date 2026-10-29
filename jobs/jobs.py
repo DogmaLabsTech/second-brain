@@ -632,10 +632,10 @@ def _build_desk_pm(job, job_id, text, search, local_writer, how):
         return _plain(f"What should the team do on {pretty(repo)}? Say it with the task, like: "
                       f"start a claude on {pretty(repo)}, tidy the logs.")
     args = {"project": repo, "name": pretty(repo)}
-    answer = f"This opens the {pretty(repo)} PM in agent."
+    answer = f"This opens a Claude on {pretty(repo)}."
     if team_task(text)[0] == "desk":
-        answer = "The whole desk has no team job, so this opens the desk PM; your task was not used."
-    return job_id, args, "Start the whole-desk PM", answer, []
+        answer = "The whole desk has no team job, so this opens a Claude on the desk; your task was not used."
+    return job_id, args, "Start a Claude on the whole desk", answer, []
 
 
 def _build_music(job, job_id, text, search, local_writer, how):
@@ -883,8 +883,6 @@ def run(job_id, job_obj):
         print(json.dumps({"message": f"I didn't do it: {why}."}))
         return 2
     argv = _fill(_command(job, args), args)
-    if job_id == "start-claude" and args["project"] == "desk":
-        argv = [argv[0], "open", "--desk", "--launch"]
     if job_id == "open-note":   # don't wait for the viewer app
         subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         print(json.dumps({"message": job["message"].format(**args)}))

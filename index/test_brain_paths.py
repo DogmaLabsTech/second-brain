@@ -63,11 +63,12 @@ class BrainPaths(unittest.TestCase):
         self.assertIn(self.brain, got[1])
 
     def test_no_old_note_folder_is_named_in_the_code(self):
-        old = ("OMARCHY-BRAIN", "projects/shared", "project-manager/projects", ".local/share/second-brain/chats",
+        old = ("OMARCHY-BRAIN", "projects/shared", "projects/project-manager", ".local/share/second-brain/chats",
                "second-brain/day/pages", "user-labs-business")
         files = ["ask/ask.py", "ask/memory.py", "ask/private_tag.py", "ask/chat_proxy.py", "eval/memory_keep.py",
                  "eval/memory_drafts.py", "eval/memory_flags.py", "eval/drafts.py", "chats/convert.py", "chats/codex.py",
                  "day/day.py", "jobs/jobs.py", "jobs/desktop.py", "jobs/bin/remember", "jobs/bin/remind-list",
+                 "jobs/bin/whats-waiting", "jobs/start-claude.json", "jobs/bin/open-claude",
                  "deciders/brain_decide.py", "index/index.yml", "index/brain-backup.sh", "index/setup.sh",
                  "index/reindex.sh", "index/codex-testbox.sh", "obsidian/second-brain-ask/main.js"]
         for rel in files:

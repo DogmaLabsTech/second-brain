@@ -37,6 +37,12 @@ When you add, move or retire a file here, update this file in the same commit.
 - `index/brain-backup.sh`: the nightly copy of all of `~/brain` (every section, private notes, its git) to the HDD
   (`brain-backup.timer`, 21:15; `~/backups/brain/`, 14 newest kept; stops if the HDD is not mounted).
   Tests: `index/test_brain_backup.py`. (Was `memory-backup.sh`, the agent store only, until one brain, 2026-10-28.)
+- `ask/chat_proxy.py` private filter (one brain, 2026-10-29): `get`, `multi_get`, `resources/read`, `query` and REST
+  /query and /search answers are read whole and every `private/` note is left out before a chat gets them; `brain ask`
+  and `brain search` run by an online agent (Claude, Codex, ...) leave them out too (`ask.HIDE_PRIVATE`). Tests:
+  `ask/test_chat_proxy_private.py`, `ask/test_ask_units.py` (OnlineAgents).
+- `jobs/bin/open-claude`: start-claude's command, a terminal with Claude in the project folder (`desk` = ~/agent-os);
+  replaced the retired project manager's `pm open --launch`. Tests: `jobs/test_open_claude.py`.
 - `index/test_brain_paths.py`: one brain (2026-10-28): every note writer and reader (agent store, chats, day pages,
   remember list, project pages, the code's folder names) points into `~/brain` by default.
 - `ask/searchlog.py`: the search record (2026-10-28): one private line per chat search or read and per `brain search`,

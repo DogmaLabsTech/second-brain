@@ -146,6 +146,22 @@ def newer_first(hits, fresh_days=NEWER_DAYS):
     return sorted(hits, key=lambda h: -h["score"])
 
 
+# An online agent (Claude, Codex, ...) that runs `brain ask` or `brain search` in a shell never gets the private
+# section: its hits are dropped before anything is written or printed (one brain, 2026-10-29). Set by main() and
+# ask/search_cli.py from searchlog.caller(); the island, the Deck and <user>'s own terminal keep them.
+ONLINE_AGENTS = ("claude", "codex", "gemini", "opencode", "grok", "copilot", "cursor-agent")
+HIDE_PRIVATE = False
+
+
+def run_by_online_agent(name):
+    """True when the program that ran this command (searchlog.caller) is an online agent; never raises."""
+    try:
+        import searchlog
+        return searchlog.caller(name).get("program") in ONLINE_AGENTS
+    except Exception:  # noqa: BLE001  can't tell: keep them out
+        return True
+
+
 def search(q, limit=5):
     doc = expanded_document(q)
     want = limit
@@ -165,6 +181,8 @@ def search(q, limit=5):
     hits = []
     for r in results[:limit]:
         path = real_path(r.get("file", ""))
+        if HIDE_PRIVATE and path.startswith(COLLECTIONS["private"] + os.sep):
+            continue
         hits.append({"path": path, "title": r.get("title") or os.path.basename(path),
                      "snippet": clean_snippet(r.get("snippet")), "line": int(r.get("line") or 1),
                      "file": r.get("file", ""), "score": r.get("score", 0)})
@@ -866,6 +884,8 @@ def main(argv):
         return 2
     if stream:
         EMIT.append(lambda ev: print(json.dumps(ev), flush=True))
+    global HIDE_PRIVATE
+    HIDE_PRIVATE = run_by_online_agent("brain ask")
     result = ask(q, writer, how)
     result["id"] = asklog.new_id()
     asklog.log_ask(result["id"], q, result, source)

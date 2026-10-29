@@ -3,7 +3,7 @@ With BRAIN_SEARCH_SCORES=1 each line starts with the note's score and a tab ("0.
 (agent-os `think`) can drop weak hits. The scores are rank-based (1, 1/2, 1/3 … with a boost for new notes), not a
 measure of how well a note fits.
 Each search also writes a "from": "cli" line to the search record (ask/searchlog.py), naming the chat or program that
-ran it (searchlog.caller)."""
+ran it (searchlog.caller). Run by an online agent (Claude, Codex, ...), it leaves out the private section (ask.HIDE_PRIVATE)."""
 import os
 import sys
 import time
@@ -33,5 +33,6 @@ def search(q):
 
 
 if __name__ == "__main__":
+    ask.HIDE_PRIVATE = ask.run_by_online_agent("brain search")   # an online agent never gets private notes
     for line in lines(search(" ".join(sys.argv[1:])), os.environ.get("BRAIN_SEARCH_SCORES") == "1"):
         print(line)

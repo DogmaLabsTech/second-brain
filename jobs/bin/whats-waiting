@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""whats-waiting: say which Claudes and PM runs need <user>, the way the bar's Claude light counts them.
+"""whats-waiting: say which Claudes need <user>, the way the bar's Claude light counts them.
 
 Sources (read only):
   - the bar's own list of open Claudes: user.rise core/claudes.sh (beacon files in
     ~/.local/state/claude-beacon/, only Claudes whose process is alive)
   - agent helpers from ~/.local/state/bar-status/status.json (helpers.list), merged with the Claudes
     on the same agent session + pane, exactly like Theme.qml mergeAgents
-  - PM runs waiting on <user>: `pm list --json` (field `waiting`)
 Last stdout line: {"message": "...", "speak": true}.
 """
 import json
@@ -16,7 +15,6 @@ import subprocess
 HOME = os.path.expanduser("~")
 CLAUDES = os.path.join(HOME, ".config/omarchy/plugins/user.rise/core/claudes.sh")
 STATUS = os.path.join(HOME, ".local/state/bar-status/status.json")
-PM = os.path.join(HOME, "projects/project-manager/bin/pm")
 WORDS = {"permission": "needs your OK", "plan": "has a plan to look at", "answer": "is waiting for you",
          "reply": "asked you something", "stuck": "seems stuck", "question": "has a question"}
 
@@ -67,17 +65,11 @@ def main():
     a = agents()
     needs = [x for x in a if x["group"] == "needs"]
     working = sum(1 for x in a if x["group"] == "working")
-    pm = run_json([PM, "list", "--json"], []) if os.access(PM, os.X_OK) else []
-    pm_wait = [(r.get("repo"), int(r.get("waiting") or 0)) for r in pm if int(r.get("waiting") or 0)]
     parts = []
     if needs:
         who = ", ".join(f"{x['name']} ({WORDS.get(x['wait'], 'needs you')})" for x in needs[:4])
         more = f" and {len(needs) - 4} more" if len(needs) > 4 else ""
         parts.append(f"{plural(len(needs), 'Claude needs', 'Claudes need')} you: {who}{more}.")
-    if pm_wait:
-        total = sum(n for _, n in pm_wait)
-        parts.append(f"{plural(total, 'PM run is', 'PM runs are')} waiting on you in "
-                     + ", ".join(r for r, _ in pm_wait[:4]) + ".")
     if not parts:
         parts.append("Nothing is waiting on you.")
     if working:

@@ -1,5 +1,7 @@
 """Small tests for the check-up pieces (no network, no models): python3 ask/test_ask_units.py
 (not `-m unittest ask/…`: that imports the ask/ folder as `ask` instead of ask.py)."""
+import io
+import json
 import os
 import sys
 import tempfile
@@ -115,6 +117,30 @@ class LocalOnly(unittest.TestCase):
             self.assertTrue(ask.write("q", [hit], "auto")[1].startswith("local:"))
             self.assertFalse(ask.local_only({"path": os.path.join(self.tmp.name + "-ish", "a.md")}))
         self.assertEqual(self.sent, ["local_write"])
+
+
+class OnlineAgents(unittest.TestCase):
+    """`brain ask` / `brain search` run by an online agent leave the private section out (one brain, 2026-10-29)."""
+    def fake_qmd(self, files):
+        body = json.dumps({"results": [{"file": f, "title": f, "snippet": "s", "line": 1, "score": 1} for f in files]})
+        return mock.patch.object(ask.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(body.encode()))
+
+    def test_private_hits_dropped_only_when_hidden(self):
+        files = ["qmd://private/finance/bank.md", "qmd://computer/system/top-bar.md"]
+        with self.fake_qmd(files), mock.patch.object(ask, "NEWER_DAYS", 0):
+            with mock.patch.object(ask, "HIDE_PRIVATE", True):
+                self.assertEqual([h["file"] for h in ask.search("bank")], files[1:])
+            with mock.patch.object(ask, "HIDE_PRIVATE", False):
+                self.assertEqual([h["file"] for h in ask.search("bank")], files)
+
+    def test_who_counts_as_online(self):
+        import searchlog
+        for program, online in (("claude", True), ("codex", True), ("terminal", False), ("island", False),
+                                ("deck", False), ("node-terminal", False)):
+            with mock.patch.object(searchlog, "caller", lambda name, p=program: {"program": p}):
+                self.assertEqual(ask.run_by_online_agent("brain search"), online, program)
+        with mock.patch.object(searchlog, "caller", side_effect=OSError("no /proc")):
+            self.assertTrue(ask.run_by_online_agent("brain search"))   # can't tell: keep them out
 
 
 class FirstSentence(unittest.TestCase):
