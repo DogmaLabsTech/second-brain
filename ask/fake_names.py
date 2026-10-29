@@ -11,4 +11,6 @@ atexit.register(shutil.rmtree, _d, True)
 with open(os.path.join(_d, "private.json"), "w") as f:
     json.dump({"_note": "made up", "words": ["zorblax"]}, f)
 os.environ["DECIDER_PRIVATE_NAMES"] = os.path.join(_d, "private.json")
-os.environ["DECIDER_BUSINESS_DIR"] = os.path.join(_d, "no-business")
+# An empty business folder: no client names. It must be there: a missing one fails closed (decider 4c49c60).
+os.makedirs(os.path.join(_d, "business"))
+os.environ["DECIDER_BUSINESS_DIR"] = os.path.join(_d, "business")

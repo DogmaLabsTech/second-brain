@@ -542,6 +542,7 @@ class RealNamesFilter(unittest.TestCase):
             private = os.path.join(d, "private.json")
             with open(private, "w") as f:
                 json.dump({"words": ["zorblax"]}, f)
+            os.makedirs(os.path.join(d, "none"), exist_ok=True)   # empty: a missing one fails closed (decider 4c49c60)
             env = {"DECIDER_PRIVATE_NAMES": private, "DECIDER_BUSINESS_DIR": os.path.join(d, "none")}
             with mock.patch.dict(os.environ, env):
                 for text in ("Zorblax's notes", "zorblax-notes", "zorblax_notes", "ZorblaxNotes"):
