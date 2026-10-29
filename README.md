@@ -8,10 +8,23 @@ notes, your project guides and your old Claude chats, and finds the right note b
 
 | Name | Where |
 |---|---|
-| `computer` | `~/OMARCHY-BRAIN` (not `example/muse-screens`, not `.secrets`, not Paperclip's old copies in `paperclip/*/`) |
-| `business` | `~/user-labs-business` (not `.env`, `.secrets`, `node_modules`, `.git`) |
+Every note lives in one folder, `~/brain` (since 2026-10-28), one collection per section:
+
+| Name | Where |
+|---|---|
+| `brain` | the files at the top of `~/brain` (`OPEN-ITEMS.md`, `README.md`) |
+| `rules` | `~/brain/rules/`: the full standing rules behind the short CLAUDE.md and AGENTS.md files |
+| `memory` | `~/brain/agents/`: rules and lessons for agents (not `drafts/`) |
+| `project-notes` | `~/brain/projects/`: one page per project and its agent notes |
+| `computer` | `~/brain/computer/`: the computer, the test machine, the friend's PC, Claude Code setup |
+| `business` | `~/brain/business/`: the business notes (not `.env`, `.secrets`) |
+| `private` | `~/brain/private/`: finance and your own notes. **Local only:** `brain ask` answers from them with the local writer only, and chats never get them |
+| `chats` | short notes made from old Claude chats, in `~/brain/chats/`, and from Codex chats in its `codex/` folder (collection `codex`) |
+| `days` | `~/brain/days/`: day pages and standups |
+| `inbox` | `~/brain/inbox/`: the remember list and what end of day ticked off |
+| `history` | `~/brain/history/`: old records (the retired project manager) |
 | `projects` | each project's `README.md`, `CLAUDE.md`, `AGENTS.md` and `docs/` in `~/projects` |
-| `chats` | short notes made from old Claude chats, in `~/.local/share/second-brain/chats/`, and from Codex chats in its `codex/` folder |
+| `plans` | Claude's plans, `~/.claude/plans/` (Claude Code can only move them inside one project, so they stay) |
 
 Your notes are only read, never changed.
 
@@ -38,7 +51,7 @@ search misses because you and your notes say it differently.
 
 ## Agent memory: rules and lessons for a project
 
-The rules and lessons agents should know live in the memory store (`~/projects/shared/`). To see what an agent
+The rules and lessons agents should know live in the memory store (`~/brain/agents/`). To see what an agent
 gets for a project and a task:
 
 ```
@@ -220,7 +233,7 @@ One small file per job in `jobs/` (what to say, whether it asks first, the comma
 | `start-job` | "start a job on agent-os: make the report shorter" | yes ("Start a job on Agent Os?") | prepares a team job on that project with agent-os (below) |
 | `music` | "pause", "next song" | no | the music app (MPRIS over D-Bus) |
 | `tv` | "turn the TV down" | no | the deck's TV remote scripts, volume up / down / mute only |
-| `remember` | "remember that …" | yes | adds a dated line to `~/OMARCHY-BRAIN/inbox/remembered.md` |
+| `remember` | "remember that …" | yes | adds a dated line to `~/brain/inbox/remembered.md` |
 | `open-app` | "open Spotify", "launch Discord", "open a terminal", "open VS Code on my second monitor" | no | an installed app's `.desktop` entry; focuses it if it's already open (`omarchy-launch-or-focus`); with a screen, waits for its window and moves it there (`jobs/bin/desktop app <id> <screen>`) |
 | `open-file` | "open my downloads folder", "open the kingdom map picture" | no | a file or folder in your home (`xdg-open`); no hidden folders, no programs |
 | `desktop` | "next theme", "take a screenshot", "remind me at 2pm to …", "remind me in 10 minutes to …", "lock the screen", "move this window to my other screen" | only log out, restart, shut down | one action from `ACTIONS` in `jobs/desktop.py` (Omarchy commands) |
@@ -322,7 +335,7 @@ right, with the writer 91. Switch: `jobs/config/details.json` (or `BRAIN_DETAILS
 
 **The remember list, three times a day (since 2026-10-16).** At 9:00, 12:00 and 18:00
 (`second-brain-remind-list.timer`, `jobs/bin/remind-list`) a notification lists what's open on
-`~/OMARCHY-BRAIN/inbox/remembered.md` and the island says it (unless muted). Click it, pick the item and the agent
+`~/brain/inbox/remembered.md` and the island says it (unless muted). Click it, pick the item and the agent
 (Claude, Codex, Gemini, opencode, Grok, Copilot) in Omarchy's menu, and that agent opens in a terminal on the task
 (in the project's folder when the item names one, else `~/projects`). The line is marked "→ started with …"
 so it stops coming back. "What's on my remember list" also works as a question.
@@ -348,11 +361,11 @@ island). Without one it ends at 5 the next morning. "Yesterday" always means the
   saved changes in every project (local and pushed branches, so helpers' worktrees count; not stashes or backup copies), grouped per project with the
   newest three; changes logged with `brain changed`; and folders that appeared or went away with no note.
   A script makes it in under a second, with no AI. Ask the island "what moved today?" and it says it.
-  Each day's page is kept in `~/.local/share/second-brain/day/pages/` and is searchable (collection `days`).
+  Each day's page is kept in `~/brain/days/` and is searchable (collection `days`).
 - **Log a change by hand:** `brain changed move "~/old -> ~/new"`. `move-to-hdd.sh` does this by itself.
 - **End of day:** type `/eod` in the desk, say "end of day" or "goodnight" (or type `brain eod`; `brain goodnight`
   is the same). The island says the day's summary. Items you ticked on the remember list move to
-  `~/OMARCHY-BRAIN/inbox/done.md`. It names the jobs that finished today, read from agent-os's in-tray
+  `~/brain/inbox/done.md`. It names the jobs that finished today, read from agent-os's in-tray
   (`~/agent-os/jobs/in-tray.md`, made fresh with `agent-os intray`) and history files (`~/agent-os/jobs/history/`);
   it never moves a job folder (since 2026-10-23: agent-os packs finished jobs itself). Then it shows the open items; tick what may run tonight, one at a time, then Done.
   Ticked items run one by one through the morning build (Claude in its safe sandbox, never pushes; each gets a PM
@@ -423,7 +436,7 @@ To stop it, see "How to undo" below.
 | Hourly update | `~/.config/systemd/user/second-brain-reindex.timer` |
 | The Deck's map after it | `~/.config/systemd/user/second-brain-viz-refresh.service` → `viz/tools/refresh.sh`, started by the reindex (`second-brain-reindex.service.d/viz.conf`; can't fail or slow it); log `~/.local/state/second-brain/viz-refresh.log` |
 | The Deck's launcher | `~/.local/bin/brain-deck` and `~/.local/share/applications/second-brain-deck.desktop` (copies of `viz/app/`) |
-| Agent memory backup | `~/.config/systemd/user/agent-memory-backup.timer` → `index/memory-backup.sh` (21:15 nightly: the store `~/projects/shared/` to `~/backups/agent-memory/`, 14 newest kept) |
+| Brain backup | `~/.config/systemd/user/brain-backup.timer` → `index/brain-backup.sh` (21:15 nightly: all of `~/brain`, private notes and its git included, to `~/backups/brain/`, 14 newest kept) |
 | Search server | `~/.config/systemd/user/second-brain-mcp.service` (qmd, http://localhost:8182, this computer only) |
 | Chats' door to it | `~/.config/systemd/user/second-brain-chat-search.service` → `ask/chat_proxy.py` (http://localhost:8181) |
 | Search record | `~/.local/state/second-brain/searches.jsonl`, written by the chats' door and `brain search` (`ask/searchlog.py`) |
@@ -439,8 +452,8 @@ Numbers from the first build: `docs/history/index-report.md`.
 ## How to undo
 
 ```
-systemctl --user disable --now second-brain-day.timer second-brain-reindex.timer second-brain-chat-search.service second-brain-mcp.service second-brain-ollama.service second-brain-stt.service agent-memory-backup.timer
-rm ~/.config/systemd/user/agent-memory-backup.{timer,service}
+systemctl --user disable --now second-brain-day.timer second-brain-reindex.timer second-brain-chat-search.service second-brain-mcp.service second-brain-ollama.service second-brain-stt.service brain-backup.timer
+rm ~/.config/systemd/user/brain-backup.{timer,service}
 rm ~/.config/systemd/user/second-brain-{day,reindex}.{timer,service} ~/.config/systemd/user/second-brain-{chat-search,mcp,ollama,stt}.service
 rm -r ~/.config/systemd/user/second-brain-viz-refresh.service ~/.config/systemd/user/second-brain-reindex.service.d ~/.local/bin/brain-deck ~/.local/share/applications/second-brain-deck.desktop
 claude mcp remove --scope user brain
@@ -474,7 +487,7 @@ question asked again, and a short lore story when the same cause shows up twice.
 you keep it: `brain drafts` lists them, `brain drafts keep <id>` / `brain drafts drop <id>` decides. The routine: `docs/checkup.md`;
 in Claude Code: `/brain-checkup`. Unit tests: `python3 ask/test_ask_units.py` (through Crabbox).
 
-Agent memory: rules and lessons for agents live in their own store, `~/projects/shared/` (private git, no remote; searched as the `memory` collection). `brain drafts keep <draft> --to projects/<repo>/lessons` moves a draft note into it, fills the front matter, makes a one-line summary with the local model (names filter first; if it is not sure, no model sees the note and it is marked local-only) and commits there. `brain ask` answers from a local-only note with the local writer only: Haiku never gets it.
+Agent memory: rules and lessons for agents live in their own store, `~/brain/agents/` (in the brain's private git, no remote; searched as the `memory` collection). `brain drafts keep <draft> --to projects/<repo>/lessons` moves a draft note into it, fills the front matter, makes a one-line summary with the local model (names filter first; if it is not sure, no model sees the note and it is marked local-only) and commits there. `brain ask` answers from a local-only note with the local writer only: Haiku never gets it.
 
 ## What's not in this repo
 
@@ -486,7 +499,7 @@ working.
 
 | Held back | Why | Where it lives |
 |---|---|---|
-| Your notes and their copies, the chat notes | your private writing | your note folders, `~/.local/share/second-brain/chats/` |
+| Your notes and their copies, the chat notes | your private writing | your note folders, `~/brain/` (chat notes in `~/brain/chats/`) |
 | The search index and its models | big, and built from your notes | `~/.cache/qmd/` |
 | Ask logs, 👍/👎 ratings, check-up answers | your questions and answers | `~/.local/state/second-brain/` |
 | The Deck's map data (`data.js`) and its talk log | every note's title and path; what you said to the Deck | `~/.local/share/second-brain/viz/`, `~/.local/state/second-brain/talk-log.jsonl` |

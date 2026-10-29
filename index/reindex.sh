@@ -3,7 +3,7 @@
 set -euo pipefail
 here="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 . "$here/env.sh"
-mkdir -p "$HOME/.local/share/second-brain/chats"
+mkdir -p "$HOME/brain/chats"
 # One run at a time (the timer and a manual `brain reindex` must not overlap).
 exec 9>"$HOME/.local/share/second-brain/reindex.lock"
 flock -n 9 || { echo "second-brain reindex already running, skipping"; exit 0; }

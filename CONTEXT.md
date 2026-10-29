@@ -15,7 +15,7 @@ When you add, move or retire a file here, update this file in the same commit.
 - `eval/drafts.py` (`brain drafts`): the check-up's drafts for <user> to keep or drop (test questions for the tuning set,
   lore stories for agent-os `lore/drafts/`). Tests: `eval/test_drafts.py`.
 - `eval/memory_keep.py` (`brain drafts keep <draft> --to projects/<repo>/lessons`): `keep` for agent-memory drafts: moves a draft into the store
-  `~/projects/shared/` (its own git, no remote; the `memory` collection in `index/index.yml`), fills the front matter, makes the
+  `~/brain/agents/` (the brain's git, no remote; the `memory` collection in `index/index.yml`), fills the front matter, makes the
   summary with the local model after the names filter, commits there; a hand choice from `brain private` in the draft wins over the
   filter. Tests: `eval/test_memory_keep.py`.
 - `eval/memory_drafts.py` (`brain memory-drafts add|list|drop|expire`, 2026-10-28): the lesson drafts of the agent memory
@@ -34,8 +34,11 @@ When you add, move or retire a file here, update this file in the same commit.
   git-ignored `eval/labels/` (private text). `ask` makes real the second decider calls through decider.
 - `eval/memory_week.py`: the "Agent memory for <user>" block of `brain checkup` (drafts, flags, pinned due) and its two numbers
   (repeats that got through, second-round rate; both in `scores.tsv`). Tests: `eval/test_memory_week.py`.
-- `index/memory-backup.sh`: the nightly copy of the agent memory store to the HDD (`agent-memory-backup.timer`, 21:15;
-  `~/backups/agent-memory/`, 14 newest kept; stops if the HDD is not mounted). Tests: `index/test_memory_backup.py`.
+- `index/brain-backup.sh`: the nightly copy of all of `~/brain` (every section, private notes, its git) to the HDD
+  (`brain-backup.timer`, 21:15; `~/backups/brain/`, 14 newest kept; stops if the HDD is not mounted).
+  Tests: `index/test_brain_backup.py`. (Was `memory-backup.sh`, the agent store only, until one brain, 2026-10-28.)
+- `index/test_brain_paths.py`: one brain (2026-10-28): every note writer and reader (agent store, chats, day pages,
+  remember list, project pages, the code's folder names) points into `~/brain` by default.
 - `ask/searchlog.py`: the search record (2026-10-28): one private line per chat search or read and per `brain search`,
   in `~/.local/state/second-brain/searches.jsonl` (the Deck shows it). Written by the chats' door `ask/chat_proxy.py`
   and `ask/search_cli.py`. `caller()` names who ran a `brain search` or `brain ask` (walks up the parent processes to

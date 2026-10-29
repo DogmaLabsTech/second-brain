@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """remind-list: <user>'s remember list, three times a day (9:00, 12:00, 18:00; second-brain-remind-list.timer).
 
-Reads ~/OMARCHY-BRAIN/inbox/remembered.md (the `remember` job's list). Items that already have an agent on them
+Reads ~/brain/inbox/remembered.md (the `remember` job's list). Items that already have an agent on them
 ("→ started with <agent> <date>" at the end of the line) are skipped. With anything left:
   1. a notification lists them, and the island says them out loud unless it is muted;
   2. click the notification (Omarchy's notifications have no buttons) → pick the item, then the agent, in
@@ -25,7 +25,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
-PATH = os.path.expanduser(os.environ.get("BRAIN_REMEMBER_FILE", "~/OMARCHY-BRAIN/inbox/remembered.md"))
+PATH = os.path.expanduser(os.environ.get("BRAIN_REMEMBER_FILE", "~/brain/inbox/remembered.md"))
 ISLAND_SAY = os.path.expanduser("~/.config/omarchy/plugins/user.brain-island/bin/say")
 DEV = os.path.expanduser("~/projects")
 # "- [ ] date: text" since 2026-10-18 (Obsidian Tasks tick box); older lines have no box. "[x]" = done, skipped.

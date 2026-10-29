@@ -66,19 +66,26 @@ INTENT_SECONDS = float(os.environ.get("BRAIN_INTENT_SECONDS", "2.5"))
 NOT_FOUND = "I couldn't find that in your notes."
 SAY_AGAIN = "Sorry, say that again?"
 COLLECTIONS = {
-    "computer": os.path.join(HOME, "OMARCHY-BRAIN"),
-    "business": os.path.join(HOME, "user-labs-business"),
-    "projects": os.path.join(HOME, "projects", "Projects"),
-    "chats": os.path.join(HOME, ".local", "share", "second-brain", "chats"),
-    "pm": os.path.join(HOME, "projects", "project-manager"),
+    # One brain (~/brain, 2026-10-28): one collection per section. Repo guides, the desk, experiments and the
+    # content library stay where they are; plans stay in ~/.claude/plans (Claude Code can't write them elsewhere).
+    "brain": os.path.join(HOME, "brain"),
+    "rules": os.path.join(HOME, "brain", "rules"),
+    "memory": os.path.join(HOME, "brain", "agents"),
+    "project-notes": os.path.join(HOME, "brain", "projects"),
+    "computer": os.path.join(HOME, "brain", "computer"),
+    "business": os.path.join(HOME, "brain", "business"),
+    "private": os.path.join(HOME, "brain", "private"),
+    "chats": os.path.join(HOME, "brain", "chats"),
+    "codex": os.path.join(HOME, "brain", "chats", "codex"),
+    "days": os.path.join(HOME, "brain", "days"),
+    "inbox": os.path.join(HOME, "brain", "inbox"),
+    "history": os.path.join(HOME, "brain", "history"),
     "plans": os.path.join(HOME, ".claude", "plans"),
+    "projects": os.path.join(HOME, "projects", "Projects"),
     "experiments": os.path.join(HOME, "projects", "experiments"),
     "content": os.path.join(HOME, "projects", "assets", "content-library"),
     "hermes": os.path.join(HOME, ".hermes"),
-    "days": os.path.join(HOME, ".local", "share", "second-brain", "day", "pages"),
     "agent-os": os.path.join(HOME, "agent-os"),
-    "codex": os.path.join(HOME, ".local", "share", "second-brain", "chats", "codex"),
-    "memory": os.path.join(HOME, "projects", "shared"),
 }   # keep in step with index/index.yml
 MODEL_SHORT = {"qwen2.5:3b": "qwen2.5", "granite4.2:3b": "granite4.2", "gpt-oss:20b": "gpt-oss"}
 
@@ -93,7 +100,7 @@ Rules:
 # ---------- search ----------
 
 def real_path(qmd_file):
-    """qmd://computer/system/x.md -> ~/OMARCHY-BRAIN/system/x.md (qmd may lowercase paths)."""
+    """qmd://computer/system/x.md -> ~/brain/computer/system/x.md (qmd may lowercase paths)."""
     m = re.match(r"qmd://([^/]+)/(.*)", qmd_file)
     if not m or m.group(1) not in COLLECTIONS:
         return qmd_file
@@ -179,8 +186,11 @@ def passage(hit, chars=650):
 
 
 def local_only(hit):
-    """A memory note with `local-only: true` in its front matter (eval/memory_keep.py: the names filter was not sure)
-    never goes to an online model. A memory note that can't be read counts as local-only."""
+    """A note that never goes to an online model: every note in the private section (~/brain/private: finance,
+    <user>'s own notes), and a memory note with `local-only: true` in its front matter (eval/memory_keep.py: the names
+    filter was not sure). A memory note that can't be read counts as local-only."""
+    if hit["path"].startswith(COLLECTIONS["private"] + os.sep):
+        return True
     if not hit["path"].startswith(COLLECTIONS["memory"] + os.sep):
         return False
     try:

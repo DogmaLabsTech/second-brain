@@ -30,10 +30,9 @@ import servers  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 HOME = os.path.expanduser("~")
 PROJECTS = os.path.join(HOME, "projects", "Projects")
-PM_PROJECTS = os.path.join(HOME, "projects", "project-manager", "projects")
-# Where a note opened by open-note may live (the brain's four collections).
-NOTE_ROOTS = [os.path.join(HOME, p) for p in
-              ("OMARCHY-BRAIN", "user-labs-business", "projects", ".local/share/second-brain/chats")]
+PM_PROJECTS = os.path.join(HOME, "brain", "projects")
+# Where a note opened by open-note may live (the brain, and the code projects' guides).
+NOTE_ROOTS = [os.path.join(HOME, p) for p in ("brain", "projects")]
 WAKE = re.compile(r"^\s*(hey|hi|ok|okay)?\s*claude\b[\s,.:!-]*", re.I)
 
 

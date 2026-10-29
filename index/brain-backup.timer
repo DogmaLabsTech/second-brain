@@ -1,5 +1,5 @@
 [Unit]
-Description=Agent memory: copy the store to the HDD every night
+Description=Brain: copy all of ~/brain to the HDD every night
 
 [Timer]
 OnCalendar=*-*-* 21:15

@@ -13,7 +13,7 @@ early: work after that is "overnight" and goes to the next morning's standup. Pl
   day.py standup [--once]   the morning standup: spoken + a page; --once: only before 11:00, once a day
   day.py nightly         5:00 (timer): save the folder list and the page of the day that just ended
 
-Data: ~/.local/share/second-brain/day/ (changes.jsonl, closeouts.jsonl, overnight.jsonl, snapshots/, pages/).
+Data: ~/.local/share/second-brain/day/ (changes.jsonl, closeouts.jsonl, overnight.jsonl, snapshots/). Pages: ~/brain/days/.
 Safe test run of eod (nothing said, moved or built for real): BRAIN_DAY_DIR=<tmp> BRAIN_REMEMBER_FILE=<tmp list>
 BRAIN_DONE_FILE=<tmp> BRAIN_JOBS_DIR=<tmp> AGENT_OS_BIN=<fake> BRAIN_MORNING_BUILD=<fake>
 BRAIN_MORNING_BUILD_STATE=<tmp> BRAIN_DAY_QUIET=1 BRAIN_DAY_TEST_PICKS="1. ,Done".
@@ -42,7 +42,9 @@ CHANGES = os.path.join(DATA, "changes.jsonl")
 CLOSEOUTS = os.path.join(DATA, "closeouts.jsonl")
 OVERNIGHT = os.path.join(DATA, "overnight.jsonl")
 SNAPS = os.path.join(DATA, "snapshots")
-PAGES = os.path.join(DATA, "pages")
+# The pages are notes, so they live in the brain (2026-10-28); a test run with its own BRAIN_DAY_DIR keeps them there.
+PAGES = os.environ.get("BRAIN_DAY_PAGES") or (os.path.join(DATA, "pages") if os.environ.get("BRAIN_DAY_DIR")
+                                               else os.path.join(HOME, "brain/days"))
 DAY_START = 5            # 5 am
 STANDUP_BEFORE = 11      # --once does nothing from 11:00 (the 12:00 and 18:00 reminders)
 MORNING_BUILD = os.environ.get("BRAIN_MORNING_BUILD") or os.path.join(HOME, ".local/bin/morning-build")
@@ -50,7 +52,7 @@ MB_STATE = os.environ.get("BRAIN_MORNING_BUILD_STATE") or os.path.join(HOME, ".l
 MB_HANDLED = os.path.join(MB_STATE, "handled.tsv")
 MB_LOCK = os.path.join(MB_STATE, ".lock")
 # End of day moves ticked remember-list items here.
-DONE_FILE = os.environ.get("BRAIN_DONE_FILE") or os.path.join(HOME, "OMARCHY-BRAIN/inbox/done.md")
+DONE_FILE = os.environ.get("BRAIN_DONE_FILE") or os.path.join(HOME, "brain/inbox/done.md")
 # agent-os's jobs folder: end of day and the standup read its in-tray.md and history/ (never write or move in it).
 JOBS_DIR = os.environ.get("BRAIN_JOBS_DIR") or os.path.join(HOME, "agent-os/jobs")
 AGENT_OS = os.environ.get("AGENT_OS_BIN") or shutil.which("agent-os") or os.path.join(HOME, "agent-os/bin/agent-os")
@@ -62,7 +64,7 @@ PM = os.path.join(HOME, "projects/project-manager/bin/pm")
 ISLAND_SAY = os.path.join(HOME, ".config/omarchy/plugins/user.brain-island/bin/say")
 # Folders whose children are watched for "appeared / went away without a note".
 WATCHED = ["", "projects", "projects", "projects/experiments", "projects/third-party",
-           "projects/assets", "user-labs-business", "user-labs-business/clients", "Downloads", "_inbox"]
+           "projects/assets", "brain", "brain/projects", "brain/business/clients", "Downloads", "_inbox"]
 PER_PROJECT = 3          # commit subjects shown per project
 SUBJECT = 70             # characters per subject
 MAX_PROJECTS = 8         # projects with their own line; the rest share one
@@ -146,11 +148,10 @@ def write(path, text):
 # ---------- sources ----------
 
 def repos():
-    """<user>'s git repos: every project and experiment, the PM desk and the business repo."""
+    """<user>'s git repos: every project and experiment, and the brain."""
     dev = os.path.join(HOME, "projects")
     found = glob.glob(os.path.join(dev, "Projects/*/.git")) + glob.glob(os.path.join(dev, "experiments/*/.git"))
-    found += [os.path.join(dev, "project-manager/.git"), os.path.join(HOME, "user-labs-business/.git"),
-              os.path.join(HOME, "OMARCHY-BRAIN/.git")]
+    found += [os.path.join(HOME, "brain/.git")]
     return sorted(os.path.dirname(g) for g in found if os.path.exists(g))
 
 

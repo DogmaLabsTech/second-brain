@@ -213,7 +213,7 @@ KNOWN_FOLDERS = {
     "home": HOME, "home folder": HOME, "downloads": "Downloads", "download": "Downloads",
     "documents": "Documents", "videos": "Videos", "media": "Media", "archive": "Archive",
     "inbox": "_inbox", "projects": "projects", "code": "projects",
-    "brain": "OMARCHY-BRAIN", "business": "user-labs-business", "screenshots": "Media/Pictures/Screenshots",
+    "brain": "brain", "business": "brain/business", "screenshots": "Media/Pictures/Screenshots",
     "pictures": "Media/Pictures", "photos": "Media/Pictures", "music": "Music",
 }
 STOP = set("a an the my me of to on in for and with that this please up open show find folder file "

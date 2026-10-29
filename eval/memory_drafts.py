@@ -40,7 +40,7 @@ line per draft written; it also keeps the two fields, so keeping or dropping a d
 refused in plain words. One draft per job. Drafts older than 30 days that nobody kept move to
 history/expired-drafts/ (`expire`, which the weekly check-up runs): they are never deleted and never pushed.
 Drafts are not committed in the store (the inbox); a keep commits the note. The store is BRAIN_MEMORY_STORE
-(default ~/projects/shared); tests use a temp folder. Standard library only; Haiku is called only by `add`, once per draft, after the cap check
+(default ~/brain/agents); tests use a temp folder. Standard library only; Haiku is called only by `add`, once per draft, after the cap check
 (and after the lesson-worth gate); the decider (the second decider) is asked the two choices above.
 """
 import json

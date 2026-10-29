@@ -74,6 +74,15 @@ class Result(unittest.TestCase):
                          'Found 2 results for "bar":\n\n'
                          f"#b 90% chats/{today}-new.md - New\n#a 100% chats/2020-01-01-old.md - Old")
 
+    def test_private_notes_never_reach_a_chat(self):
+        rows = [{"docid": "#p", "file": "private/finance/bill.md", "title": "Bill", "score": 1.0},
+                {"docid": "#q", "file": "qmd://private/owners-notes/x.md", "title": "X", "score": 0.95},
+                {"docid": "#c", "file": "computer/system/top-bar.md", "title": "Bar", "score": 0.5}]
+        msg = {"jsonrpc": "2.0", "id": 3, "result": {"content": [], "structuredContent": {"results": rows}}}
+        out = cp.rewrite_result(msg, 5, "bill")
+        self.assertEqual([r["docid"] for r in out["result"]["structuredContent"]["results"]], ["#c"])
+        self.assertNotIn("private", out["result"]["content"][0]["text"])
+
     def test_errors_pass_through(self):
         msg = {"jsonrpc": "2.0", "id": 1, "error": {"code": -1, "message": "no"}}
         self.assertEqual(cp.rewrite_result(dict(msg), 5, "x"), msg)

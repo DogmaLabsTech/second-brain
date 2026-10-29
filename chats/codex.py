@@ -2,8 +2,8 @@
 """Turn Codex chat logs into short, redacted markdown notes, like convert.py does for Claude chats.
 
 Source : ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl   (read only, never changed)
-Output : ~/.local/share/second-brain/chats/codex/<date>-codex-<project>-<id>.md  (low-value: codex/low/, not searched)
-State  : ~/.local/share/second-brain/chats/codex/.state.json
+Output : ~/brain/chats/codex/<date>-codex-<project>-<id>.md  (low-value: codex/low/, not searched)
+State  : ~/brain/chats/codex/.state.json
 
     python3 -I codex.py              only new or changed chats
     python3 -I codex.py --all        redo every chat
@@ -35,7 +35,7 @@ from redact import redact  # noqa: E402
 
 HOME = os.path.expanduser("~")
 SRC = os.path.join(HOME, ".codex", "sessions")
-OUT = os.path.join(HOME, ".local", "share", "second-brain", "chats", "codex")
+OUT = os.path.join(HOME, "brain", "chats", "codex")
 STATE_NAME = ".state.json"
 
 # What Codex itself puts in the user's turn: the AGENTS.md it read, the environment, plugin and skill lists.

@@ -148,11 +148,18 @@ def newer_first(results, want):
     return [h["r"] for h in ask.newer_first(hits)][:want]
 
 
+def online_ok(r):
+    """False for a result from the private section (index/index.yml `private`): chats are online models, so those
+    notes never reach them; `brain ask` reads them with the local writer only (ask.local_only)."""
+    return str(r.get("file") or "").removeprefix("qmd://").split("/", 1)[0] != "private"
+
+
 def rewrite_result(msg, want, query):
     res = msg.get("result") or {}
     sc = res.get("structuredContent") or {}
     if "results" not in sc:
         return msg
+    sc["results"] = [r for r in sc["results"] if online_ok(r)]
     sc["results"] = newer_first(sc["results"], want) if ask.NEWER_DAYS > 0 else sc["results"][:want]
     res["content"] = [{"type": "text", "text": summary(sc["results"], query)}]
     return msg

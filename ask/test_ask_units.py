@@ -62,6 +62,11 @@ class Collections(unittest.TestCase):
         for name, c in cols.items():
             self.assertEqual(ask.COLLECTIONS.get(name), c["path"], name)
 
+    def test_the_notes_live_in_the_brain(self):
+        """One brain (2026-10-28): the agent store and the private notes are sections of ~/brain."""
+        self.assertEqual(ask.COLLECTIONS["private"], os.path.join(ask.HOME, "brain", "private"))
+        self.assertEqual(ask.COLLECTIONS["memory"], os.path.join(ask.HOME, "brain", "agents"))
+
 
 class LocalOnly(unittest.TestCase):
     """A memory note marked local-only (eval/memory_keep.py) never reaches Haiku; the local writer answers."""
@@ -101,6 +106,15 @@ class LocalOnly(unittest.TestCase):
         self.assertFalse(ask.local_only({"path": "/elsewhere/c.md"}))
         ask.write("q", [self.hit("b.md", "---\npinned: false\n---\nbody\n")], "haiku")
         self.assertEqual(self.sent, ["haiku_write"])
+
+    def test_every_private_note_is_local_only_marked_or_not(self):
+        with mock.patch.dict(ask.COLLECTIONS, {"private": self.tmp.name + "-private"}):
+            hit = {"path": os.path.join(self.tmp.name + "-private", "finance", "bill.md"), "title": "bill",
+                   "snippet": "s", "line": 1}
+            self.assertTrue(ask.local_only(hit))
+            self.assertTrue(ask.write("q", [hit], "auto")[1].startswith("local:"))
+            self.assertFalse(ask.local_only({"path": os.path.join(self.tmp.name + "-ish", "a.md")}))
+        self.assertEqual(self.sent, ["local_write"])
 
 
 class FirstSentence(unittest.TestCase):

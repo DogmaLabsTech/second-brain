@@ -17,7 +17,8 @@ sys.path.insert(0, HERE)
 import memory_score as ms  # noqa: E402
 
 STORE = "/store"
-RUNS = os.path.expanduser("~/projects/project-manager/runs")
+# The PM build runs went to the Archive with the project manager (one brain, 2026-10-28).
+RUNS = os.path.expanduser("~/Archive/2026-10-29-project-manager/runs")
 
 
 def note(rel, pinned=False):

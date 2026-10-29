@@ -3,7 +3,7 @@
   brain private <note> on|off [--json]   on: `local-only: true` (Haiku never gets the note); off: `local-only: false`
   brain private list [--json]            every local-only note: title, path, by whom, when
 
-<note> is a path in the memory store (BRAIN_MEMORY_STORE, default ~/projects/shared, the same rule as
+<note> is a path in the memory store (BRAIN_MEMORY_STORE, default ~/brain/agents, the same rule as
 ask/memory.py), a unique part of a file name, or words that are all in one note's title. Several matches: they are
 listed and nothing changes. Only notes in the `memory` collection (index/index.yml: not drafts/, README.md, CONTEXT.md)
 can be tagged; anything else gets a plain refusal.
@@ -42,7 +42,7 @@ class TagError(ValueError):
 
 
 def store_path(store=None):
-    return os.path.realpath(os.path.expanduser(store or os.environ.get("BRAIN_MEMORY_STORE") or "~/projects/shared"))
+    return os.path.realpath(os.path.expanduser(store or os.environ.get("BRAIN_MEMORY_STORE") or "~/brain/agents"))
 
 
 def backup_dir():
@@ -204,9 +204,19 @@ def _write(path, text):
         raise
 
 
+def _in_git(store):
+    """True when the store is in a git work tree: its own .git, or the brain's (~/brain/.git, one brain 2026-10-28)."""
+    path = os.path.realpath(store)
+    while not os.path.exists(os.path.join(path, ".git")):
+        if os.path.dirname(path) == path:
+            return False
+        path = os.path.dirname(path)
+    return True
+
+
 def _commit(store, rel, on):
     """Commit the one note in the store; None when done or the store is not a git repo, else plain words."""
-    if not os.path.exists(os.path.join(store, ".git")):
+    if not _in_git(store):
         return None
     try:
         for args in (["add", "--", rel], ["commit", "-q", "-m", "private: %s %s (by hand)" % ("on" if on else "off", rel),
