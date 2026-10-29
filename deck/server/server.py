@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prototype server: static files + /note?id=N + /search?q= (06 Ask: `brain search`, read-only, X-Deck: 1).
+"""The Deck's server: static files + /note?id=N + /search?q= (06 Ask: `brain search`, read-only, X-Deck: 1).
 GET reads the real note file (collection folder from ~/.config/qmd/index.yml + note path), falling back to the
 search index copy (read-only). POST saves an edited note: only an existing .md file inside its collection folder,
 only if it did not change since it was loaded (hash), with a backup copy first and an atomic write.
@@ -394,19 +394,20 @@ class H(http.server.SimpleHTTPRequestHandler):
         except ValueError: return None
     def do_GET(s):
         if not s.ok_host(): return s.send_error(403)
-        if urllib.parse.urlparse(s.path).path == "/health": return s.js(200, dict(app="second-brain-deck", ready=True, pid=os.getpid(), data=DATA.exists()))
-        if urllib.parse.urlparse(s.path).path == "/search": return s.search()
-        if urllib.parse.urlparse(s.path).path == "/live": return s.live()
-        if urllib.parse.urlparse(s.path).path == "/private": return s.private()
-        if urllib.parse.urlparse(s.path).path in ("/", "/hud/deck.html"): s.send_response(302); s.send_header("Location", "/deck.html"); s.send_header("Content-Length", "0"); s.end_headers(); return
-        if urllib.parse.urlparse(s.path).path == "/data.js":   # private, outside git (tools/ writes it there)
+        u = urllib.parse.urlparse(s.path).path
+        if u == "/health": return s.js(200, dict(app="second-brain-deck", ready=True, pid=os.getpid(), data=DATA.exists()))
+        if u == "/search": return s.search()
+        if u == "/live": return s.live()
+        if u == "/private": return s.private()
+        if u in ("/", "/hud/deck.html"): s.send_response(302); s.send_header("Location", "/deck.html"); s.send_header("Content-Length", "0"); s.end_headers(); return
+        if u == "/data.js":   # private, outside git (tools/ writes it there)
             try: body = DATA.read_bytes()
             except OSError: return s.send_error(404, "no data.js yet: run tools/build_data.py and tools/add_sim.py")
             s.send_response(200); s.send_header("Content-Type", "text/javascript; charset=utf-8"); s.send_header("Content-Length", str(len(body))); s.end_headers(); s.wfile.write(body); return
-        if urllib.parse.urlparse(s.path).path == "/deck.html":   # the page carries this server's live token (never cached: a new server, a new token)
+        if u == "/deck.html":   # the page carries this server's live token (never cached: a new server, a new token)
             body = (ROOT / "deck.html").read_bytes().replace(b'<meta name="deck-live" content="">', f'<meta name="deck-live" content="{LIVE_TOKEN}">'.encode(), 1)
             s.send_response(200); s.send_header("Content-Type", "text/html; charset=utf-8"); s.send_header("Cache-Control", "no-store"); s.send_header("Content-Length", str(len(body))); s.end_headers(); s.wfile.write(body); return
-        if urllib.parse.urlparse(s.path).path == "/note":
+        if u == "/note":
             i = s.note_id()
             if i is None: return s.send_error(400)
             r = row(i)

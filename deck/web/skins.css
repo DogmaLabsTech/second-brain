@@ -15,8 +15,8 @@
 /* HOW TO MAKE A SKIN (brief 13a). Everything the Deck shows is a token; a skin is one file with one token block.
    1. Edit only YOUR file skins/<name>.css (`[data-skin=<name>]{...}`; already imported above and listed in skins/index.js). Do not edit
       this file, skins.js or other skins. Keep the `--skin:<name>` token. Palette (name, hexes, "coolors.co trending, 2026-10-28") on top.
-   2. Tokens: briefs/09-skins-report.md. Dark skins: --s-blend:add (glow). Light skins: --s-blend:normal, --glow:0 (ink), like Paper.
-   3. Look: your own test server (`DECK_PORT=<port> python3 server.py &` in brain-prototypes), then `deck.html#map!still&skin=<name>`.
+   2. Tokens: ~/Downloads/agent-notes/brain-prototypes/briefs/09-skins-report.md. Dark skins: --s-blend:add (glow). Light skins: --s-blend:normal, --glow:0 (ink), like Paper.
+   3. Look: your own test server (`DECK_PORT=<port> python3 -I server/server.py &` in viz/), then `deck.html#map!still&skin=<name>`.
    4. Shots (2560 and 1261): node ~/.cache/tmp/sb/t13/skinshots.mjs <name> <port> <outdir>   (Map+hover, reader+rings, Voice, Timeline, Ask, Tunnel, Radar)
    5. Contrast: node ~/.cache/tmp/sb/t13/contrast.mjs <name> <port>   (text on glass, the 13 group colours; aim for no LOW lines)
    6. All load and switch: node ~/.cache/tmp/sb/t13/switchall.mjs <port>.   Changed holo.css? node ~/.cache/tmp/sb/t13/holo-sync.mjs.

@@ -29,11 +29,6 @@ export function typeInto(el, text, ms = 12) {
   el.textContent = ''; el.classList.add('cur'); let i = 0; clearInterval(el._t);
   el._t = setInterval(() => { el.textContent = text.slice(0, ++i); if (i >= text.length) { clearInterval(el._t); el.classList.remove('cur'); } }, ms);
 }
-export function groupList(el, onToggle, onHover) {
-  const mx = Math.max(...COLS.map(c => DOCS.filter(d => d.c === c).length));
-  el.innerHTML = COLS.map(c => { const n = DOCS.filter(d => d.c === c).length; return `<div class="row" data-c="${c}" style="--k:${COL[c]};--w:${Math.max(4, n / mx * 100)}%"><i></i><span>${NICE[c]}</span><u></u><em>${n}</em></div>`; }).join('');
-  el.querySelectorAll('.row').forEach(r => { r.onclick = () => { r.classList.toggle('off'); onToggle(r.dataset.c, r.classList.contains('off')); }; r.onmouseenter = () => onHover && onHover(r.dataset.c); r.onmouseleave = () => onHover && onHover(null); });
-}
 export function cardInfo(i) { const d = DOCS[i]; return { title: d.t, meta: `${NICE[d.c]}  ·  changed ${ago(d.d)}  ·  ${d.n} piece${d.n > 1 ? 's' : ''}`, path: d.p }; }
 
 // glowing point cloud with a "scan band" uniform

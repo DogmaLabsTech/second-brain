@@ -44,4 +44,4 @@ By hand: `tools/refresh.sh` (`--force` builds even when nothing changed). The ol
 | `app/` | the window: `main.js` (Electron), `rules.js` (what the window lets through), `deck` (start it), `brain-deck` (the launcher) and `second-brain-deck.desktop` (the app-menu entry) |
 | `server/` | the small local server (`server.py`) and its tests |
 | `tests/` | `smoke.mjs`: the app tested with a hidden window |
-| `tools/` | the two map makers: `build_data.py` (positions) and `add_sim.py` (how alike the neighbours are), and `refresh.sh` (the hourly refresh) |
+| `tools/` | the two map makers: `build_data.py` (positions) and `add_sim.py` (how alike the neighbours are), the index reader they share (`vectors.py`), and `refresh.sh` (the hourly refresh) |
