@@ -277,8 +277,20 @@ def _proc(pid, proc="/proc"):
         return None
 
 
-def known_program(comm, argv):
-    """The caller's name if this process is one we know ("claude", "codex", ..., "deck", "island", "obsidian"), else None."""
+def _cwd(pid, proc="/proc"):
+    """The folder a process runs in, or "" if it cannot be read."""
+    try:
+        return os.readlink(f"{proc}/{pid}/cwd")
+    except OSError:
+        return ""
+
+
+DECK_FOLDERS = ("brain-prototypes", "second-brain/viz")   # where the Deck's server.py runs from (the old prototype, the repo)
+
+
+def known_program(comm, argv, cwd=""):
+    """The caller's name if this process is one we know ("claude", "codex", ..., "deck", "island", "obsidian"), else None.
+    `cwd` is the process's folder: the Deck starts as `python3 -I server/server.py`, so its folder tells it apart."""
     names = [comm] + [os.path.basename(a) for a in argv[:1]]
     if argv and os.path.basename(argv[0]) in RUNNERS:
         names += [os.path.basename(a) for a in argv[1:2]]
@@ -293,7 +305,7 @@ def known_program(comm, argv):
         if n == "obsidian":
             return "obsidian"
     cmd = " ".join(argv)
-    if "server.py" in cmd and "brain-prototypes" in cmd:
+    if "server.py" in cmd and any(d in cmd + cwd for d in DECK_FOLDERS):
         return "deck"
     if comm.startswith("tmux") and "-L node-terminal" in cmd:
         return "node-terminal"   # a plain terminal node on the nodeterm canvas
@@ -329,7 +341,7 @@ def caller(name, start=None, proc="/proc", env=None):
             p = _proc(pid, proc)
             if not p:
                 break
-            found = known_program(p[0], p[1])
+            found = known_program(p[0], p[1], _cwd(pid, proc) if any("server.py" in a for a in p[1]) else "")
             if found:
                 out.update(pid=pid, program=found)
                 break
