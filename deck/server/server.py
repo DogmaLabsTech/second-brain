@@ -271,7 +271,7 @@ def agent_of(pid):
         if not p or pid <= 1: return None
         comm, cwd, ppid, cmd = p; name = comm.lower().split("-")[0]
         if name in AGENTS: return " · ".join(x for x in (AGENTS[name], os.path.basename(cwd.rstrip("/")) if cwd.rstrip("/") != HOME else "") if x)
-        if "server.py" in cmd and "brain-prototypes" in (cmd + cwd): return "Deck"
+        if "server.py" in cmd and any(d in cmd + cwd for d in ("brain-prototypes", "second-brain/viz")): return "Deck"
         pid = ppid
     return None
 def ask_caller(q):
