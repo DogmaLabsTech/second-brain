@@ -27,6 +27,12 @@ When you add, move or retire a file here, update this file in the same commit.
   be out of date (file gone, file changed a lot, a newer note says the opposite), `flags.jsonl` in the store, the 30-day
   lapse out of the push, the 90-day "still true?" for pinned notes, <user>'s confirm and retire. `ask/memory.py` marks
   flagged notes. Tests: `eval/test_memory_flags.py`.
+- `ask/memory_decide.py` (agent memory job 9, 2026-10-28): the memory system asks decider (the second decider now, the local decider later) five choices (memory-real-task for
+  the start hook, memory-same-note and memory-lesson-worth for `memory_drafts.add`, memory-conflict for the flags, memory-kind a helper) and
+  falls back to the old word rule on `sure: false`; `BRAIN_MEMORY_DECIDER=on|off`, default on. Log: `memory-decider.jsonl` in the state
+  folder (no text). Tests: `eval/test_memory_decide.py` (a fake decide; the other memory tests set the switch off).
+- `eval/memory_labels.py` (`build | ask | report`): the label sets and spot-check files for training the local decider on those five tasks (phase B), in the
+  git-ignored `eval/labels/` (private text). `ask` makes real the second decider calls through decider.
 - `eval/memory_week.py`: the "Agent memory for <user>" block of `brain checkup` (drafts, flags, pinned due) and its two numbers
   (repeats that got through, second-round rate; both in `scores.tsv`). Tests: `eval/test_memory_week.py`.
 - `index/memory-backup.sh`: the nightly copy of the agent memory store to the HDD (`agent-memory-backup.timer`, 21:15;

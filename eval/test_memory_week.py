@@ -12,6 +12,7 @@ from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+os.environ["BRAIN_MEMORY_DECIDER"] = "off"   # tests never ask the decider (the second decider); test_memory_decide.py tests it with a fake
 os.environ["BRAIN_STATE"] = tempfile.mkdtemp(prefix="mweek-test-state-")
 os.environ["BRAIN_DRAFT_WRITER"] = "fixed"   # tests never call the real Haiku
 import checkup  # noqa: E402

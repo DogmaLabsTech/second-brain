@@ -20,13 +20,15 @@ The rule (documented here, tested in eval/test_memory_flags.py). A note is FLAGG
   3. a newer note says the opposite: a newer note of the same project is proposed by the brain's search (every newer
      note of the project when search is not reachable) and the two summaries share most of their content words
      (OVERLAP_MIN and OVERLAP_SHARED) while only one of them holds a negation (never, not, don't, avoid, stop ...).
-     This one is meant to be simple and a little blind: it proposes, <user> decides.
+     The decider (memory-conflict, ask/memory_decide.py) judges each such pair first: it answers agrees, conflicts or
+     unrelated and only "conflicts" flags; when it is not sure, or off (BRAIN_MEMORY_DECIDER=off), the word rule above
+     decides. It proposes, <user> decides.
 `all-projects` notes have no repo, so only rule 3 applies to them. A note that is already flagged, retired, or
 unconfirmed is not flagged twice. The flags live in the store's `flags.jsonl` (ask/memory_flagfile.py), not in the notes.
 What a flag does: `brain memory` and the chats' `memory` tool mark the note "(may be out of date, check first)"; a flag
 nobody confirms for 30 days takes the note out of the push (not out of the store). Every pinned note is asked "still
 true?" every 90 days (its `date`, or the last confirmation). The store path is BRAIN_MEMORY_STORE (default
-~/projects/shared); tests use a temp folder. Standard library only; nothing leaves this computer.
+~/projects/shared); tests use a temp folder. Standard library only; the decider asks the second decider for rule 3 (private text allowed for that task, names removed first).
 """
 import os
 import re
@@ -39,6 +41,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path[:0] = [HERE, os.path.join(ROOT, "ask")]
 import memory  # noqa: E402
+import memory_decide  # noqa: E402
 import memory_flagfile as store_flags  # noqa: E402
 import memory_keep  # noqa: E402
 
@@ -48,6 +51,7 @@ CHANGED_RATIO = 0.5
 OVERLAP_MIN = 0.5      # of the shorter summary's content words, this share is in the other summary ...
 OVERLAP_SHARED = 3     # ... and at least this many words are shared
 CANDIDATES = 5
+CONFLICT_SHARED = 2    # the decider is asked only about a pair that shares this many content words (else: unrelated)
 GIT_SECONDS = 20
 STOP = set("the a an and or of to in on for with is are be it this that we you your do does did from at by as when "
            "then than so if use used using must should will can has have had was were its into out all any each "
@@ -201,6 +205,16 @@ def qmd_candidates(notes):
     return search
 
 
+def says_opposite(note, other):
+    """True when the newer note `other` says the opposite of `note`. The decider (memory-conflict) answers first when it
+    is sure ("conflicts" is true, "agrees" and "unrelated" are false); the word rule `opposite` is the fallback."""
+    if len(content_words(note["summary"]) & content_words(other["summary"])) >= CONFLICT_SHARED:
+        got = memory_decide.relation(other["summary"], note["summary"])
+        if got is not None:
+            return got == "conflicts"
+    return opposite(note["summary"], other["summary"])
+
+
 def opposite_reasons(note, notes, search, baseline=""):
     """[(kind, reason)] when a newer note (newer than the baseline too) of the same project says the opposite."""
     proposed = search(note["summary"]) if search else None
@@ -209,7 +223,7 @@ def opposite_reasons(note, notes, search, baseline=""):
     for rel in proposed:
         other = notes.get(rel)
         if other and other["rel"] != note["rel"] and other["project"] == note["project"] \
-                and other["date"] > max(note["date"], baseline) and opposite(note["summary"], other["summary"]):
+                and other["date"] > max(note["date"], baseline) and says_opposite(note, other):
             return [("newer-opposite", "a newer note (%s) may say the opposite: \"%s\"" % (other["rel"], other["summary"]))]
     return []
 

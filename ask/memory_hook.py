@@ -9,6 +9,9 @@ all-projects notes only when pinned or matched) to the session's context.
     ~/.agent-os/worktrees/<repo>/...), only if it is a folder in ~/projects/. Anything else: nothing;
   - a prompt with no meaning ("continue", "yes", "ok"): no task, so pinned + the project's newest. A prompt that names a brief
     ("Read /.../builder.md and do what it says") also searches with the start of that brief;
+  - the same choice is asked of the decider first (memory-real-task: the second decider now, the local decider later; ask/memory_decide.py), at most
+    DECIDER_SECONDS, in a thread with a deadline like the search (a decider that hangs or imports slowly changes nothing): a sure answer wins over the word list, anything else (not sure, slow, off, error) keeps the word
+    list. BRAIN_MEMORY_DECIDER=off asks nothing;
   - a hard budget of TOTAL_SECONDS: the search gets SEARCH_SECONDS (slower = find's pinned + newest fallback), and if
     the whole answer is not ready in time the hook says nothing;
   - output: one JSON object, additionalContext under one short header, at most 2,000 tokens (characters / 4);
@@ -32,10 +35,12 @@ import time
 sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import memory_decide  # noqa: E402
 
 BUDGET = 2000
 TOTAL_SECONDS = float(os.environ.get("BRAIN_HOOK_SECONDS", "2.5"))          # the whole answer, or nothing
 SEARCH_SECONDS = float(os.environ.get("BRAIN_HOOK_SEARCH_SECONDS", "1.5"))  # slower = pinned + newest
+DECIDER_SECONDS = float(os.environ.get("BRAIN_HOOK_DECIDER_SECONDS", "0.8"))   # the decider's share of the 2.5 s
 KEEP_DAYS = 3
 FILLER = {"continue", "go", "on", "ahead", "yes", "y", "yep", "yeah", "ok", "okay", "k", "sure", "please", "pls",
           "thanks", "thank", "you", "ty", "do", "it", "that", "next", "proceed", "carry", "keep", "going", "fine",
@@ -106,6 +111,23 @@ def task_of(prompt):
     if not words or sum(len(w) for w in words) < 4 or all(w.strip("'") in FILLER for w in words):
         return None
     return " ".join(prompt.split())[:1000]
+
+
+def real_task(prompt, started=None):
+    """(task, how): the prompt as a search task, or None for no meaning, and who decided: "decider" or "rule".
+    The decider (memory-real-task) answers first within DECIDER_SECONDS and the time the hook has left; the word list
+    (task_of) decides when the decider is off, not sure, slow or down."""
+    rule = task_of(prompt)
+    if not isinstance(prompt, str) or not prompt.strip() or not memory_decide.enabled():
+        return rule, "rule"
+    left = TOTAL_SECONDS - (time.monotonic() - started) if started else TOTAL_SECONDS
+    seconds = min(DECIDER_SECONDS, left - 1.0)       # always leave the search its second
+    # In a thread with its own deadline (as the search is): a decider that ignores its timeout or imports slowly cannot
+    # hold the session. Past the deadline the thread is left behind and the word list decides.
+    real = in_time(lambda: memory_decide.real_task(prompt[:1000], seconds), seconds + 0.1) if seconds > 0.1 else None
+    if real is None:
+        return rule, "rule"
+    return (" ".join(prompt.split())[:1000] if real else None), "decider"
 
 
 def with_brief(task, cwd):
@@ -183,12 +205,12 @@ def run(stdin_text, started):
     repo = project(event.get("cwd"))
     if not repo or not first_time(event.get("session_id")):
         return ""
-    task = task_of(event.get("prompt") if isinstance(event.get("prompt"), str) else "")
+    task, how = real_task(event.get("prompt") if isinstance(event.get("prompt"), str) else "", started)
     # The brief is read inside the budget too: a slow disk or mount must not hold the session.
     out = in_time(lambda: push(repo, with_brief(task, event["cwd"])), TOTAL_SECONDS - (time.monotonic() - started))
     if not out:
         return ""
-    log(event["session_id"], out.pop("_log"), started)
+    log(event["session_id"], dict(out.pop("_log"), task_by=how), started)
     return json.dumps(out)
 
 

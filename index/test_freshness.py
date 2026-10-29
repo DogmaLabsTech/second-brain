@@ -16,6 +16,7 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
+os.environ["BRAIN_MEMORY_DECIDER"] = "off"   # tests never ask the decider (the second decider); test_memory_decide.py tests it with a fake
 sys.path.insert(0, os.path.join(ROOT, "eval"))
 sys.path.insert(0, os.path.join(ROOT, "ask"))
 import freshness  # noqa: E402

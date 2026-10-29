@@ -13,6 +13,7 @@ from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+os.environ["BRAIN_MEMORY_DECIDER"] = "off"   # tests never ask the decider (the second decider); test_memory_decide.py tests it with a fake
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "ask"))
 import memory  # noqa: E402
 import memory_flagfile  # noqa: E402
