@@ -10,7 +10,7 @@ all-projects notes only when pinned or matched) to the session's context.
   - a prompt with no meaning ("continue", "yes", "ok"): no task, so pinned + the project's newest. A prompt that names a brief
     ("Read /.../builder.md and do what it says") also searches with the start of that brief;
   - the same choice is asked of the decider first (memory-real-task: the second decider now, the local decider later; ask/memory_decide.py), at most
-    DECIDER_SECONDS: a sure answer wins over the word list, anything else (not sure, slow, off, error) keeps the word
+    DECIDER_SECONDS, in a thread with a deadline like the search (a decider that hangs or imports slowly changes nothing): a sure answer wins over the word list, anything else (not sure, slow, off, error) keeps the word
     list. BRAIN_MEMORY_DECIDER=off asks nothing;
   - a hard budget of TOTAL_SECONDS: the search gets SEARCH_SECONDS (slower = find's pinned + newest fallback), and if
     the whole answer is not ready in time the hook says nothing;
@@ -122,7 +122,9 @@ def real_task(prompt, started=None):
         return rule, "rule"
     left = TOTAL_SECONDS - (time.monotonic() - started) if started else TOTAL_SECONDS
     seconds = min(DECIDER_SECONDS, left - 1.0)       # always leave the search its second
-    real = memory_decide.real_task(prompt[:1000], seconds) if seconds > 0.1 else None
+    # In a thread with its own deadline (as the search is): a decider that ignores its timeout or imports slowly cannot
+    # hold the session. Past the deadline the thread is left behind and the word list decides.
+    real = in_time(lambda: memory_decide.real_task(prompt[:1000], seconds), seconds + 0.1) if seconds > 0.1 else None
     if real is None:
         return rule, "rule"
     return (" ".join(prompt.split())[:1000] if real else None), "decider"

@@ -21,6 +21,7 @@ import memory_decide  # noqa: E402
 import memory_drafts  # noqa: E402
 import memory_flags  # noqa: E402
 import memory_hook  # noqa: E402
+import memory_keep  # noqa: E402
 from test_memory_drafts import BODY, GIT_ENV, write_note  # noqa: E402
 
 
@@ -155,6 +156,14 @@ class Hook(Case):
 
 
 class Gate(Case):
+    def setUp(self):
+        super().setUp()
+        for p in (mock.patch.dict(os.environ, {"BRAIN_DRAFT_WRITER": "fixed"}),      # never the real Haiku
+                  mock.patch.object(memory_keep, "guard_problem", lambda: None),
+                  mock.patch.object(memory_drafts, "ask_haiku", mock.Mock(side_effect=AssertionError("Haiku called")))):
+            p.start()
+            self.addCleanup(p.stop)
+
     def add(self, job="job-1", title="test machine busy means wait in the queue", **kw):
         return memory_drafts.add("projects/second-brain/lessons", job, title, "job %s: check records" % job, kw.pop("body", BODY),
                                  store=os.path.join(self.tmp, "shared"), today="2026-10-28", search=None, hook_rows=[],
@@ -180,6 +189,19 @@ class Gate(Case):
         self.use(**{"memory-lesson-worth": "no"})
         with mock.patch.dict(os.environ, {"BRAIN_MEMORY_DECIDER": "off"}), mock.patch.object(drafts, "scrub", lambda t: t):
             self.assertTrue(os.path.isfile(self.add(job="job-9", title="Another one")["path"]))
+
+    def test_text_the_names_filter_could_not_clean_is_never_asked_and_still_written(self):
+        fake = self.use(**{"memory-lesson-worth": "no", "memory-same-note": "same"})
+        with mock.patch.object(memory_keep, "guard_problem", lambda: "the list is broken"):
+            got = self.add()
+        self.assertTrue(os.path.isfile(got["path"]))
+        self.assertEqual(fake.calls, [])
+
+    def test_a_no_stops_before_haiku_is_asked(self):
+        self.use(**{"memory-lesson-worth": "no"})
+        with mock.patch.dict(os.environ, {"BRAIN_DRAFT_WRITER": "haiku"}), mock.patch.object(drafts, "scrub", lambda t: t):
+            with self.assertRaises(memory_drafts.NotWorth):
+                self.add()          # ask_haiku raises AssertionError if reached
 
     def test_the_gate_asks_after_the_names_filter_so_the_text_is_scrubbed(self):
         fake = self.use(**{"memory-lesson-worth": "yes"})
@@ -267,3 +289,4 @@ class Conflict(Case):
 
 if __name__ == "__main__":
     unittest.main()
+

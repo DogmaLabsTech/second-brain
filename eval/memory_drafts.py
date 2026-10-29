@@ -301,7 +301,8 @@ def add(to, job, title, source, body, store=None, files=(), window=None, session
         lesson, text, why = haiku_lesson(title, body)
         if text:
             by, title, body = "haiku", lesson, text
-    note = already_known(store, project, title, body, search, decide=not local_only)
+    note = (already_known(store, project, title, body, search) if not local_only
+            else already_known(store, project, title, body, search, decide=False))
     pushed = was_pushed(note, project, window, sessions, hook_rows)
     name = name or _file_name(store, project, title)
     text = front(to, title[:SUMMARY_CHARS], list(files), "yes" if note else "no", pushed, note["rel"] if note else None,

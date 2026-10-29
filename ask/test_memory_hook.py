@@ -238,5 +238,55 @@ class Shape(Hook):
             self.assertTrue(out == "" or "Agent memory for demo" in self.context(out), stdin[:40])
 
 
+class Decider(Hook):
+    """The decider (memory-real-task) inside the hook: a fake `decider` package on BRAIN_DECIDER_PATH, switch ON."""
+
+    def fake(self, body):
+        folder = os.path.join(self.home, "fake-decider")
+        os.makedirs(os.path.join(folder, "decider"), exist_ok=True)
+        with open(os.path.join(folder, "decider", "__init__.py"), "w") as f:
+            f.write(body)
+        return dict(BRAIN_MEMORY_DECIDER="on", BRAIN_DECIDER_PATH=folder)
+
+    ANSWER = ("import time\n"
+              "def decide(task, state, backend=None, timeout=None, caller=None, log=True):\n"
+              "    %s\n"
+              "    return {'task': task, 'sure': True, 'backend': 'second_decider', 'ms': 1.0,\n"
+              "            'answers': {'real_task': {'choice': %r, 'confidence': 0.99}}}\n")
+
+    def pushed_by(self):
+        with open(os.path.join(self.state, "memory-hook.jsonl")) as f:
+            return json.loads(f.readlines()[-1])["task_by"]
+
+    def test_a_decider_that_ignores_its_timeout_cannot_hold_the_session(self):
+        env = self.fake(self.ANSWER % ("time.sleep(6)", "yes"))
+        for n in range(3):
+            out, took = self.hook(session="slow-%d" % n, **env)
+            self.assertLess(took, 2.5, "the hook took %.2f s" % took)
+            self.assertIn("Agent memory for demo", self.context(out))      # still pushes context
+            self.assertEqual(self.pushed_by(), "rule")                     # the word list decided
+
+    def test_a_decider_that_imports_slowly_cannot_hold_the_session_either(self):
+        env = self.fake("import time\ntime.sleep(6)\ndef decide(*a, **k):\n    return {}\n")
+        out, took = self.hook(**env)
+        self.assertLess(took, 2.5)
+        self.assertIn("Agent memory for demo", self.context(out))
+        self.assertEqual(self.pushed_by(), "rule")
+
+    def test_a_quick_decider_decides(self):
+        out, took = self.hook(prompt="fix the port clash on 8181", **self.fake(self.ANSWER % ("pass", "no")))
+        self.assertEqual(self.pushed_by(), "decider")
+        self.assertIn("Agent memory for demo", self.context(out))      # no task: pinned + newest still pushed
+        out, _ = self.hook(prompt="ok fine", session="s9", **self.fake(self.ANSWER % ("pass", "yes")))
+        self.assertEqual(self.pushed_by(), "decider")
+
+    def test_a_decider_that_raises_or_is_missing_leaves_the_word_list(self):
+        self.hook(**self.fake("def decide(*a, **k):\n    raise RuntimeError('x')\n"))
+        self.assertEqual(self.pushed_by(), "rule")
+        out, _ = self.hook(session="s8", BRAIN_MEMORY_DECIDER="on", BRAIN_DECIDER_PATH=os.path.join(self.home, "nowhere"))
+        self.assertEqual(self.pushed_by(), "rule")
+        self.assertIn("Agent memory for demo", self.context(out))
+
+
 if __name__ == "__main__":
     unittest.main()
