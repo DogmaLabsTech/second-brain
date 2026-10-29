@@ -54,6 +54,19 @@ class BrainBackup(unittest.TestCase):
         for section in ("private/finance", "chats", "days", "rules"):
             self.assertIn(f"brain/{section}/note.md", names)
 
+    def test_a_copy_holds_business_and_its_own_git(self):
+        # brain/business keeps its own git (and GitHub remote); the brain's git ignores it, the backup must not.
+        biz = self.store / "business"
+        (biz / "clients").mkdir(parents=True)
+        (biz / "clients" / "acme.md").write_text("x\n")
+        subprocess.run(["git", "init", "-q", str(biz)], check=True, timeout=30)
+        (self.store / ".gitignore").write_text("/business/\n")
+        self.assertEqual(self.run_backup().returncode, 0)
+        with tarfile.open(self.dest / self.copies()[0]) as t:
+            names = t.getnames()
+        self.assertIn("brain/business/clients/acme.md", names)
+        self.assertIn("brain/business/.git/HEAD", names)
+
     def test_no_copy_when_the_drive_is_not_mounted(self):
         not_mounted = self.tmp / "empty-mount"
         not_mounted.mkdir()

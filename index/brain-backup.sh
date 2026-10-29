@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Pack the whole brain (~/brain: every section, the private notes, unsaved drafts, its git history) into one dated
-# file on the HDD. Keeps the 14 newest copies. Run nightly by brain-backup.timer.
+# Pack the whole brain (~/brain: every section, the private notes, unsaved drafts, its git history, and business/
+# with its own git) into one dated file on the HDD. Keeps the 14 newest copies. Run nightly by brain-backup.timer.
 # Test overrides: BRAIN_DIR, BRAIN_BACKUP_MOUNT, BRAIN_BACKUP_DIR, BRAIN_BACKUP_KEEP.
 set -euo pipefail
 brain="$(realpath -- "${BRAIN_DIR:-$HOME/brain}")"
