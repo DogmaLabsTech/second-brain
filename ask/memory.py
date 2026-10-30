@@ -1,7 +1,7 @@
 """brain memory / the chats' `memory` tool: the agent memory store's rules and lessons for one project and a task.
 
 find(repo, task) answers "what should I know for this task in this project?" from the store
-(BRAIN_MEMORY_STORE, default ~/projects/shared, the same rule as eval/memory_keep.py):
+(BRAIN_MEMORY_STORE, default ~/brain/agents, the same rule as eval/memory_keep.py):
   - scope: `projects/<repo>/` (the name exactly, case included) and `all-projects/`; never `drafts/` or `history/`;
   - search: the brain's search (qmd's warm server, the `memory` collection), meaning-only like `brain ask`
     (expand.expanded_document), plus one word-search line per exact thing in the task (a file name, a port, error
@@ -48,7 +48,7 @@ KINDS = {"rules": "rule", "lessons": "lesson"}
 
 
 def store_path(store=None):
-    return os.path.expanduser(store or os.environ.get("BRAIN_MEMORY_STORE") or "~/projects/shared")
+    return os.path.expanduser(store or os.environ.get("BRAIN_MEMORY_STORE") or "~/brain/agents")
 
 
 def tokens(text):

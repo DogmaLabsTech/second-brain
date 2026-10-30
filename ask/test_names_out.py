@@ -29,6 +29,7 @@ class Names(unittest.TestCase):
         self.private = os.path.join(self.tmp, "private.json")
         with open(self.private, "w") as f:
             json.dump(FAKE, f)
+        os.makedirs(os.path.join(self.tmp, "no-business"))   # empty: a missing one fails closed (decider 4c49c60)
         env = mock.patch.dict(os.environ, {"DECIDER_PRIVATE_NAMES": self.private,
                                            "DECIDER_BUSINESS_DIR": os.path.join(self.tmp, "no-business")})
         env.start()

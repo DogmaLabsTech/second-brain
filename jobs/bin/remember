@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""remember "<text>": add one dated line to ~/OMARCHY-BRAIN/inbox/remembered.md (made if missing).
+"""remember "<text>": add one dated line to ~/brain/inbox/remembered.md (made if missing).
 
 The file is in the brain's `computer` collection, so the hourly reindex makes it searchable.
 Prints {"message": ...} as its last line. Never rewrites earlier lines (append only).
@@ -10,7 +10,7 @@ import re
 import sys
 import time
 
-PATH = os.path.expanduser(os.environ.get("BRAIN_REMEMBER_FILE", "~/OMARCHY-BRAIN/inbox/remembered.md"))
+PATH = os.path.expanduser(os.environ.get("BRAIN_REMEMBER_FILE", "~/brain/inbox/remembered.md"))
 HEAD = """# Remembered
 
 Things <user> asked the brain island to remember ("Hey Claude, remember that ..."), one dated line

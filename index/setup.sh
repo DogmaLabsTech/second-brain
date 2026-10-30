@@ -5,7 +5,7 @@ set -euo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/env.sh"
 here="$(cd "$(dirname "$0")" && pwd)"
 conf="${XDG_CONFIG_HOME:-$HOME/.config}/qmd/index.yml"
-mkdir -p "$(dirname "$conf")" "$HOME/.local/share/second-brain/chats"
+mkdir -p "$(dirname "$conf")" "$HOME/brain/chats"
 if [[ -f "$conf" ]] && ! cmp -s "$here/index.yml" "$conf"; then
   cp "$conf" "$conf.bak-$(date +%Y%m%d-%H%M%S)"
 fi

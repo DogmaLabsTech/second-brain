@@ -212,6 +212,26 @@ class Safety(Case):
         self.assertEqual(self.asked, [])
         self.assertFalse(os.path.exists(gone))
 
+    def test_a_store_inside_the_brains_git_commits_only_its_note_there(self):
+        """One brain (2026-10-28): the store is ~/brain/agents, a folder of the ~/brain git, with no .git of its own."""
+        brain = os.path.join(self.tmp, "brain")
+        store = os.path.join(brain, "agents")
+        os.makedirs(os.path.join(store, "drafts"))
+        os.makedirs(os.path.join(brain, "private"))
+        subprocess.run(["git", "init", "-q", brain], check=True)
+        with open(os.path.join(brain, "README.md"), "w") as f:
+            f.write("# brain\n")
+        git(brain, "add", "-A")
+        git(brain, "commit", "-q", "-m", "start")
+        with open(os.path.join(brain, "private", "unsaved.md"), "w") as f:
+            f.write("not for this commit\n")
+        with open(os.path.join(store, "drafts", "n.md"), "w") as f:
+            f.write(NOTE)
+        got = memory_keep.keep("n.md", "projects/a/lessons", store=store, today="2026-10-27", summarize=self.model)
+        self.assertTrue(os.path.isfile(got["path"]))
+        self.assertEqual(git(brain, "show", "--name-only", "--format=", "HEAD").split(), ["agents/projects/a/lessons/n.md"])
+        self.assertIn("?? private/", git(brain, "status", "--porcelain"))
+
     def test_a_folder_that_is_not_a_git_repo_is_refused_before_anything_moves(self):
         plain = os.path.join(self.tmp, "plain")
         os.makedirs(os.path.join(plain, "drafts"))
@@ -581,7 +601,7 @@ class IndexBlock(unittest.TestCase):
         self.assertIn("memory", self.blocks)
         block = "\n".join(self.blocks["memory"])
         self.assertIn("includeByDefault: false", block)
-        self.assertIn("path: ~/projects/shared", block)
+        self.assertIn("path: ~/brain/agents", block)
         self.assertRegex(block, r'pattern: "[^"]*\.md"')
         self.assertRegex(block, r'"/": "[^"]{20,}')
 

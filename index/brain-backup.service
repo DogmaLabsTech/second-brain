@@ -1,0 +1,9 @@
+[Unit]
+Description=Brain: copy all of ~/brain to the HDD
+
+[Service]
+Type=oneshot
+ExecStart=%h/projects/second-brain/index/brain-backup.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=10min

@@ -10,8 +10,10 @@ untouched, except a `query` tool call, which gets what `brain ask` does (ask.sea
 It also adds one tool of its own, `memory` (ask/memory.py: the agent memory store's rules and lessons for a
 project): `tools/list` gets it added to qmd's list, and its `tools/call` is answered here, never sent to qmd. If
 it fails, the chat gets an MCP error result; the other tools are not touched. (A JSON-RPC batch goes as before.)
-`get`, `multi_get`, `status`, the REST /query and /health go straight through. If anything in the rewrite
-fails, the original call is sent as it was. Python standard library only; nothing leaves this computer.
+`status` and /health go straight through. If anything in the rewrite fails, the original call is sent as it was.
+Private notes (~/brain/private, index/index.yml `private`) never reach a chat (one brain, 2026-10-29): `get`,
+`multi_get`, `resources/read`, `query` and the REST /query and /search answers are read whole here and every
+private note is left out (scrub_private); if such an answer can't be read, the caller gets an error, not the answer. Python standard library only; nothing leaves this computer.
 
 It also keeps the search record (ask/searchlog.py, ~/.local/state/second-brain/searches.jsonl): one line per
 `query` (what the chat asked, before the mix, and the notes it got back) and per `get` / `multi_get`, with who
@@ -23,6 +25,7 @@ import copy
 import http.client
 import json
 import os
+import re
 import socket
 import sys
 import threading
@@ -148,11 +151,86 @@ def newer_first(results, want):
     return [h["r"] for h in ask.newer_first(hits)][:want]
 
 
+def online_ok(r):
+    """False for a result from the private section (index/index.yml `private`): chats are online models, so those
+    notes never reach them; `brain ask` reads them with the local writer only (ask.local_only)."""
+    return str(r.get("file") or "").removeprefix("qmd://").split("/", 1)[0] != "private"
+
+
+PRIVATE_URI = "qmd://private/"
+PRIVATE_NAME = re.compile(r"(?:qmd://)?\bprivate/[^\s'\"]*")
+LEFT_OUT = "(A private note was left out: private notes stay on this computer.)"
+
+
+def _private_item(item):
+    """A `resource` item (get, multi_get) or a resources/read entry that holds a private note."""
+    res = item.get("resource") if item.get("type") == "resource" else item
+    return isinstance(res, dict) and str(res.get("uri") or "").startswith(PRIVATE_URI)
+
+
+def _scrub_text(text):
+    """A text item without the lines that name a private note (multi_get's skip notes, get's "did you mean")."""
+    lines = str(text).split("\n")
+    kept = [l for l in lines if not PRIVATE_NAME.search(l)]
+    return "\n".join(kept) if len(kept) == len(lines) else "\n".join(kept + [LEFT_OUT])
+
+
+def scrub_private(msg):
+    """One JSON-RPC answer (or a batch) with every private note taken out, in place; returns it."""
+    for m in msg if isinstance(msg, list) else [msg]:
+        res = m.get("result") if isinstance(m, dict) else None
+        if not isinstance(res, dict):
+            continue
+        for key in ("content", "contents"):
+            if isinstance(res.get(key), list):
+                out = []
+                for item in res[key]:
+                    if not isinstance(item, dict):
+                        out.append(item)
+                    elif _private_item(item):
+                        out.append({"type": "text", "text": LEFT_OUT} if key == "content" else
+                                   {"uri": "qmd://left-out", "text": LEFT_OUT})
+                    elif item.get("type") == "text":
+                        out.append(dict(item, text=_scrub_text(item.get("text", ""))))
+                    else:
+                        out.append(item)
+                res[key] = out
+        sc = res.get("structuredContent")
+        if isinstance(sc, dict) and isinstance(sc.get("results"), list):
+            sc["results"] = [r for r in sc["results"] if online_ok(r)]
+    return msg
+
+
+def scrub_rest(data):
+    """The REST /query or /search answer ({"results": [...]}) without private notes."""
+    if isinstance(data, dict) and isinstance(data.get("results"), list):
+        data["results"] = [r for r in data["results"] if online_ok(r)]
+    return data
+
+
+def needs_guard(command, path, body):
+    """True when this request's answer may hold a note's text and must be read whole (scrub_private / scrub_rest)."""
+    if command != "POST":
+        return False
+    where = path.split("?")[0]
+    if where in ("/query", "/search"):
+        return True
+    if where != "/mcp" or not body:
+        return False
+    try:
+        msg = json.loads(body)
+    except ValueError:
+        return True   # can't tell what it asks: read the answer whole
+    return any(isinstance(m, dict) and m.get("method") in ("tools/call", "resources/read")
+               for m in (msg if isinstance(msg, list) else [msg]))
+
+
 def rewrite_result(msg, want, query):
     res = msg.get("result") or {}
     sc = res.get("structuredContent") or {}
     if "results" not in sc:
         return msg
+    sc["results"] = [r for r in sc["results"] if online_ok(r)]
     sc["results"] = newer_first(sc["results"], want) if ask.NEWER_DAYS > 0 else sc["results"][:want]
     res["content"] = [{"type": "text", "text": summary(sc["results"], query)}]
     return msg
@@ -227,6 +305,41 @@ class Proxy(BaseHTTPRequestHandler):
             conn.close()
         self.close_connection = True
 
+    def _guarded(self, body):
+        """Like _relay, but the answer is read whole first. With no private note in it, it goes back byte for byte
+        with qmd's own headers; otherwise every private note is taken out (scrub_private / scrub_rest)."""
+        mcp = self.path.split("?")[0] == "/mcp"
+        conn, resp = self._send_upstream(body)
+        try:
+            raw, status, headers = resp.read(), resp.status, resp.getheaders()
+        finally:
+            conn.close()
+        self._know_caller()
+        if b"private/" not in raw:
+            return self._reply_raw(status, resp.reason, headers, raw)
+        if status != 200:
+            return self._reply(502, "application/json", json.dumps({"error": "left out: it named a private note"}).encode())
+        try:
+            msgs = sse_messages(raw) if mcp else json.loads(raw)
+            out = json.dumps(scrub_private(msgs) if mcp else scrub_rest(msgs)).encode()
+        except (ValueError, TypeError, AttributeError) as why:
+            print(f"private filter could not read the answer, not sent: {type(why).__name__}", file=sys.stderr)
+            return self._reply(502, "application/json", json.dumps({"error": "search server answer not readable"}).encode())
+        ctype = dict((k.lower(), v) for k, v in headers).get("content-type", "application/json")
+        if mcp and "text/event-stream" in ctype:
+            self._reply(200, "text/event-stream", b"event: message\ndata: " + out + b"\n\n")
+        else:
+            self._reply(200, "application/json", out)
+
+    def _reply_raw(self, status, reason, headers, data):
+        self.send_response(status, reason)
+        for k, v in headers:
+            if k.lower() not in HOP and k.lower() != "content-length":
+                self.send_header(k, v)
+        self.send_header("Content-Length", str(len(data)))
+        self._to_caller(self.end_headers)
+        self._to_caller(self.wfile.write, data)
+
     def _write_chunk(self, chunk):
         self.wfile.write(b"%x\r\n%s\r\n" % (len(chunk), chunk))
         self.wfile.flush()
@@ -266,6 +379,7 @@ class Proxy(BaseHTTPRequestHandler):
             if key in plan:
                 rewrite_result(m, *plan[key])
                 replies[key] = m
+        scrub_private(out)   # a batch may hold a get or multi_get next to the query
         data = json.dumps(out).encode()
         if "application/json" in (self.headers.get("Accept") or "application/json"):
             self._reply(200, "application/json", data)
@@ -407,10 +521,10 @@ class Proxy(BaseHTTPRequestHandler):
                     return self._query(json.loads(body))
                 except (ValueError, KeyError, TypeError, AttributeError) as why:
                     print(f"query rewrite failed, sent as it was: {why}", file=sys.stderr)
-            self._relay(body)
+            self._guarded(body) if needs_guard(self.command, self.path, body) else self._relay(body)
             return self._record_relayed()
         except ValueError:
-            self._relay(body)
+            self._guarded(body) if needs_guard(self.command, self.path, body) else self._relay(body)
             return self._record_relayed()
         except CallerGone:
             # The caller closed the stream or cancelled the search: nothing to answer, nothing wrong upstream, so

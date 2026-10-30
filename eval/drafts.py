@@ -7,7 +7,7 @@
                                        (or notes) that should answer it; name them here or fill them in the draft file.
   brain drafts keep <story>            a draft lore story -> agent-os lore/ as `insight`, with its line in lore/CONTEXT.md
   brain drafts keep <draft> --to projects/<repo>/lessons [--files a,b] [--pin] [--summary "line"]
-                                       a memory draft (rule or lesson) -> the store ~/projects/shared, committed
+                                       a memory draft (rule or lesson) -> the store ~/brain/agents, committed
                                        there (eval/memory_keep.py)
   brain drafts drop <id|story>         throw a draft away; it is not drafted again
 

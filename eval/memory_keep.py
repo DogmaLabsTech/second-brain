@@ -1,5 +1,5 @@
 """keep for memory drafts (agent memory job 1, <user>'s yes 2026-10-27): a draft rule or lesson moves into the store
-(~/projects/shared, its own private git, no remote) and is committed there.
+(~/brain/agents, its own private git, no remote) and is committed there.
 
   brain drafts keep <draft> --to <where> [--files a,b] [--pin] [--summary "line"]
 
@@ -24,7 +24,7 @@ a private name: it is stored scrubbed.
 The filter still decides whether a model may see the text to make the summary.
 
 A missing store, a store that is not a git repo, a bad target or a name already taken stop `keep` with a plain message
-and change nothing. The store path is a parameter (BRAIN_MEMORY_STORE, default ~/projects/shared) so tests use a
+and change nothing. The store path is a parameter (BRAIN_MEMORY_STORE, default ~/brain/agents) so tests use a
 temp folder. Standard library only.
 """
 import http.client
@@ -55,7 +55,19 @@ class KeepError(ValueError):
 
 
 def store_path(store=None):
-    return os.path.expanduser(store or os.environ.get("BRAIN_MEMORY_STORE") or "~/projects/shared")
+    return os.path.expanduser(store or os.environ.get("BRAIN_MEMORY_STORE") or "~/brain/agents")
+
+
+def in_git(store):
+    """True when the store is in a git work tree: its own .git, or the brain's (~/brain/.git, one brain 2026-10-28)."""
+    path = os.path.realpath(store)
+    while True:
+        if os.path.exists(os.path.join(path, ".git")):
+            return True
+        up = os.path.dirname(path)
+        if up == path:
+            return False
+        path = up
 
 
 def _git(store, *args):
@@ -241,7 +253,7 @@ def _check_store(store):
     if not os.path.isdir(store):
         raise KeepError("the memory store is not there (%s). Nothing was kept. The store is made by agent memory job 1; "
                         "set BRAIN_MEMORY_STORE if it lives somewhere else." % shown)
-    if not os.path.exists(os.path.join(store, ".git")):
+    if not in_git(store):
         raise KeepError("the memory store (%s) is not a git repo, so keep cannot commit there. Nothing was kept." % shown)
     return store
 

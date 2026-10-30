@@ -66,19 +66,26 @@ INTENT_SECONDS = float(os.environ.get("BRAIN_INTENT_SECONDS", "2.5"))
 NOT_FOUND = "I couldn't find that in your notes."
 SAY_AGAIN = "Sorry, say that again?"
 COLLECTIONS = {
-    "computer": os.path.join(HOME, "OMARCHY-BRAIN"),
-    "business": os.path.join(HOME, "user-labs-business"),
-    "projects": os.path.join(HOME, "projects", "Projects"),
-    "chats": os.path.join(HOME, ".local", "share", "second-brain", "chats"),
-    "pm": os.path.join(HOME, "projects", "project-manager"),
+    # One brain (~/brain, 2026-10-28): one collection per section. Repo guides, the desk, experiments and the
+    # content library stay where they are; plans stay in ~/.claude/plans (Claude Code can't write them elsewhere).
+    "brain": os.path.join(HOME, "brain"),
+    "rules": os.path.join(HOME, "brain", "rules"),
+    "memory": os.path.join(HOME, "brain", "agents"),
+    "project-notes": os.path.join(HOME, "brain", "projects"),
+    "computer": os.path.join(HOME, "brain", "computer"),
+    "business": os.path.join(HOME, "brain", "business"),
+    "private": os.path.join(HOME, "brain", "private"),
+    "chats": os.path.join(HOME, "brain", "chats"),
+    "codex": os.path.join(HOME, "brain", "chats", "codex"),
+    "days": os.path.join(HOME, "brain", "days"),
+    "inbox": os.path.join(HOME, "brain", "inbox"),
+    "history": os.path.join(HOME, "brain", "history"),
     "plans": os.path.join(HOME, ".claude", "plans"),
+    "projects": os.path.join(HOME, "projects", "Projects"),
     "experiments": os.path.join(HOME, "projects", "experiments"),
     "content": os.path.join(HOME, "projects", "assets", "content-library"),
     "hermes": os.path.join(HOME, ".hermes"),
-    "days": os.path.join(HOME, ".local", "share", "second-brain", "day", "pages"),
     "agent-os": os.path.join(HOME, "agent-os"),
-    "codex": os.path.join(HOME, ".local", "share", "second-brain", "chats", "codex"),
-    "memory": os.path.join(HOME, "projects", "shared"),
 }   # keep in step with index/index.yml
 MODEL_SHORT = {"qwen2.5:3b": "qwen2.5", "granite4.2:3b": "granite4.2", "gpt-oss:20b": "gpt-oss"}
 
@@ -93,7 +100,7 @@ Rules:
 # ---------- search ----------
 
 def real_path(qmd_file):
-    """qmd://computer/system/x.md -> ~/OMARCHY-BRAIN/system/x.md (qmd may lowercase paths)."""
+    """qmd://computer/system/x.md -> ~/brain/computer/system/x.md (qmd may lowercase paths)."""
     m = re.match(r"qmd://([^/]+)/(.*)", qmd_file)
     if not m or m.group(1) not in COLLECTIONS:
         return qmd_file
@@ -139,6 +146,22 @@ def newer_first(hits, fresh_days=NEWER_DAYS):
     return sorted(hits, key=lambda h: -h["score"])
 
 
+# An online agent (Claude, Codex, ...) that runs `brain ask` or `brain search` in a shell never gets the private
+# section: its hits are dropped before anything is written or printed (one brain, 2026-10-29). Set by main() and
+# ask/search_cli.py from searchlog.caller(); the island, the Deck and <user>'s own terminal keep them.
+ONLINE_AGENTS = ("claude", "codex", "gemini", "opencode", "grok", "copilot", "cursor-agent")
+HIDE_PRIVATE = False
+
+
+def run_by_online_agent(name):
+    """True when the program that ran this command (searchlog.caller) is an online agent; never raises."""
+    try:
+        import searchlog
+        return searchlog.caller(name).get("program") in ONLINE_AGENTS
+    except Exception:  # noqa: BLE001  can't tell: keep them out
+        return True
+
+
 def search(q, limit=5):
     doc = expanded_document(q)
     want = limit
@@ -158,6 +181,8 @@ def search(q, limit=5):
     hits = []
     for r in results[:limit]:
         path = real_path(r.get("file", ""))
+        if HIDE_PRIVATE and path.startswith(COLLECTIONS["private"] + os.sep):
+            continue
         hits.append({"path": path, "title": r.get("title") or os.path.basename(path),
                      "snippet": clean_snippet(r.get("snippet")), "line": int(r.get("line") or 1),
                      "file": r.get("file", ""), "score": r.get("score", 0)})
@@ -179,8 +204,11 @@ def passage(hit, chars=650):
 
 
 def local_only(hit):
-    """A memory note with `local-only: true` in its front matter (eval/memory_keep.py: the names filter was not sure)
-    never goes to an online model. A memory note that can't be read counts as local-only."""
+    """A note that never goes to an online model: every note in the private section (~/brain/private: finance,
+    <user>'s own notes), and a memory note with `local-only: true` in its front matter (eval/memory_keep.py: the names
+    filter was not sure). A memory note that can't be read counts as local-only."""
+    if hit["path"].startswith(COLLECTIONS["private"] + os.sep):
+        return True
     if not hit["path"].startswith(COLLECTIONS["memory"] + os.sep):
         return False
     try:
@@ -856,6 +884,8 @@ def main(argv):
         return 2
     if stream:
         EMIT.append(lambda ev: print(json.dumps(ev), flush=True))
+    global HIDE_PRIVATE
+    HIDE_PRIVATE = run_by_online_agent("brain ask")
     result = ask(q, writer, how)
     result["id"] = asklog.new_id()
     asklog.log_ask(result["id"], q, result, source)

@@ -3,7 +3,7 @@
 This turns your old Claude Code chats into short notes the second brain can search.
 
 - **Reads:** `~/.claude/projects/` (one `.jsonl` file per chat). It only reads; it never changes them.
-- **Writes:** `~/.local/share/second-brain/chats/`, one note per chat, named
+- **Writes:** `~/brain/chats/`, one note per chat, named
   `<date>-<project>-<first 8 letters of the chat id>.md`. Only you can open the folder.
 
 ## What a note holds
@@ -69,7 +69,7 @@ python3 -I ~/projects/second-brain/chats/convert.py --sample 20 # 20 random chat
 python3 -I ~/projects/second-brain/chats/convert.py --quiet    # one summary line (for the reindex timer)
 ```
 
-It remembers each source file's time and size in `~/.local/share/second-brain/chats/.state.json`
+It remembers each source file's time and size in `~/brain/chats/.state.json`
 and only redoes chats that changed. If a chat file disappears, its note is deleted. Two runs at
 the same time can't happen: the second one sees the lock and quietly stops.
 
@@ -84,7 +84,7 @@ CRABBOX_LOCAL=1 python3 -I -m unittest discover -s chats -p 'test_*.py'
 Delete the notes and the memory file; nothing else is touched:
 
 ```bash
-rm -rf ~/.local/share/second-brain/chats
+rm -rf ~/brain/chats
 ```
 
 Then, if qmd already indexed them, run the reindex (or remove the `chats` collection) so search
@@ -96,7 +96,7 @@ forgets them too.
 
 - **Reads:** `~/.codex/sessions/` (one `.jsonl` file per chat) and the chat names in
   `~/.codex/session_index.jsonl`. It only reads.
-- **Writes:** `~/.local/share/second-brain/chats/codex/`, named `<date>-codex-<project>-<last 8 letters of the chat id>.md`
+- **Writes:** `~/brain/chats/codex/`, named `<date>-codex-<project>-<last 8 letters of the chat id>.md`
   (Codex ids start with the time, so the first letters repeat). The header says `agent: codex`, and `name:` when the
   chat has one.
 - **Same rules:** only what you typed and what Codex wrote back, the same redaction and the same set-aside rules
@@ -113,5 +113,5 @@ forgets them too.
   `index/merge_vectors.mjs` adds them to the search here. The hourly embed here skips `codex`. test machine off: the notes
   keep their keyword search and get their vectors on a later run. First run: 146 notes in about 4.5 minutes.
 
-Undo: `rm -rf ~/.local/share/second-brain/chats/codex`, take the `codex.py` and `codex-testbox.sh` lines out of
+Undo: `rm -rf ~/brain/chats/codex`, take the `codex.py` and `codex-testbox.sh` lines out of
 `index/reindex.sh`, and on the test machine `rm -rf ~/second-brain-testbox`.

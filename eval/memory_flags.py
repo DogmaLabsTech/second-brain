@@ -28,7 +28,7 @@ unconfirmed is not flagged twice. The flags live in the store's `flags.jsonl` (a
 What a flag does: `brain memory` and the chats' `memory` tool mark the note "(may be out of date, check first)"; a flag
 nobody confirms for 30 days takes the note out of the push (not out of the store). Every pinned note is asked "still
 true?" every 90 days (its `date`, or the last confirmation). The store path is BRAIN_MEMORY_STORE (default
-~/projects/shared); tests use a temp folder. Standard library only; the decider asks the second decider for rule 3 (private text allowed for that task, names removed first).
+~/brain/agents); tests use a temp folder. Standard library only; the decider asks the second decider for rule 3 (private text allowed for that task, names removed first).
 """
 import os
 import re
@@ -271,7 +271,7 @@ def pins_due(store, today=None):
 
 def _commit(store, message):
     """Commit the flags file in the store when the store is a git repo; quietly nothing otherwise."""
-    if not os.path.exists(os.path.join(store, ".git")):
+    if not memory_keep.in_git(store):
         return
     try:
         memory_keep._git(store, "add", "--", store_flags.FLAGS)
@@ -304,7 +304,7 @@ def retire(store, ref, why=None, today=None):
     dest = os.path.join(store, "history", note["rel"])
     if os.path.lexists(dest):
         raise ValueError("history/%s is already there; rename one of them first" % note["rel"])
-    git = os.path.exists(os.path.join(store, ".git"))
+    git = memory_keep.in_git(store)
     # A hand-made note that was never committed has no old path for git to stage: leave it out, or the add fails
     # after the move (half done).
     tracked = git and bool(memory_keep._git(store, "ls-files", "--", note["rel"]).strip())

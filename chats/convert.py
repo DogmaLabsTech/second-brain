@@ -2,8 +2,8 @@
 """Turn Claude Code chat logs into short, redacted markdown notes.
 
 Source : ~/.claude/projects/<encoded-cwd>/<session>.jsonl   (read only, never changed)
-Output : ~/.local/share/second-brain/chats/<date>-<project>-<id>.md  (low-value chats: chats/low/, not searched)
-State  : ~/.local/share/second-brain/chats/.state.json
+Output : ~/brain/chats/<date>-<project>-<id>.md  (low-value chats: chats/low/, not searched)
+State  : ~/brain/chats/.state.json
 
     python3 -I convert.py              only new or changed chats
     python3 -I convert.py --all        redo every chat
@@ -32,7 +32,7 @@ from redact import redact  # noqa: E402
 
 HOME = os.path.expanduser("~")
 SRC = os.path.join(HOME, ".claude", "projects")
-OUT = os.path.join(HOME, ".local", "share", "second-brain", "chats")
+OUT = os.path.join(HOME, "brain", "chats")
 STATE_NAME = ".state.json"
 
 USER_MAX = 1000

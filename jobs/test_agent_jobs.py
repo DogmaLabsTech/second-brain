@@ -343,14 +343,14 @@ class Build(unittest.TestCase):
     def test_whole_desk_stays_the_desk_pm(self):
         for text in ("start a claude on the desk", "start a claude on the whole desk: tidy the notes"):
             job = jobs.build("start-claude", text)["job"]
-            self.assertEqual((job["label"], job["args"]["project"]), ("Start the whole-desk PM", "desk"), text)
+            self.assertEqual((job["label"], job["args"]["project"]), ("Start a Claude on the whole desk", "desk"), text)
             self.assertNotIn("text", job["args"])
 
     def test_desk_with_a_task_says_the_task_is_not_used(self):
         for text in ("start a claude on the desk: tidy the board", "start a claude on the whole desk to tidy the board",
                      "start a claude on the desk, tidy the board"):
             out = jobs.build("start-claude", text)
-            self.assertEqual(out["job"]["label"], "Start the whole-desk PM", text)
+            self.assertEqual(out["job"]["label"], "Start a Claude on the whole desk", text)
             self.assertNotIn("text", out["job"]["args"])
             self.assertIn("The whole desk has no team job", out["answer"], text)
             self.assertIn("your task was not used", out["answer"], text)
@@ -541,14 +541,15 @@ class TeamJob(Fakes):
         self.assertEqual(code, 0, printed)
         self.assertEqual(self.calls("agent-os")[0]["argv"][-1], "x" * 500)
 
-    def test_pm_chat_card_still_runs_pm(self):
+    def test_desk_card_opens_a_claude_on_the_desk(self):
+        """The PM is retired (one brain, 2026-10-28): start-claude opens a Claude in the folder (jobs/bin/open-claude)."""
         with mock.patch.object(jobs.subprocess, "run") as run:
             run.return_value = subprocess.CompletedProcess([], 0, "", "")
             with contextlib.redirect_stdout(io.StringIO()):
                 jobs.run("start-claude", jobs.build("start-claude", "start a claude on the desk")["job"])
         argv = run.call_args[0][0]
-        self.assertTrue(argv[0].endswith("project-manager/bin/pm"), argv)
-        self.assertEqual(argv[1:], ["open", "--desk", "--launch"])
+        self.assertTrue(argv[0].endswith("jobs/bin/open-claude"), argv)
+        self.assertEqual(argv[1:], ["desk"])
         self.assertEqual(self.calls(), [])
 
 
