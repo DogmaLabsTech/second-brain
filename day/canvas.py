@@ -210,7 +210,7 @@ def status_notes(path=None):
     for r in events if isinstance(events, list) else []:
         if not isinstance(r, dict) or not isinstance(r.get("id"), (str, int)) or not good_ts(r.get("ts")):
             continue
-        kind = {"done": "agent-done", "question": "agent-asked"}.get(r.get("kind"))
+        kind = {"done": "agent-done", "question": "agent-asked"}.get(text(r.get("kind")))
         if kind:
             yield {"id": "status-" + str(r["id"]), "ts": good_ts(r["ts"]), "board": "nodeterm",
                    "node": r.get("nodeId") if isinstance(r.get("nodeId"), str) else None,

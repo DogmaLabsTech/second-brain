@@ -163,7 +163,8 @@ class OddInput(Base):
         self.assertIn("Finished 2", self.page("2026-10-29"))
 
     def test_odd_status_and_project_files(self):
-        for status in ({"inbox": [1]}, [], {"inbox": {"events": {"a": 1}}}, {"inbox": {"events": [{"id": [1]}]}}):
+        for status in ({"inbox": {"events": [{"id": "n1", "ts": ms("2026-10-29 09:00"), "kind": ["done"]}]}},
+                       {"inbox": [1]}, [], {"inbox": {"events": {"a": 1}}}, {"inbox": {"events": [{"id": [1]}]}}):
             with open(canvas.STATUS, "w") as f:
                 json.dump(status, f)
             self.put(LOG, [1, 2])

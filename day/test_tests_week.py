@@ -62,6 +62,15 @@ class Week(unittest.TestCase):
         with open(tests_week.write_week("2026-W44")) as f:
             self.assertNotIn("on the flaky list", f.read())
 
+    def test_rows_with_odd_values(self):
+        with open(os.path.join(tests_week.FAILURES, "agent-os.jsonl"), "a") as f:
+            f.write(json.dumps({"when": "2026-10-28T09:00:00", "job": "j", "test": {"a": 1}, "outcome": "new"}) + "\n")
+            f.write(json.dumps({**row("2026-10-28T09:00:00-04:00", "t.d", where={"x": 1}), "commit": ["c"]}) + "\n")
+        with open(tests_week.write_week("2026-W44")) as f:
+            p = f.read()
+        self.assertIn("  - t.d", p)
+        self.assertIn("5 failing tests", p)
+
     def test_bad_week(self):
         self.assertEqual(tests_week.main(["44"]), 2)
 

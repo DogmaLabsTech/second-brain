@@ -56,8 +56,10 @@ def failures(week):
                     r = json.loads(line)
                 except ValueError:
                     continue
-                if isinstance(r, dict) and r.get("test") and when(r) and week_of(when(r)) == week:
-                    rows.append(r)
+                if isinstance(r, dict) and isinstance(r.get("test"), str) and r["test"] and when(r) \
+                        and week_of(when(r)) == week:
+                    # Only text fields are used; anything else (a list, a dict) counts as missing.
+                    rows.append({k: v for k, v in r.items() if isinstance(v, str)})
         if rows:
             out[os.path.basename(path)[:-6]] = rows
     return out
