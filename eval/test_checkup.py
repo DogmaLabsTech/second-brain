@@ -3,6 +3,8 @@ import contextlib
 import io
 import json
 import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -13,6 +15,31 @@ sys.path.insert(0, HERE)
 os.environ["BRAIN_MEMORY_DECIDER"] = "off"   # tests never ask the decider (the second decider); test_memory_decide.py tests it with a fake
 os.environ["BRAIN_STATE"] = tempfile.mkdtemp(prefix="checkup-test-state-")
 import checkup  # noqa: E402
+
+
+class Launcher(unittest.TestCase):
+    def test_brain_checkup_with_isolated_python(self):
+        root = os.path.dirname(HERE)
+        with tempfile.TemporaryDirectory() as tmp:
+            # A real launcher and real imports; only data and output are disposable.
+            for folder in ("bin", "index", "ask", "eval", "deciders", "jobs"):
+                shutil.copytree(os.path.join(root, folder), os.path.join(tmp, folder), symlinks=True,
+                                ignore=shutil.ignore_patterns("__pycache__", ".venv", "node_modules"))
+            for name in ("heldout.jsonl", "seen.jsonl"):
+                with open(os.path.join(tmp, "eval", name), "w"):
+                    pass
+            os.remove(os.path.join(tmp, "eval", "scores.tsv"))
+            env = dict(os.environ, HOME=tmp, BRAIN_STATE=os.path.join(tmp, "state"),
+                       BRAIN_LIVE_INDEX=os.path.join(tmp, "absent.sqlite"),
+                       BRAIN_QMD_CONFIG=os.path.join(tmp, "absent.yml"))
+            result = subprocess.run(
+                ["bash", os.path.join(tmp, "bin", "brain"), "checkup", "--no-intent",
+                 "--no-learn", "--no-drafts", "--no-memory"],
+                cwd=tmp, env=env, capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("Fair test (search", result.stdout)
+            with open(os.path.join(tmp, "eval", "scores.tsv")) as scores:
+                self.assertEqual(len(scores.readlines()), 2)
 
 
 class PrivateList(unittest.TestCase):
