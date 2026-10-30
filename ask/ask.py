@@ -86,6 +86,7 @@ COLLECTIONS = {
     "content": os.path.join(HOME, "projects", "assets", "content-library"),
     "hermes": os.path.join(HOME, ".hermes"),
     "agent-os": os.path.join(HOME, "agent-os"),
+    "agent-os-jobs": os.path.join(HOME, "agent-os", "jobs"),
 }   # keep in step with index/index.yml
 MODEL_SHORT = {"qwen2.5:3b": "qwen2.5", "granite4.2:3b": "granite4.2", "gpt-oss:20b": "gpt-oss"}
 

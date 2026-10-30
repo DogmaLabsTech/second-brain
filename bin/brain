@@ -20,12 +20,15 @@
 #   brain eod (or goodnight)  end of day: summary, clear ticked items and finished jobs, pick what runs overnight
 #                             (--run --silent --picks=<line numbers>: the example-remote's Good night button, no voice or menu)
 #   brain standup [--print]   the morning standup (the 9:00 reminder does this by itself)
+#   brain canvas [run|names --backlog|line DATE]   the nodeterm canvas as a page per day (who finished, failed, asked;
+#                             messages lost) in ~/brain/days/canvas/; the hourly reindex and the day page run it
+#   brain tests-week [YYYY-Www]   this week's test failures and flaky tests, a page in ~/brain/days/tests/
 #   brain alarm list|history|cancel <id|all>   your reminders (set them by asking: "remind me at 2pm to …")
 set -euo pipefail
 root="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 . "$root/index/env.sh"
 
-usage() { sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; }
 
 cmd="${1:-}"; shift || true
 case "$cmd" in
@@ -88,6 +91,14 @@ case "$cmd" in
   day|changed|eod|goodnight|standup)
     if [[ $cmd == day ]]; then exec python3 -I "$root/day/day.py" day "$@"; fi
     exec python3 -I "$root/day/day.py" "$cmd" "$@"
+    ;;
+  canvas)
+    # the nodeterm canvas as day pages in ~/brain/days/canvas/ (day/canvas.py): run, names --backlog, line <date>
+    exec python3 -I "$root/day/canvas.py" "${@:-run}"
+    ;;
+  tests-week)
+    # the week's test failures and flaky tests as a page in ~/brain/days/tests/ (day/tests_week.py)
+    exec python3 -I "$root/day/tests_week.py" "$@"
     ;;
   alarm|alarms)
     exec python3 -I "$root/jobs/bin/alarm" "${@:-list}"

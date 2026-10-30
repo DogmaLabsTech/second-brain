@@ -19,12 +19,13 @@ Every note lives in one folder, `~/brain` (since 2026-10-28), one collection per
 | `computer` | `~/brain/computer/`: the computer, the test machine, the friend's PC, Claude Code setup |
 | `business` | `~/brain/business/`: the business notes (not `.env`, `.secrets`) |
 | `private` | `~/brain/private/`: finance and your own notes. **Local only:** `brain ask` answers from them with the local writer only, and chats never get them |
-| `chats` | short notes made from old Claude chats, in `~/brain/chats/`, and from Codex chats in its `codex/` folder (collection `codex`) |
-| `days` | `~/brain/days/`: day pages and standups |
+| `chats` | short notes made from old Claude chats (yours and, since 2026-10-30, the canvas agents'), in `~/brain/chats/`, and from Codex chats in its `codex/` folder (collection `codex`) |
+| `days` | `~/brain/days/`: day pages and standups, the canvas pages (`canvas/`) and the weekly test pages (`tests/`) |
 | `inbox` | `~/brain/inbox/`: the remember list and what end of day ticked off |
 | `history` | `~/brain/history/`: old records (the retired project manager) |
 | `projects` | each project's `README.md`, `CLAUDE.md`, `AGENTS.md` and `docs/` in `~/projects` |
 | `plans` | Claude's plans, `~/.claude/plans/` (Claude Code can only move them inside one project, so they stay) |
+| `agent-os-jobs` | the desk's jobs in `~/agent-os/jobs/`: your ask, the plan, the report (and an agent's brief) per job, and the month's history (2026-10-30) |
 
 Your notes are only read, never changed.
 
@@ -376,8 +377,21 @@ island). Without one it ends at 5 the next morning. "Yesterday" always means the
   overnight work went, who waits on you and how many new reports wait in your in-tray, and a notification opens the full page
   (`pages/standup-<date>.md`). Once a day; `brain standup --print` shows it any time.
 
+- **The canvas:** `brain canvas` turns the nodeterm board log (`~/agent-os/.nodeterm/board-log.jsonl` and the other
+  boards) into one page per day in `~/brain/days/canvas/`: which agent finished, failed or asked you something and
+  when, what each said when done, cards moved, and messages that never arrived (delivered ones are only counted).
+  The day page ends with one line ("Canvas: 23 finished, 4 failed, ..."). The hourly reindex runs it too, because
+  nodeterm keeps the agents' "finished" notes for a few hours only and forgets a node's name when it closes; the
+  names are kept in `~/.local/share/second-brain/canvas/`. Events before 2026-10-30 are named only where an old
+  chat log or job note named the node (`brain canvas names --backlog`, about two thirds); the rest show as
+  "agent <short id>". Every event is kept once, by its id, so a re-run never doubles a line.
+- **Tests this week:** `brain tests-week` (or `2026-W44`) writes `~/brain/days/tests/<week>.md` from agent-os's
+  failure log: new failures, tests that failed again, flaky ones and the flaky list, per project. The 5:00 run
+  rewrites the week's page.
+
 Timers: `second-brain-day.timer` (5:00: keeps the folder list and yesterday's page) and the 9:00
-`second-brain-remind-list` (standup first). Code: `day/day.py`, tests `day/test_day.py`.
+`second-brain-remind-list` (standup first). Code: `day/day.py`, `day/canvas.py`, `day/tests_week.py`; tests `day/test_day.py`, `day/test_canvas.py`,
+`day/test_tests_week.py`.
 
 ## Speech to text (for the island)
 
