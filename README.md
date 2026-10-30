@@ -51,6 +51,12 @@ media stray --list                                                      # the sa
 - `media stray` counts png/mp4/gif/webm files in `~/projects` and `~/agent-os` that git does not track, per
   project and in total (the product's own tracked images are fine). `--list` prints the files instead; `--worktrees` also
   looks in `~/.agent-os/worktrees` (skipped by default); `--days 2` only looks at recent files.
+- **Nightly watch** (`media/stray_watch.py`, `media-stray.timer`, 22:30): runs the same count and tells the deputy ONE line, only when
+  a project has more strays than at the last run (the last counts are in `~/.local/state/second-brain/media-stray-counts.json`;
+  the first run has no baseline, so it tells once). Not switched on until you say yes. To switch on:
+  `ln -s ~/projects/second-brain/media/media-stray.{service,timer} ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now media-stray.timer`.
+  Off: `systemctl --user disable --now media-stray.timer && rm ~/.config/systemd/user/media-stray.{service,timer}`.
+  Try it without telling: `python3 -I media/stray_watch.py --dry-run`.
 - The store is in `~/Media`, which is already on the HDD, so big files need no extra step. Not in git. Nothing is deleted without you.
 - Code: `media/media.py` (`bin/media`, link it as `~/.local/bin/media`). Tests: `media/test_media.py`.
 

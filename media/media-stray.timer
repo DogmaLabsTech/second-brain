@@ -1,0 +1,9 @@
+[Unit]
+Description=Media: look for new stray media in code folders every night
+
+[Timer]
+OnCalendar=*-*-* 22:30
+Persistent=true
+
+[Install]
+WantedBy=timers.target
