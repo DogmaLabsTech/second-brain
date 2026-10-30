@@ -11,8 +11,11 @@ early: work after that is "overnight" and goes to the next morning's standup. Pl
                          in-tray and history files, read only), tick what may run overnight, close the day, run the
                          ticks (no lock). `goodnight` is the same.
   day.py standup [--once]   the morning standup: spoken + a page; --once: only before 11:00, once a day
-  day.py nightly         5:00 (timer): save the folder list and the page of the day that just ended
+  day.py nightly         5:00 (timer): save the folder list and the page of the day that just ended, and that
+                         week's test page (day/tests_week.py)
 
+The page ends with one canvas line (day/canvas.py: nodeterm agents finished, failed, messages lost; its own page is
+~/brain/days/canvas/<date>.md); making it imports new board events first.
 Data: ~/.local/share/second-brain/day/ (changes.jsonl, closeouts.jsonl, overnight.jsonl, snapshots/). Pages: ~/brain/days/.
 Safe test run of eod (nothing said, moved or built for real): BRAIN_DAY_DIR=<tmp> BRAIN_REMEMBER_FILE=<tmp list>
 BRAIN_DONE_FILE=<tmp> BRAIN_JOBS_DIR=<tmp> AGENT_OS_BIN=<fake> BRAIN_MORNING_BUILD=<fake>
@@ -272,6 +275,21 @@ def page(title, g, extra=()):
     return "\n".join(lines).rstrip() + "\n"
 
 
+def canvas_extra(d):
+    """The canvas line for day d (day/canvas.py): import new board events first. Never breaks the day page."""
+    if DATA != os.path.join(HOME, ".local/share/second-brain/day") and not os.environ.get("BRAIN_CANVAS_DIR"):
+        return []   # a test run with its own day folder never touches the real canvas archive
+    try:
+        sys.path.insert(0, HERE)
+        import canvas
+        canvas.run(quiet=True)
+        text = canvas.line(d)
+    except Exception as why:   # noqa: BLE001 - the canvas is extra; the day page must still be written
+        print(f"day: canvas skipped: {why}", file=sys.stderr)
+        return []
+    return ["", text] if text else []
+
+
 def spoken_name(repo):
     return re.sub(r"[-_]+", " ", repo)
 
@@ -331,7 +349,7 @@ def cmd_day(args):
         print(f"day: say today, yesterday, overnight or a date like 2026-10-15, not {when!r}", file=sys.stderr)
         return 2
     g = gather(start, end, d, live)
-    text = page(title, g)
+    text = page(title, g, canvas_extra(d) if d else ())
     if d:
         write(os.path.join(PAGES, d.isoformat() + ".md"), text)
     if "--say" in args:
@@ -663,7 +681,8 @@ def cmd_eod(args):
     append_jsonl(CLOSEOUTS, {"t": int(now), "day": d.isoformat(), "picked": [t for _, _, t in picked],
                              "running": running, "cleared": cleared, "finished": [j for j, _ in finished]})
     write(os.path.join(PAGES, d.isoformat() + ".md"),
-          page(f"{day_name(d)} ({clock(start)} to {clock(now)}, closed out)", g, _eod_page_extra(cleared, finished)))
+          page(f"{day_name(d)} ({clock(start)} to {clock(now)}, closed out)", g,
+               _eod_page_extra(cleared, finished) + canvas_extra(d)))
     n = len(picked)
     speak("The day is closed. " + (f"{n} thing{'s' if n != 1 else ''} will run tonight. " if n else
                                    "Nothing new runs tonight. ") + "I'll tell you how it went at the standup.", wait=True)
@@ -789,7 +808,14 @@ def cmd_nightly(args):
     start, end, closed = window(ended)
     write(os.path.join(PAGES, ended.isoformat() + ".md"),
           page(f"{day_name(ended)} ({clock(start)} to {clock(end)}{', closed out' if closed else ''})",
-               gather(start, end, ended)))
+               gather(start, end, ended), canvas_extra(ended)))
+    if DATA == os.path.join(HOME, ".local/share/second-brain/day"):   # not in a test run with its own folder
+        try:
+            sys.path.insert(0, HERE)
+            import tests_week
+            tests_week.write_week(tests_week.week_of(ended))
+        except Exception as why:   # noqa: BLE001 - the week page is extra
+            print(f"day: test week page skipped: {why}", file=sys.stderr)
     return 0
 
 

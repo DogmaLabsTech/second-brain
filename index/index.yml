@@ -188,6 +188,14 @@ collections:
       - ".obsidian/**"
     context:
       "/": "agent-os, <user>'s desk: the one folder he opens and starts any AI in. AGENTS.md is the desk guide, desk/ the five moves, 01-hear to 07-report the job conveyor, BUILDING.md the builder rules."
+  agent-os-jobs:
+    includeByDefault: false
+    path: ~/agent-os/jobs
+    # The desk's jobs (2026-10-30, <user>'s pick): his ask, the plan, the report of each job, and the month's history.
+    # Not the big test and build files the jobs hold; private words stay on this computer like every collection.
+    pattern: "*/ask.md,*/plan.md,*/report.md,*/brief.md,history/*.md,in-tray.md"
+    context:
+      "/": "<user>'s desk jobs, one folder per job: ask.md (his words), plan.md (the plan he said yes to), report.md (what was done and checked), brief.md (an agent's task); history/ lists finished jobs per month. Answers why a choice was made and when something shipped."
   plans:
     includeByDefault: false
     path: ~/.claude/plans

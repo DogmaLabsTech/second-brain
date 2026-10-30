@@ -16,6 +16,11 @@ fi
 if [[ -f "$here/../chats/codex.py" ]]; then
   python3 -I "$here/../chats/codex.py" --quiet || echo "codex chat converter failed; indexing the rest anyway" >&2
 fi
+# The nodeterm canvas: new board events, agents' "finished" notes (nodeterm keeps them a few hours) and the node names
+# shown now, into ~/brain/days/canvas/ (day/canvas.py; under a second when nothing is new).
+if [[ -f "$here/../day/canvas.py" ]]; then
+  python3 -I "$here/../day/canvas.py" run --quiet || echo "canvas import failed; indexing the rest anyway" >&2
+fi
 qmd update
 # Embed every collection here except codex: its vectors are made on the test machine (index/codex-testbox.sh, <user> 2026-10-18).
 for c in $(python3 -I -c 'import os, yaml; print(" ".join(k for k in yaml.safe_load(open(os.path.expanduser("~/.config/qmd/index.yml")))["collections"] if k != "codex"))'); do

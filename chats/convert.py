@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Turn Claude Code chat logs into short, redacted markdown notes.
 
-Source : ~/.claude/projects/<encoded-cwd>/<session>.jsonl   (read only, never changed)
+Source : ~/.claude/projects/<encoded-cwd>/<session>.jsonl and each nodeterm account's
+         ~/.config/node-terminal/claude-accounts/*/projects/ (canvas agents, 2026-10-30)   (read only, never changed)
 Output : ~/brain/chats/<date>-<project>-<id>.md  (low-value chats: chats/low/, not searched)
 State  : ~/brain/chats/.state.json
 
@@ -32,6 +33,9 @@ from redact import redact  # noqa: E402
 
 HOME = os.path.expanduser("~")
 SRC = os.path.join(HOME, ".claude", "projects")
+# nodeterm starts its canvas agents with their own Claude folders (one per account); their chats live there, not in
+# SRC (2026-10-30). Same layout, read the same way.
+NODETERM_SRCS = os.path.join(".config", "node-terminal", "claude-accounts", "*", "projects")   # under HOME
 OUT = os.path.join(HOME, "brain", "chats")
 STATE_NAME = ".state.json"
 
@@ -384,9 +388,14 @@ def build_note(sess):
 
 # ---------------------------------------------------------------- discovery
 
-def _sessions_in(projdir, all_mains):
+def sources():
+    """Every Claude projects folder: ~/.claude's and each nodeterm account's."""
+    return [SRC] + sorted(glob.glob(os.path.join(HOME, NODETERM_SRCS)))
+
+
+def _sessions_in(src, projdir, all_mains):
     """The sessions of one project folder: each main chat, or a folder of subagents with no main chat anywhere."""
-    pdir = os.path.join(SRC, projdir)
+    pdir = os.path.join(src, projdir)
     mains = {os.path.basename(f)[:-6]: f for f in glob.glob(os.path.join(pdir, "*.jsonl"))
              if not os.path.basename(f).startswith("agent-")}
     dirs = {d for d in os.listdir(pdir) if os.path.isdir(os.path.join(pdir, d)) and d != "memory"}
@@ -401,11 +410,13 @@ def _sessions_in(projdir, all_mains):
 
 
 def find_sessions():
-    all_mains = {os.path.basename(f)[:-6] for f in glob.glob(os.path.join(SRC, "*", "*.jsonl"))}
+    srcs = [s for s in sources() if os.path.isdir(s)]
+    all_mains = {os.path.basename(f)[:-6] for s in srcs for f in glob.glob(os.path.join(s, "*", "*.jsonl"))}
     sessions = []
-    for projdir in sorted(os.listdir(SRC)):
-        if os.path.isdir(os.path.join(SRC, projdir)):
-            sessions += _sessions_in(projdir, all_mains)
+    for src in srcs:
+        for projdir in sorted(os.listdir(src)):
+            if os.path.isdir(os.path.join(src, projdir)):
+                sessions += _sessions_in(src, projdir, all_mains)
     return sessions
 
 

@@ -68,6 +68,11 @@ When you add, move or retire a file here, update this file in the same commit.
 - `eval/README.md`: the fair test rules. `eval/scores.tsv`: the score log (add a row, newest last).
   `eval/heldout.example.jsonl` shows the format; the real `eval/heldout.jsonl` stays on this computer.
   `eval/seen.jsonl` is the tuning set (kept drafts land here, never in heldout).
+- `day/canvas.py` (`brain canvas`, 2026-10-30): the nodeterm board logs and agents' "finished" notes as one page per
+  day in `~/brain/days/canvas/`; archive and node names in `~/.local/share/second-brain/canvas/`; run by the hourly
+  reindex and the day page. Tests: `day/test_canvas.py`.
+- `day/tests_week.py` (`brain tests-week`, 2026-10-30): agent-os's failure log and flaky lists as one page per week in
+  `~/brain/days/tests/`; the 5:00 `day nightly` writes it. Tests: `day/test_tests_week.py`.
 - `viz/` (2026-10-28): the Deck, moved in from the prototype folder. `viz/CONTEXT.md` says which file is current;
   its data (`data.js`) and talk log stay outside git (`~/.local/share/second-brain/viz/`, `~/.local/state/second-brain/`).
   Tests: `viz/server/test_server.py`, `viz/server/test_talk.py`, `viz/app/test/rules.test.js`, and the app smoke test `viz/tests/smoke.mjs`.

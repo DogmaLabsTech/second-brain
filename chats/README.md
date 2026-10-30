@@ -2,7 +2,9 @@
 
 This turns your old Claude Code chats into short notes the second brain can search.
 
-- **Reads:** `~/.claude/projects/` (one `.jsonl` file per chat). It only reads; it never changes them.
+- **Reads:** `~/.claude/projects/` (one `.jsonl` file per chat), and since 2026-10-30 the nodeterm canvas agents'
+  own Claude folders, `~/.config/node-terminal/claude-accounts/*/projects/` (same layout). It only reads; it never
+  changes them.
 - **Writes:** `~/brain/chats/`, one note per chat, named
   `<date>-<project>-<first 8 letters of the chat id>.md`. Only you can open the folder.
 
