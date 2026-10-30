@@ -26,8 +26,31 @@ Every note lives in one folder, `~/brain` (since 2026-10-28), one collection per
 | `projects` | each project's `README.md`, `CLAUDE.md`, `AGENTS.md` and `docs/` in `~/projects` |
 | `plans` | Claude's plans, `~/.claude/plans/` (Claude Code can only move them inside one project, so they stay) |
 | `agent-os-jobs` | the desk's jobs in `~/agent-os/jobs/`: your ask, the plan, the report (and an agent's brief) per job, and the month's history (2026-10-30) |
+| `media` | the descriptions (`.md` sidecars) of the screenshots, videos and GIFs agents made, in `~/Media/agents/` (2026-10-30; text only, the pictures are not read) |
 
 Your notes are only read, never changed.
+
+## The media store (2026-10-30)
+
+Every screenshot, video or GIF an agent makes goes into one place, `~/Media/agents/<project>/`, with a short description
+beside it, so you (and the brain) can find it later. Nothing is kept in project folders.
+
+```
+media add shot.png --why "the bar with the clock open, after the fix"   # moves it in, writes the description, prints the new path
+media find "bar clock"                                                  # the items that match, newest first
+media public <name>                                                     # you mark an item public (an agent is refused)
+media public --list                                                     # the public ones: the only ones the public repo may use
+media stray                                                             # media files lying in code folders (exit 1 if any)
+```
+
+- **Private until you say so.** Each description has `public: false`; only `media public` changes it.
+- The file is renamed `yyyy-mm-dd-<what>.<ext>`; the description is `<file>.md` next to it (what, why, project, date, commit, who took it).
+  `--source clip.mp4` keeps the original clip next to a GIF made from it; `--before <name>` links a "before" picture.
+- `media find` reads the descriptions directly, then the search index (collection `media`, refreshed hourly), so a new item is found at once.
+- `media stray` lists png/mp4/gif/webm files in `~/projects`, `~/agent-os` and the worktrees that git does not
+  track (the product's own tracked images are fine). `--days 2` only looks at recent files.
+- The store is in `~/Media`, which is already on the HDD, so big files need no extra step. Not in git. Nothing is deleted without you.
+- Code: `media/media.py` (`bin/media`, link it as `~/.local/bin/media`). Tests: `media/test_media.py`.
 
 ## How to search
 

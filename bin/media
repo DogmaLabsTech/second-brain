@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# media: the one store for agents' screenshots, videos and GIFs (~/Media/agents/). See media/media.py or `media --help`.
+# Symlinked to ~/.local/bin/media.
+root="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+exec python3 -I "$root/media/media.py" "$@"

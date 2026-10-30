@@ -196,6 +196,17 @@ collections:
     pattern: "*/ask.md,*/plan.md,*/report.md,*/brief.md,history/*.md,in-tray.md"
     context:
       "/": "<user>'s desk jobs, one folder per job: ask.md (his words), plan.md (the plan he said yes to), report.md (what was done and checked), brief.md (an agent's task); history/ lists finished jobs per month. Answers why a choice was made and when something shipped."
+  media:
+    includeByDefault: false
+    path: ~/Media/agents
+    # The media store (2026-10-30): the description beside each screenshot, video or GIF an agent made (`media add`).
+    # Text only: the pictures themselves are not read. Private by default (`public: false` in the sidecar).
+    pattern: "**/*.md"
+    ignore:
+      - "README.md"
+      - "CONTEXT.md"
+    context:
+      "/": "Screenshots, videos and GIFs that agents made, one folder per project: each .md sidecar says what the media shows, why it was taken, project, date, commit and who took it. The file sits beside it (same name without .md)."
   plans:
     includeByDefault: false
     path: ~/.claude/plans
