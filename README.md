@@ -447,7 +447,7 @@ To stop it, see "How to undo" below.
 | Warm speech to text | `~/.config/systemd/user/second-brain-stt.service` → `stt/` here, venv `~/.local/share/second-brain/stt-venv` |
 
 Change which folders are read: edit `index/index.yml`, then run `index/setup.sh`.
-Numbers from the first build: `docs/history/index-report.md`.
+Numbers from the first build: `~/brain/projects/second-brain/docs/history/index-report.md`.
 
 ## How to undo
 
