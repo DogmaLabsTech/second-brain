@@ -199,5 +199,64 @@ class Stray(unittest.TestCase):
             self.assertEqual(run("stray", t)[0], 0)
 
 
+class StrayWatch(unittest.TestCase):
+    def setUp(self):
+        import stray_watch
+        self.w = stray_watch
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        t = os.path.realpath(self.tmp.name)
+        self.proj = os.path.join(t, "home", "projects", "Projects", "repo-b")
+        os.makedirs(self.proj)
+        self.told = []
+        for target, value in ((media, ("HOME", os.path.join(t, "home"))), (media, ("STRAY_ROOTS", [os.path.dirname(self.proj)])),
+                              (self.w, ("STATE", os.path.join(t, "state", "counts.json")))):
+            p = mock.patch.object(target, value[0], value[1])
+            p.start()
+            self.addCleanup(p.stop)
+        p = mock.patch.object(self.w, "tell", lambda text: self.told.append(text) or True)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def stray(self, *names):
+        for n in names:
+            with open(os.path.join(self.proj, n), "wb") as f:
+                f.write(b"x")
+
+    def test_new_strays_tell_once_unchanged_stays_quiet(self):
+        self.assertEqual(self.w.main([]), 0)
+        self.assertEqual(self.told, [])  # nothing stray: quiet
+        self.stray("a.png", "b.gif")
+        self.w.main([])
+        self.assertEqual(len(self.told), 1)
+        self.assertIn("repo-b +2 (2)", self.told[0])
+        self.w.main([])
+        self.assertEqual(len(self.told), 1)  # same two files: quiet
+        self.stray("c.png")
+        self.w.main([])
+        self.assertEqual(len(self.told), 2)
+        self.assertIn("repo-b +1 (3)", self.told[1])
+
+    def test_fewer_strays_quiet_and_remembered(self):
+        self.stray("a.png", "b.png")
+        self.w.main([])
+        os.remove(os.path.join(self.proj, "b.png"))
+        self.w.main([])
+        self.assertEqual(len(self.told), 1)  # 2 -> 1: quiet, but 1 is remembered
+        self.stray("b.png")
+        self.w.main([])
+        self.assertEqual(len(self.told), 2)  # 1 -> 2 is new again
+
+    def test_failed_tell_keeps_old_counts_and_dry_run_changes_nothing(self):
+        self.stray("a.png")
+        self.assertEqual(self.w.main(["--dry-run"]), 0)
+        self.assertEqual((self.told, os.path.exists(self.w.STATE)), ([], False))
+        with mock.patch.object(self.w, "tell", lambda text: False):
+            self.assertEqual(self.w.main([]), 1)
+        self.assertFalse(os.path.exists(self.w.STATE))  # not saved: tomorrow tells again
+        self.w.main([])
+        self.assertEqual(len(self.told), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

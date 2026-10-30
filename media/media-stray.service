@@ -1,0 +1,9 @@
+[Unit]
+Description=Media: tell the deputy when a project has new stray media in its code folder
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I %h/projects/second-brain/media/stray_watch.py
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=10min
