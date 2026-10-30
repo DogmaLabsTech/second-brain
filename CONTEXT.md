@@ -73,6 +73,10 @@ When you add, move or retire a file here, update this file in the same commit.
   reindex and the day page. Tests: `day/test_canvas.py`.
 - `day/tests_week.py` (`brain tests-week`, 2026-10-30): agent-os's failure log and flaky lists as one page per week in
   `~/brain/days/tests/`; the 5:00 `day nightly` writes it. Tests: `day/test_tests_week.py`.
+- `media/media.py` (`media add|find|public|show|stray`, `bin/media`, 2026-10-30): the media store `~/Media/agents/<project>/`: every
+  screenshot, video and GIF an agent makes, with a `.md` sidecar (what, why, project, date, commit, who, `public: false`).
+  Private by default; only `media public` (<user>, never an agent) marks public. `media stray` finds untracked png/mp4/gif/webm
+  in code folders. The `media` collection in `index/index.yml` searches the sidecars. Tests: `media/test_media.py`.
 - `viz/` (2026-10-28): the Deck, moved in from the prototype folder. `viz/CONTEXT.md` says which file is current;
   its data (`data.js`) and talk log stay outside git (`~/.local/share/second-brain/viz/`, `~/.local/state/second-brain/`).
   Tests: `viz/server/test_server.py`, `viz/server/test_talk.py`, `viz/app/test/rules.test.js`, and the app smoke test `viz/tests/smoke.mjs`.
@@ -110,5 +114,6 @@ Moved into `docs/history/` on 2026-10-27. Do not use these for current numbers.
 | `obsidian/` | the Obsidian plugin and vault settings copy |
 | `wake/` | the wake-word model, training and tests |
 | `jobs/` | one small file per job |
+| `media/` | the media store command (`media add, find, public, stray`) |
 | `viz/` | the Deck (3D map of the notes): page, server, app window, map makers; its own `CONTEXT.md` |
 | `docs/` | results, plans and reports (see the lists above) |
