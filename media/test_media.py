@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -156,15 +157,42 @@ class Stray(unittest.TestCase):
             git("add", "logo.png")
             found = media.stray([t])
             self.assertEqual(found, [os.path.join(t, "clip.webm"), os.path.join(t, "stray.png")])
-            code, out, err = run("stray", t)
+            code, out, err = run("stray", t, "--list")
             self.assertEqual(code, 1)
             self.assertIn("stray.png", out)
             self.assertIn("media add", err)
+            code, out, err = run("stray", t)
+            self.assertEqual(code, 1)
+            self.assertNotIn("stray.png", out)
+            self.assertIn("(other)", out)
+            self.assertIn("2  total", out)
             self.assertEqual(media.stray(path=os.path.join(t, "logo.png")), [])
             self.assertEqual(media.stray(path=os.path.join(t, "stray.png")), [os.path.join(t, "stray.png")])
             self.assertEqual(media.stray([t], days=1)[0], os.path.join(t, "clip.webm"))
             os.utime(os.path.join(t, "clip.webm"), (1, 1))
             self.assertNotIn(os.path.join(t, "clip.webm"), media.stray([t], days=1))
+
+    def test_worktrees_skipped_unless_asked_and_counted_per_project(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        home = os.path.join(os.path.realpath(tmp.name), "home")
+        wt = os.path.join(home, ".agent-os", "worktrees", "repo-a", "w1")
+        proj = os.path.join(home, "projects", "Projects", "repo-b")
+        for d in (wt, proj):
+            os.makedirs(d)
+            for n in ("a.png", "b.png"):
+                with open(os.path.join(d, n), "wb") as f:
+                    f.write(b"x")
+        with mock.patch.object(media, "HOME", home), mock.patch.object(media, "STRAY_ROOTS", [os.path.join(home, "projects", "Projects")]):
+            self.assertEqual(media.stray(), [os.path.join(proj, "a.png"), os.path.join(proj, "b.png")])
+            self.assertEqual(len(media.stray(worktrees=True)), 4)
+            code, out, _ = run("stray")
+            self.assertIn("2  repo-b", out)
+            self.assertNotIn("repo-a", out)
+            self.assertIn("2  total", out)
+            code, out, _ = run("stray", "--worktrees")
+            self.assertIn("2  repo-a", out)
+            self.assertIn("4  total", out)
 
     def test_clean_folder_exits_0(self):
         with tempfile.TemporaryDirectory() as t:

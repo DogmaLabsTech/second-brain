@@ -40,15 +40,17 @@ media add shot.png --why "the bar with the clock open, after the fix"   # moves 
 media find "bar clock"                                                  # the items that match, newest first
 media public <name>                                                     # you mark an item public (an agent is refused)
 media public --list                                                     # the public ones: the only ones the public repo may use
-media stray                                                             # media files lying in code folders (exit 1 if any)
+media stray                                                             # a count per project of media files in code folders (exit 1 if any)
+media stray --list                                                      # the same, as a list of files
 ```
 
 - **Private until you say so.** Each description has `public: false`; only `media public` changes it.
 - The file is renamed `yyyy-mm-dd-<what>.<ext>`; the description is `<file>.md` next to it (what, why, project, date, commit, who took it).
   `--source clip.mp4` keeps the original clip next to a GIF made from it; `--before <name>` links a "before" picture.
 - `media find` reads the descriptions directly, then the search index (collection `media`, refreshed hourly), so a new item is found at once.
-- `media stray` lists png/mp4/gif/webm files in `~/projects`, `~/agent-os` and the worktrees that git does not
-  track (the product's own tracked images are fine). `--days 2` only looks at recent files.
+- `media stray` counts png/mp4/gif/webm files in `~/projects` and `~/agent-os` that git does not track, per
+  project and in total (the product's own tracked images are fine). `--list` prints the files instead; `--worktrees` also
+  looks in `~/.agent-os/worktrees` (skipped by default); `--days 2` only looks at recent files.
 - The store is in `~/Media`, which is already on the HDD, so big files need no extra step. Not in git. Nothing is deleted without you.
 - Code: `media/media.py` (`bin/media`, link it as `~/.local/bin/media`). Tests: `media/test_media.py`.
 
