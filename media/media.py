@@ -3,7 +3,9 @@
   media find "<words>" [-n N]      the items whose description matches (its path, then what it shows)
   media public <id> [--off]        mark an item public (<user> only; an agent is refused). `media public --list` shows them
   media show <id>                  the sidecar of one item
-  media stray [folder ...] [--days N] [--path FILE]   media files lying in code folders (exit 1 when there are some)
+  media stray [folder ...] [--days N] [--path FILE] [--list] [--worktrees]
+                                   media files lying in code folders: a count per project (--list: every file;
+                                   --worktrees: also ~/.agent-os/worktrees). Exit 1 when there are some
 The store is ~/Media/agents/<project>/<yyyy-mm-dd>-<what>.<ext> (MEDIA_STORE overrides; the folder is on the HDD).
 Beside each file is a sidecar `<file>.md`: front matter (file, kind, project, date, commit, by, public, ...) and the why.
 Private is the default: `public: false`. Only `media public` writes `public: true`, and the public-repo job takes only those.
@@ -247,9 +249,10 @@ def public_items():
     return [os.path.join(STORE, i) for i, m, _ in items() if is_public(m)]
 
 
-def stray(roots=None, days=None, path=None):
+def stray(roots=None, days=None, path=None, worktrees=False):
     """Media files lying in code folders: untracked or git-ignored png/mp4/gif/webm (tracked ones are the product's own
-    images). `days`: only files changed in the last N days. `path`: check just that file. Returns a sorted list."""
+    images). `days`: only files changed in the last N days. `path`: check just that file.
+    `worktrees`: also walk ~/.agent-os/worktrees (off by default). Returns a sorted list."""
     import time
     found = set()
     cutoff = time.time() - days * 86400 if days else 0
@@ -265,7 +268,7 @@ def stray(roots=None, days=None, path=None):
         if p.lower().endswith(STRAY_EXTS) and not p.startswith(os.path.realpath(STORE) + os.sep) and _untracked(p):
             found.add(p)
         return sorted(found)
-    for root in roots or _stray_roots():
+    for root in roots or _stray_roots(worktrees):
         for cur, dirs, files in os.walk(root):
             dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
             for f in files:
@@ -275,10 +278,10 @@ def stray(roots=None, days=None, path=None):
     return sorted(found)
 
 
-def _stray_roots():
+def _stray_roots(worktrees=False):
     roots = [os.path.expanduser(r) for r in STRAY_ROOTS]
     wt = os.path.join(HOME, ".agent-os", "worktrees")
-    if os.path.isdir(wt):
+    if worktrees and os.path.isdir(wt):
         for repo in sorted(os.listdir(wt)):
             roots.append(os.path.join(wt, repo))
     return [r for r in roots if os.path.isdir(r)]
@@ -323,6 +326,8 @@ def main(argv=None):
     t.add_argument("folders", nargs="*")
     t.add_argument("--days", type=int, default=None)
     t.add_argument("--path", default=None)
+    t.add_argument("--list", action="store_true", help="print every file, not a count per project")
+    t.add_argument("--worktrees", action="store_true", help="also look in ~/.agent-os/worktrees")
     args = ap.parse_args(argv)
     try:
         if args.cmd == "add":
@@ -348,12 +353,22 @@ def main(argv=None):
             with open(os.path.join(STORE, resolve(args.id) + ".md")) as f:
                 print(f.read())
         elif args.cmd == "stray":
-            found = stray([os.path.expanduser(x) for x in args.folders] or None, args.days, args.path)
-            for p_ in found:
-                print(f"stray {p_}")
+            found = stray([os.path.expanduser(x) for x in args.folders] or None, args.days, args.path, args.worktrees)
+            if args.list:
+                for p_ in found:
+                    print(f"stray {p_}")
+            else:
+                counts = {}
+                for p_ in found:
+                    name = project_of(os.path.dirname(p_)) or "(other)"
+                    counts[name] = counts.get(name, 0) + 1
+                for name in sorted(counts):
+                    print(f"{counts[name]:>5}  {name}")
+                if found:
+                    print(f"{len(found):>5}  total")
             if found:
                 print(f"{len(found)} media file(s) in code folders: put each in the store with "
-                      "`media add <file> --why \"...\"`", file=sys.stderr)
+                      "`media add <file> --why \"...\"` (`media stray --list` shows the files)", file=sys.stderr)
             return 1 if found else 0
         else:
             ap.print_help()
