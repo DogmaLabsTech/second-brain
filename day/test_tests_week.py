@@ -56,6 +56,12 @@ class Week(unittest.TestCase):
         with open(path) as f:
             self.assertEqual(f.read().count("No test failed"), 1)
 
+    def test_flaky_file_of_the_wrong_shape(self):
+        with open(os.path.join(tests_week.FLAKY, "agent-os.json"), "w") as f:
+            json.dump({"tests": ["t.a"]}, f)
+        with open(tests_week.write_week("2026-W44")) as f:
+            self.assertNotIn("on the flaky list", f.read())
+
     def test_bad_week(self):
         self.assertEqual(tests_week.main(["44"]), 2)
 

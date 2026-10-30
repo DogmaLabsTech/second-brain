@@ -93,7 +93,7 @@ class Run(Base):
         first = self.page("2026-10-29")
         os.remove(os.path.join(canvas.PAGES, "2026-10-29.md"))
         canvas.run(quiet=True)
-        self.assertFalse(os.path.exists(os.path.join(canvas.PAGES, "2026-10-29.md")), "no new events: no rewrite")
+        self.assertEqual(self.page("2026-10-29"), first, "a lost page is made again, the same")
         with open(canvas.archive_path()) as f:
             self.assertEqual(len(f.readlines()), len(LOG))
         self.put(LOG + [ev(9, "2026-10-29 11:00", A, type="station-reported", **{"from": A, "to": "succeeded"})])
@@ -144,6 +144,63 @@ class Run(Base):
             f.write("not json\n[1]\n" + json.dumps({"id": "x", "ts": "soon", "event": {}}) + "\n")
         self.assertEqual(canvas.run(quiet=True), 0)
         self.assertIn("Finished 2", self.page("2026-10-29"))
+
+
+class OddInput(Base):
+    """The checker's cases (2026-10-30): odd lines never stop the import or lose a day."""
+
+    def test_message_without_a_title(self):
+        self.put(LOG + [{"id": "x", "ts": ms("2026-10-29 11:00"), "nodeId": B,
+                         "event": {"type": "agent-message", "from": A, "to": B}}])
+        canvas.run(quiet=True)
+        self.assertIn("09:11-11:00 Pixel office · MAIN (Opus) -> agent bbbb2222: expired x2, unknown", self.page("2026-10-29"))
+
+    def test_impossible_times_are_skipped(self):
+        self.put(LOG + [{"id": "big", "ts": 1e100, "event": {"type": "card-moved"}},
+                        {"id": "nan", "ts": float("nan"), "event": {"type": "card-moved"}},
+                        {"id": "yes", "ts": True, "event": {"type": "card-moved"}}])
+        self.assertEqual(canvas.run(quiet=True), 0)
+        self.assertIn("Finished 2", self.page("2026-10-29"))
+
+    def test_odd_status_and_project_files(self):
+        for status in ({"inbox": [1]}, [], {"inbox": {"events": {"a": 1}}}, {"inbox": {"events": [{"id": [1]}]}}):
+            with open(canvas.STATUS, "w") as f:
+                json.dump(status, f)
+            self.put(LOG, [1, 2])
+            self.assertEqual(canvas.run(quiet=True), 0)
+        self.assertIn("Finished 2", self.page("2026-10-29"))
+
+    def test_a_page_that_failed_is_made_next_run(self):
+        real = canvas.page
+        canvas.page = lambda *a: (_ for _ in ()).throw(RuntimeError("boom"))
+        try:
+            canvas.run(quiet=True)
+        finally:
+            canvas.page = real
+        self.assertFalse(os.path.exists(os.path.join(canvas.PAGES, "2026-10-29.md")))
+        canvas.run(quiet=True)
+        self.assertIn("Finished 2", self.page("2026-10-29"))
+
+    def test_duplicate_archive_lines_count_once(self):
+        canvas.run(quiet=True)
+        with open(canvas.archive_path()) as f:
+            lines = f.readlines()
+        with open(canvas.archive_path(), "a") as f:
+            f.writelines(lines)   # what two runs racing without the lock would have left
+        self.put(LOG + [ev(12, "2026-10-29 14:00", A, type="card-moved", **{"from": "a", "to": "b"})])
+        canvas.run(quiet=True)
+        self.assertIn("Finished 2 · failed 1", self.page("2026-10-29"))
+
+    def test_runs_take_turns(self):
+        import threading
+        out = []
+        threads = [threading.Thread(target=lambda: out.append(canvas.run(quiet=True))) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        with open(canvas.archive_path()) as f:
+            self.assertEqual(len(f.readlines()), len(LOG))
 
 
 class Backlog(Base):

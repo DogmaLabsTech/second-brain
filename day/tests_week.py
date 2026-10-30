@@ -66,8 +66,10 @@ def failures(week):
 def listed(repo):
     try:
         with open(os.path.join(FLAKY, repo + ".json"), encoding="utf-8") as f:
-            tests = json.load(f).get("tests") or {}
+            tests = json.load(f).get("tests")
     except (OSError, ValueError, AttributeError):
+        return []
+    if not isinstance(tests, dict):   # a hand-edited list or anything else: no flaky list rather than no page
         return []
     return sorted(t for t, v in tests.items() if isinstance(v, dict) and v.get("listed"))
 

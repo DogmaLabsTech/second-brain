@@ -13,6 +13,7 @@ A day runs 5:00 to 5:00, as on the day page. No model, nothing leaves this compu
 """
 import collections
 import datetime as dt
+import fcntl
 import glob
 import json
 import os
@@ -28,6 +29,7 @@ BOARD_GLOBS = ["agent-os/.nodeterm", "nodeterm/.nodeterm", "projects/.nodeterm",
 JOB_GLOBS = ["agent-os/jobs/*/*.md", "agent-os/desk/inbox/*.md"]
 CHAT_GLOBS = [".config/node-terminal/claude-accounts/*/projects/*/*.jsonl", ".claude/projects/*/*.jsonl"]
 DAY_START = 5
+TS_MIN, TS_MAX = 946684800000, 4102444800000   # 2000 to 2100, in ms: anything else is a broken line
 SAID = 160               # characters of an agent's "finished" note
 OK_MESSAGES = {"delivered", "queued", "targetBusy"}   # busy is queued and tried again; the rest never arrived
 PROBLEM_WORDS = {"expired": "expired", "notPermitted": "not allowed", "rateLimited": "rate limited",
@@ -75,11 +77,24 @@ def read_jsonl(path):
 
 
 def read_json(path, default):
+    """The file's JSON when it has the same shape as default (a dict or a list), else default."""
     try:
         with open(path, encoding="utf-8") as f:
-            return json.load(f)
+            got = json.load(f)
     except (OSError, ValueError):
         return default
+    return got if isinstance(got, type(default)) else default
+
+
+def good_ts(v):
+    """A board time in ms, or None for a missing, odd or impossible one (NaN, 1e100, a string)."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or not TS_MIN <= v <= TS_MAX:
+        return None
+    return int(v)
+
+
+def text(v):
+    return v if isinstance(v, str) else ""
 
 
 def write(path, text):
@@ -114,8 +129,10 @@ def current_names(folders):
     """The titles nodeterm shows now, for every board."""
     out = {}
     for folder in folders:
-        for n in read_json(os.path.join(folder, "project.json"), {}).get("nodes") or []:
-            if isinstance(n, dict) and n.get("id") and n.get("title") and n.get("kind") != "group":
+        nodes = read_json(os.path.join(folder, "project.json"), {}).get("nodes")
+        for n in nodes if isinstance(nodes, list) else []:
+            if isinstance(n, dict) and isinstance(n.get("id"), str) and isinstance(n.get("title"), str) \
+                    and n.get("kind") != "group":
                 out[n["id"]] = n["title"]
     return out
 
@@ -179,31 +196,47 @@ def short_id(node):
 def board_events(folder):
     b = board_name(folder)
     for r in read_jsonl(os.path.join(folder, "board-log.jsonl")):
-        e = r.get("event")
-        if r.get("id") and isinstance(r.get("ts"), (int, float)) and isinstance(e, dict) and e.get("type"):
-            yield {"id": r["id"], "ts": int(r["ts"]), "board": b, "node": r.get("nodeId"), "event": e}
+        e, ts = r.get("event"), good_ts(r.get("ts"))
+        if isinstance(r.get("id"), str) and ts and isinstance(e, dict) and isinstance(e.get("type"), str):
+            node = r.get("nodeId") if isinstance(r.get("nodeId"), str) else None
+            yield {"id": r["id"], "ts": ts, "board": b, "node": node,
+                   "event": {k: v for k, v in e.items() if isinstance(v, str)}}   # only text fields are used
 
 
 def status_notes(path=None):
     """Agents' "finished" notes and questions from nodeterm's status file (kept there for a few hours)."""
-    inbox = read_json(path or STATUS, {}).get("inbox") or {}
-    for r in inbox.get("events") or []:
-        if not isinstance(r, dict) or not r.get("id") or not isinstance(r.get("ts"), (int, float)):
+    inbox = read_json(path or STATUS, {}).get("inbox")
+    events = inbox.get("events") if isinstance(inbox, dict) else None
+    for r in events if isinstance(events, list) else []:
+        if not isinstance(r, dict) or not isinstance(r.get("id"), (str, int)) or not good_ts(r.get("ts")):
             continue
         kind = {"done": "agent-done", "question": "agent-asked"}.get(r.get("kind"))
         if kind:
-            yield {"id": "status-" + str(r["id"]), "ts": int(r["ts"]), "board": "nodeterm", "node": r.get("nodeId"),
-                   "event": {"type": kind, "title": r.get("title") or "", "detail": r.get("detail") or ""}}
+            yield {"id": "status-" + str(r["id"]), "ts": good_ts(r["ts"]), "board": "nodeterm",
+                   "node": r.get("nodeId") if isinstance(r.get("nodeId"), str) else None,
+                   "event": {"type": kind, "title": text(r.get("title")), "detail": text(r.get("detail"))}}
 
 
 def archive_path():
     return os.path.join(DATA, "events.jsonl")
 
 
+def read_archive():
+    """The archive, each event once (by id), broken lines left out."""
+    out, seen = [], set()
+    for r in read_jsonl(archive_path()):
+        ts = good_ts(r.get("ts"))
+        if r.get("id") in seen or not ts or not isinstance(r.get("event"), dict):
+            continue
+        seen.add(r["id"])
+        out.append(r)
+    return out
+
+
 def add_to_archive(new):
-    """Append events not seen before; returns the days that got something."""
+    """Append events not seen before (the caller holds the lock); returns the days that got something."""
     path = archive_path()
-    seen = {r.get("id") for r in read_jsonl(path)}
+    seen = {r.get("id") for r in read_archive()}
     days = set()
     fresh = []
     for r in new:
@@ -221,7 +254,7 @@ def add_to_archive(new):
 
 
 def events_of(d, archive=None):
-    rows = archive if archive is not None else read_jsonl(archive_path())
+    rows = archive if archive is not None else read_archive()
     return sorted((r for r in rows if day_of(r["ts"]) == d), key=lambda r: (r["ts"], r["id"]))
 
 
@@ -300,7 +333,8 @@ def page(d, rows, names):
     if lost:
         out += ["", "## Messages that never arrived", ""]
         for (a, b), rs in sorted(lost.items(), key=lambda kv: kv[1][0]["ts"]):
-            why = collections.Counter(PROBLEM_WORDS.get(r["event"]["title"], r["event"]["title"]) for r in rs)
+            why = collections.Counter(PROBLEM_WORDS.get(r["event"].get("title"), r["event"].get("title") or "unknown")
+                                      for r in rs)
             first, last = clock(rs[0]["ts"]), clock(rs[-1]["ts"])
             span = first if first == last else f"{first}-{last}"
             out.append(f"- {span} {name(names, a)} -> {name(names, b)}: "
@@ -329,6 +363,14 @@ def page(d, rows, names):
 # ---------- commands ----------
 
 def run(quiet=False, backlog=False):
+    """One import at a time: the hourly reindex and the day page may call it together."""
+    os.makedirs(DATA, exist_ok=True)
+    with open(os.path.join(DATA, ".lock"), "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return _run(quiet, backlog)
+
+
+def _run(quiet, backlog):
     folders = boards()
     names = load_names()
     if backlog:
@@ -338,12 +380,22 @@ def run(quiet=False, backlog=False):
     names.update(current_names(folders))
     save_names(names)
     new = [r for f in folders for r in board_events(f)] + list(status_notes())
-    days, n = add_to_archive(new)
-    archive = read_jsonl(archive_path())
-    if backlog:   # names changed: every day may read better now
-        days = {day_of(r["ts"]) for r in archive}
-    for d in sorted(days):
-        write(os.path.join(PAGES, d.isoformat() + ".md"), page(d, events_of(d, archive), names))
+    _, n = add_to_archive(new)
+    archive = read_archive()
+    # A day's page is rewritten when its event count differs from the last page written (pages.json), so a page
+    # that failed once is made again next run; with --backlog every day (the names changed).
+    counts = collections.Counter(day_of(r["ts"]) for r in archive)
+    done_path = os.path.join(DATA, "pages.json")
+    done = read_json(done_path, {})
+    days = [d for d in sorted(counts) if backlog or done.get(d.isoformat()) != counts[d]
+            or not os.path.exists(os.path.join(PAGES, d.isoformat() + ".md"))]
+    for d in days:
+        try:
+            write(os.path.join(PAGES, d.isoformat() + ".md"), page(d, events_of(d, archive), names))
+            done[d.isoformat()] = counts[d]
+        except Exception as why:   # noqa: BLE001 - one bad day must not stop the others; it is tried again next run
+            print(f"canvas: page {d} skipped: {why!r}", file=sys.stderr)
+    write(done_path, json.dumps(done, indent=1, sort_keys=True) + "\n")
     if not quiet:
         print(f"canvas: {n} new event{'s' if n != 1 else ''}, {len(days)} day page{'s' if len(days) != 1 else ''} "
               f"written, {len(names)} names known")
