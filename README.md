@@ -56,6 +56,7 @@ media stray --list                                                      # the sa
   the first run has no baseline, so it tells once). Not switched on until you say yes. To switch on:
   `ln -s ~/projects/second-brain/media/media-stray.{service,timer} ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now media-stray.timer`.
   Off: `systemctl --user disable --now media-stray.timer && rm ~/.config/systemd/user/media-stray.{service,timer}`.
+  From the timer `agent-os tell` exits 5 but still saves the text ("saved in"); that counts as told. A real failure exits 1 and keeps the old counts.
   Try it without telling: `python3 -I media/stray_watch.py --dry-run`.
 - The store is in `~/Media`, which is already on the HDD, so big files need no extra step. Not in git. Nothing is deleted without you.
 - Code: `media/media.py` (`bin/media`, link it as `~/.local/bin/media`). Tests: `media/test_media.py`.
