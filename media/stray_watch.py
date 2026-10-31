@@ -56,8 +56,13 @@ def line(new):
 
 
 def tell(text):
-    r = subprocess.run([AGENT_OS, "tell", DEPUTY, text, "--from", "media-stray-watch"], capture_output=True, timeout=60)
-    return r.returncode == 0
+    """True when the deputy's inbox has the text. From a systemd service `agent-os tell` exits 5 (not a nodeterm node)
+    but still saves the text and says "saved in", so that counts as delivered."""
+    try:
+        r = subprocess.run([AGENT_OS, "tell", DEPUTY, text, "--from", "media-stray-watch"], capture_output=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):  # binary missing, timeout
+        return False
+    return r.returncode == 0 or b"saved in" in r.stdout
 
 
 def main(argv=None):

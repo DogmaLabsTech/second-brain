@@ -203,6 +203,7 @@ class StrayWatch(unittest.TestCase):
     def setUp(self):
         import stray_watch
         self.w = stray_watch
+        self.real_tell = stray_watch.tell
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         t = os.path.realpath(self.tmp.name)
@@ -256,6 +257,34 @@ class StrayWatch(unittest.TestCase):
         self.assertFalse(os.path.exists(self.w.STATE))  # not saved: tomorrow tells again
         self.w.main([])
         self.assertEqual(len(self.told), 1)
+
+    def run_tell(self, **kw):
+        p = mock.patch.object(self.w, "tell", self.real_tell)
+        p.start()
+        self.addCleanup(p.stop)
+        return mock.patch.object(self.w.subprocess, "run", **kw)
+
+    def test_tell_rc5_with_saved_in_counts_as_delivered_and_saves_counts(self):
+        self.stray("a.png")
+        r = subprocess.CompletedProcess([], 5, stdout=b"abc saved in /x/desk/inbox/y.md\n", stderr=b"Canvas control is not available")
+        with self.run_tell(return_value=r):
+            self.assertEqual(self.w.main([]), 0)
+        self.assertEqual(self.w.load_last(), {"repo-b": 1})
+
+    def test_tell_rc0_is_delivered(self):
+        r = subprocess.CompletedProcess([], 0, stdout=b"", stderr=b"")
+        with self.run_tell(return_value=r):
+            self.assertTrue(self.w.tell("x"))
+
+    def test_tell_real_failures_are_clean_and_keep_counts(self):
+        self.stray("a.png")
+        failures = (subprocess.CompletedProcess([], 5, stdout=b"", stderr=b"nope"),
+                    subprocess.TimeoutExpired("agent-os", 60), FileNotFoundError("agent-os"))
+        for f in failures:
+            kw = {"return_value": f} if isinstance(f, subprocess.CompletedProcess) else {"side_effect": f}
+            with self.run_tell(**kw), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(self.w.main([]), 1)
+            self.assertFalse(os.path.exists(self.w.STATE))
 
 
 if __name__ == "__main__":
