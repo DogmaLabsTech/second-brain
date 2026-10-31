@@ -87,7 +87,7 @@ def load_start(path=START, name="agent_os_start"):
 
 def known_projects():
     """The real project list, plus the names these tests use if this machine doesn't have them."""
-    return sorted(set(jobs.project_names()) | {"agent-os", "example-game", "example", "example-rpg"})
+    return sorted(set(jobs.project_names()) | {"agent-os", "example-game", "example", "example-rpg", "example-board"})
 
 
 class Fakes(unittest.TestCase):
@@ -106,7 +106,15 @@ class Fakes(unittest.TestCase):
             with open(path, "w") as f:
                 f.write(body % {"py": sys.executable, "name": FOLDER_NAME})
             os.chmod(path, 0o755)
-        env = {"PATH": self.bin + os.pathsep + os.environ.get("PATH", ""), "AGENT_OS_BIN": self.fake,
+        # agent-os-boss checks the project on disk in its own process, so a fixture HOME holds the projects the tests use
+        # (code folders, and agent-os as a note in the brain like on the real machine): the result no longer depends on
+        # which machine the tests run on.
+        self.fake_home = os.path.join(self.tmp, "home")
+        for name in ("example-game", "example", "example-rpg", "example-board"):
+            os.makedirs(os.path.join(self.fake_home, "projects", "Projects", name))
+        os.makedirs(os.path.join(self.fake_home, "brain", "projects"))
+        open(os.path.join(self.fake_home, "brain", "projects", "agent-os.md"), "w").close()
+        env = {"HOME": self.fake_home, "PATH": self.bin + os.pathsep + os.environ.get("PATH", ""), "AGENT_OS_BIN": self.fake,
                "AGENT_OS_HOME": self.home, "FAKE_CALLS": self.calls_file}
         patcher = mock.patch.dict(os.environ, env)
         patcher.start()
