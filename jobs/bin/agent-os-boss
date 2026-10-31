@@ -23,7 +23,7 @@ import sys
 HOME = os.path.expanduser("~")
 DEFAULT_BIN = os.path.join(HOME, "agent-os", "bin", "agent-os")
 PROJECT_DIRS = (os.path.join(HOME, "projects", "Projects"), os.path.join(HOME, "projects", "experiments"),
-                os.path.join(HOME, "projects", "project-manager", "projects"))
+                os.path.join(HOME, "projects", "project-manager", "projects"), os.path.join(HOME, "brain", "projects"))
 SAFE_REPO = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,80}")
 FAILED = "I couldn't prepare that job."
 PREPARE_SECONDS = 30
@@ -39,7 +39,7 @@ def agent_os_bin():
 
 
 def known(repo):
-    """A project <user> has: a folder in Projects or experiments, or a project-manager page (<name>.md)."""
+    """A project <user> has: a folder in Projects or experiments, or a project note in the brain (<name>/ or <name>.md)."""
     if not SAFE_REPO.fullmatch(repo) or repo in ("desk", ".", "..", "README", "REGISTRY"):
         return False
     return any(os.path.isdir(os.path.join(d, repo)) or os.path.isfile(os.path.join(d, repo + ".md"))
