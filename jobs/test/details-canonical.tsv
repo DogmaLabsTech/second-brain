@@ -1,66 +1,4 @@
 # job<TAB>a plain command the word rules already get right (its job and details are the expected answer)
-open-app	open spotify
-open-app	open discord
-open-app	open obsidian
-open-app	open a terminal
-open-app	open the browser
-open-app	open files
-open-app	open visual studio code
-open-app	open google chrome
-open-app	open slack
-open-app	open telegram
-open-app	open blender
-open-app	open obs studio
-open-app	open spotify on my left screen
-open-app	open discord on my other screen
-open-app	open obsidian on the right screen
-open-app	open zoom
-open-file	open my downloads folder
-open-file	open my documents folder
-open-file	open the example-rpg folder
-open-file	open the kingdom regional map
-open-file	open my screenshots folder
-open-file	open the example-game arena how to play
-open-file	open my videos folder
-open-file	open the anime wallpapers folder
-open-file	open the user shorts folder
-open-file	open the installers folder
-open-file	open the stoic v2 folder
-open-file	open how tests run on another device
-send-file	send the latest screenshot to the laptop
-send-file	send the latest screenshot to my phone
-send-file	send the kingdom regional map to my phone
-send-file	send the latest example-game files to the laptop
-send-file	send how tests run on another device to the laptop
-send-file	send the latest screenshot to the testbox
-send-file	send the kingdom regional map to the laptop
-send-file	send the latest example-rpg files to the laptop
-send-file	send how tests run on another device to my phone
-desktop	next theme
-desktop	take a screenshot
-desktop	turn the night light on
-desktop	turn the night light off
-desktop	lock the screen
-desktop	remind me in 10 minutes to check the oven
-desktop	remind me in 1 hour to call the bank
-desktop	go to workspace 3
-desktop	go to workspace 7
-desktop	keep the screen awake
-desktop	turn the computer volume up
-desktop	turn the computer volume down
-desktop	mute the mic
-desktop	turn on do not disturb
-desktop	show my reminders
-desktop	open the emoji picker
-desktop	turn bluetooth off
-desktop	move this window to my other screen
-desktop	move this window to the left screen
-desktop	screenshot part of the screen
-desktop	start recording the screen
-desktop	stop the screen recording
-desktop	shut down the computer
-desktop	open the clipboard history
-desktop	show my keyboard shortcuts
 start-claude	start a claude on example-game
 start-claude	start a claude on example
 start-claude	start a claude on example-rpg
@@ -71,10 +9,3 @@ start-claude	start a claude on example-board
 start-claude	start a claude on example-kitchen
 start-claude	start a claude on the second brain
 start-claude	start a claude on example-studio
-tv	turn the tv up
-tv	turn the tv down
-tv	mute the tv
-music	next song
-music	pause the music
-music	play the music
-music	previous song

@@ -1,22 +1,22 @@
-# qmd config for <user>'s second brain. Installed to ~/.config/qmd/index.yml by index/setup.sh.
+# qmd config for second-brain. brain onboard writes ~/.config/qmd/index.yml from this file plus one
+# "notes-<name>" collection for every notes folder you choose; index/setup.sh installs it by hand.
 # qmd always skips node_modules, .git, .cache, vendor, dist, build on its own.
-global_context: "<user>'s second brain: one folder, ~/brain, with sections for rules, agent memory, project notes, his Omarchy Linux computer (desktop), his business the business, private notes, chat summaries, day pages, an inbox and history; plus his code projects' guides, his desk (agent-os), experiments, his content library and Claude's saved plans. Search advice: in each `query` call send one lex search and one vec search (no more), set rerank to false, and always give an intent."
+global_context: "A personal second brain: one folder, ~/brain, with sections for rules, agent memory, project notes, private notes, chat histories, day pages and an inbox, plus any notes folders you added."
 # includeByDefault: false on every collection is on purpose. When a search names no collection,
 # qmd then searches all notes as one list. With the default (true) it ran one list per collection
-# and took turns between them, so the 2nd and 3rd results were the best of *other* collections,
-# however poor (found 2026-10-15, docs/checkup.md).
-# One brain (2026-10-28): every note lives in ~/brain, one collection per section (keep in step with ask/ask.py
-# COLLECTIONS). Each section's README.md and CONTEXT.md say how the section works; they are not notes.
+# and took turns between them, so the 2nd and 3rd results were the best of *other* collections.
+# Keep this list in step with ask/ask.py COLLECTIONS. Each section's README.md and CONTEXT.md say how the
+# section works; they are not notes.
 collections:
   brain:
     includeByDefault: false
     path: ~/brain
-    # Only the files at the top: OPEN-ITEMS.md and the brain's own README (the map of the sections).
+    # Only the files at the top: the brain's own README (the map of the sections).
     pattern: "*.md"
     ignore:
       - "CONTEXT.md"
     context:
-      "/": "The top of <user>'s brain: OPEN-ITEMS.md (what is still open on the computer) and README.md (which section holds what)."
+      "/": "The top of the brain: README.md says which section holds what."
   rules:
     includeByDefault: false
     path: ~/brain/rules
@@ -25,22 +25,19 @@ collections:
       - "README.md"
       - "CONTEXT.md"
     context:
-      "/": "Standing rules for every agent: the full text behind the short CLAUDE.md and AGENTS.md pointers (the bar, the test VM, tests on the test machine, hosting, big files, token rules)."
+      "/": "Standing rules for every agent: how you want work done."
   memory:
     includeByDefault: false
     path: ~/brain/agents
-    # The agent memory (job 1, 2026-10-27; in ~/brain/agents since 2026-10-28): rules and lessons for agents, one note
-    # per file, under projects/<repo>/rules|lessons and all-projects/. Project and kind come from the path.
+    # Rules and lessons for agents, one note per file, under projects/<repo>/rules|lessons and all-projects/.
     pattern: "**/*.md"
     ignore:
-      # Not kept yet: drafts wait for <user>'s keep or drop and are never pushed to agents.
+      # Drafts wait for your keep or drop and are never pushed to agents.
       - "drafts/**"
-      # How the store works, not notes.
       - "README.md"
       - "CONTEXT.md"
     context:
-      "/": "Agent memory (rules and lessons for agents): one short note per file, with front matter (project, kind, date, summary, files, pinned). The folder path says the project and the kind: projects/<repo>/rules or lessons, or all-projects/."
-      "/history": "History: retired agent notes, kept for the record. May be out of date; the current notes sit in projects/ and all-projects/."
+      "/": "Agent memory: rules and lessons learned, by project."
   project-notes:
     includeByDefault: false
     path: ~/brain/projects
@@ -48,197 +45,54 @@ collections:
     ignore:
       - "README.md"
       - "CONTEXT.md"
-      # Excalidraw drawings: page after page of shape data, no words.
-      - "**/*.excalidraw.md"
     context:
-      "/": "One page per code project (<repo>.md: what it is, where it lives, its state and next steps) and a folder per project (<repo>/) with its agent notes: the full old AGENTS.md (agents-md.md), references, handoffs, briefs, plans and history."
-  computer:
-    includeByDefault: false
-    path: ~/brain/computer
-    pattern: "**/*.md"
-    ignore:
-      - "README.md"
-      - "CONTEXT.md"
-      - "**/.secrets/**"
-      - "**/.env*"
-    context:
-      "/": "Computer notes: how <user>'s Omarchy Linux desktop is set up (system/: the top bar, services, network, hosting, disks), the test machine test box (testbox-handheld/), the friend's PC (friend-pc/) and Claude Code setup (claude-code/)."
-      # history/ folders (2026-10-16 tidy): dated logs, backups, audits and finished handoffs. Kept findable, marked old.
-      "/system/history": "History: dated logs, backups and finished handoffs about the computer setup. May be out of date; the current notes are in system/."
-      "/claude-code/history": "History: dated build logs, audits, tests and team reports about Claude Code mods and the second decider/the local decider. May be out of date; the current notes are in claude-code/."
-      "/testbox-handheld/history": "History: old backups of test machine scripts."
-  business:
-    includeByDefault: false
-    path: ~/brain/business
-    pattern: "**/*.md"
-    ignore:
-      - "README.md"
-      - "CONTEXT.md"
-      - "**/.secrets/**"
-      - "**/.env*"
-    context:
-      "/": "the business business notes: company, clients, leads, outreach, marketing, money, playbooks. The websites' code is in projects."
-      "/playbook": "The current sales rules: pricing, offer, who to contact and who to disqualify, call script, cold emails."
-      "/outreach/calls/dossiers": "One research dossier per lead business, for calling them. Not the general rules."
-      "/leads": "One file per lead business found in research. Not the general rules."
-      "/logs": "Day-by-day work logs."
+      "/": "Notes about your projects: plans, decisions and history, one folder per project."
   private:
     includeByDefault: false
     path: ~/brain/private
-    # Searched on this computer only: ask/ask.py local_only() keeps every note here away from online models (the
-    # local writer answers), and the chats' door (ask/chat_proxy.py) drops these results before they reach a chat.
+    # Never leaves this computer: no online model ever sees these notes.
     pattern: "**/*.md"
     ignore:
       - "README.md"
       - "CONTEXT.md"
     context:
-      "/": "<user>'s private notes (finance, his own notes and drawings). Local only: never sent to an online model."
+      "/": "Private notes. They stay on this computer."
   chats:
     includeByDefault: false
     path: ~/brain/chats
+    # Your Claude Code chats as notes (chats/convert.py). Low-value chats go to low/ and are not indexed.
     pattern: "**/*.md"
-    context:
-      "/": "Short notes made from <user>'s old Claude Code chats: what he asked and what Claude answered, one note per chat, secrets blanked out."
-    # Tests, scratch runs, automated PM builder runs and near-empty chats (chats/convert.py, low_value).
-    # codex/ is its own collection (below).
     ignore:
-      - "README.md"
-      - "CONTEXT.md"
-      - "low/**"
       - "codex/**"
+      - "low/**"
+      - "README.md"
+    context:
+      "/": "Past Claude Code chats, one note per chat, with secrets removed."
   codex:
     includeByDefault: false
     path: ~/brain/chats/codex
     pattern: "**/*.md"
-    context:
-      "/": "Short notes made from <user>'s Codex chats: what he asked and what Codex answered, one note per chat, secrets blanked out."
-    # Codex helper sessions, tests, scratch runs and near-empty chats (chats/codex.py). Their vectors are made on
-    # the test machine (index/codex-testbox.sh); the hourly embed here skips this collection.
     ignore:
-      - "low/**"
+      - "README.md"
+    context:
+      "/": "Past Codex chats, one note per chat, with secrets removed."
   days:
     includeByDefault: false
     path: ~/brain/days
     pattern: "**/*.md"
-    ignore:
-      - "README.md"
-      - "CONTEXT.md"
     context:
-      "/": "Day pages and morning standups (day/day.py): what moved on each day (5 am to 5 am, or to goodnight), grouped per project, logged changes, folders that changed without a note, and what ran overnight."
+      "/": "Day pages: what moved each day, standups and weekly pages."
   inbox:
     includeByDefault: false
     path: ~/brain/inbox
     pattern: "**/*.md"
     ignore:
       - "README.md"
-      - "CONTEXT.md"
     context:
-      "/": "<user>'s remember list (remembered.md: things to do later) and what end of day ticked off (done.md)."
-  history:
-    includeByDefault: false
-    path: ~/brain/history
-    pattern: "**/*.md"
-    ignore:
-      - "README.md"
-      - "CONTEXT.md"
-      - "**/*.excalidraw.md"
-    context:
-      "/": "History: records kept for the past, may be out of date."
-      "/project-manager": "The retired project manager (PM, until 2026-10-28): its plans, decisions, handoffs and the log of what each PM did. Old; current project pages are in project-notes."
-  projects:
-    includeByDefault: false
-    path: ~/projects
-    # Every top-level guide (README, AGENTS, PRODUCT, DESIGN, ROADMAP, TASKS, DEPLOY, ...) plus docs/.
-    pattern: "*/*.md,*/docs/**/*.md"
-    ignore:
-      # These only say "@AGENTS.md"; the AGENTS.md next to them is indexed.
-      - "bullpen/CLAUDE.md"
-      - "example-classifier/CLAUDE.md"
-      - "user-labs-school/CLAUDE.md"
-      - "example-client/CLAUDE.md"
-      - "example-movies/CLAUDE.md"
-      - "example-board/CLAUDE.md"
-      - "example-power/CLAUDE.md"
-      # A translated copy of the English read-me.
-      - "user-labs-school/README-zh.md"
-      - "**/.claude/**"
-      - "**/.worktrees/**"
-      # The brain's own test reports quote questions and answers; they outranked the real notes.
-      - "second-brain/docs/**"
-      - "**/.venv/**"
-      - "**/.secrets/**"
-      - "**/.env*"
-    context:
-      "/": "Guides and docs for <user>'s own code projects (one folder per app): read-me, CLAUDE.md, AGENTS.md and docs/."
-  agent-os:
-    includeByDefault: false
-    path: ~/agent-os
-    # <user>'s desk, moved out of Projects/ to ~/agent-os on 2026-10-17. Its guides, stage and desk CONTEXT files, docs,
-    # and since 2026-10-19 the lessons (lore/: stories of real mistakes).
-    pattern: "*.md,*/CONTEXT.md,*/*/CONTEXT.md,docs/**/*.md,lore/*.md"
-    ignore:
-      # These only point at AGENTS.md, which is indexed.
-      - "CLAUDE.md"
-      - "GEMINI.md"
-      - "jobs/**"
-      - "eval/**"
-      # Read-only links to the project manager, the remember list and day pages (already indexed elsewhere), and the
-      # Obsidian app settings (2026-10-18).
-      - "views/**"
-      - ".obsidian/**"
-    context:
-      "/": "agent-os, <user>'s desk: the one folder he opens and starts any AI in. AGENTS.md is the desk guide, desk/ the five moves, 01-hear to 07-report the job conveyor, BUILDING.md the builder rules."
-  agent-os-jobs:
-    includeByDefault: false
-    path: ~/agent-os/jobs
-    # The desk's jobs (2026-10-30, <user>'s pick): his ask, the plan, the report of each job, and the month's history.
-    # Not the big test and build files the jobs hold; private words stay on this computer like every collection.
-    pattern: "*/ask.md,*/plan.md,*/report.md,*/brief.md,history/*.md,in-tray.md"
-    context:
-      "/": "<user>'s desk jobs, one folder per job: ask.md (his words), plan.md (the plan he said yes to), report.md (what was done and checked), brief.md (an agent's task); history/ lists finished jobs per month. Answers why a choice was made and when something shipped."
+      "/": "Things waiting to be sorted."
   media:
     includeByDefault: false
     path: ~/Media/agents
-    # The media store (2026-10-30): the description beside each screenshot, video or GIF an agent made (`media add`).
-    # Text only: the pictures themselves are not read. Private by default (`public: false` in the sidecar).
-    pattern: "**/*.md"
-    ignore:
-      - "README.md"
-      - "CONTEXT.md"
-    context:
-      "/": "Screenshots, videos and GIFs that agents made, one folder per project: each .md sidecar says what the media shows, why it was taken, project, date, commit and who took it. The file sits beside it (same name without .md)."
-  plans:
-    includeByDefault: false
-    path: ~/.claude/plans
-    pattern: "*.md"
-    context:
-      "/": "Plans Claude wrote in plan mode and <user> approved, one per task. Dated by the file; newer plans may replace older ones."
-  experiments:
-    includeByDefault: false
-    path: ~/projects/experiments
-    pattern: "**/*.md"
-    ignore:
-      - "**/node_modules/**"
-      - "**/.claude/**"
-      - "**/.secrets/**"
-      - "**/.env*"
-    context:
-      "/": "<user>'s code experiments and test builds (Example Game spikes, example-rpg briefs, small tries): briefs, session notes, read-mes."
-  content:
-    includeByDefault: false
-    path: ~/projects/assets/content-library
     pattern: "**/*.md"
     context:
-      "/": "<user>'s content library: one numbered folder per content idea, with its read-me and copy (the words used)."
-  # Marked for retirement (t10b, 2026-10-22): the Hermes agent stopped in September 2026. `brain status` and the
-  # check-up name it; remove it only when <user> says so (qmd collection remove hermes, then delete this block).
-  hermes:
-    includeByDefault: false
-    path: ~/.hermes
-    pattern: "memories/*.md,SOUL.md"
-    context:
-      "/": "Hermes, an AI agent <user> ran in September 2026: what it remembered about him (USER.md), its notes (MEMORY.md) and its personality (SOUL.md)."
-models:
-  embed: hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf
-  generate: hf:tobil/qmd-query-expansion-1.7B-gguf/qmd-query-expansion-1.7B-q4_k_m.gguf
-  rerank: hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf
+      "/": "Notes about pictures, videos and other media your agents made."

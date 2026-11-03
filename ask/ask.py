@@ -66,32 +66,42 @@ INTENT_SECONDS = float(os.environ.get("BRAIN_INTENT_SECONDS", "2.5"))
 NOT_FOUND = "I couldn't find that in your notes."
 SAY_AGAIN = "Sorry, say that again?"
 COLLECTIONS = {
-    # One brain (~/brain, 2026-10-28): one collection per section. Repo guides, the desk, experiments and the
-    # content library stay where they are; plans stay in ~/.claude/plans (Claude Code can't write them elsewhere).
+    # One brain (~/brain): one collection per section.
     "brain": os.path.join(HOME, "brain"),
     "rules": os.path.join(HOME, "brain", "rules"),
     "memory": os.path.join(HOME, "brain", "agents"),
     "project-notes": os.path.join(HOME, "brain", "projects"),
-    "computer": os.path.join(HOME, "brain", "computer"),
-    "business": os.path.join(HOME, "brain", "business"),
     "private": os.path.join(HOME, "brain", "private"),
     "chats": os.path.join(HOME, "brain", "chats"),
     "codex": os.path.join(HOME, "brain", "chats", "codex"),
     "days": os.path.join(HOME, "brain", "days"),
     "inbox": os.path.join(HOME, "brain", "inbox"),
-    "history": os.path.join(HOME, "brain", "history"),
-    "plans": os.path.join(HOME, ".claude", "plans"),
-    "projects": os.path.join(HOME, "projects", "Projects"),
-    "experiments": os.path.join(HOME, "projects", "experiments"),
-    "content": os.path.join(HOME, "projects", "assets", "content-library"),
-    "hermes": os.path.join(HOME, ".hermes"),
-    "agent-os": os.path.join(HOME, "agent-os"),
-    "agent-os-jobs": os.path.join(HOME, "agent-os", "jobs"),
     "media": os.path.join(HOME, "Media", "agents"),
 }   # keep in step with index/index.yml
+
+
+def _added_collections():
+    """The notes-<name> collections that brain onboard added to the qmd config: name -> folder. Empty when there is none."""
+    conf = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "qmd", "index.yml")
+    found, name = {}, None
+    try:
+        for line in open(conf, encoding="utf-8"):
+            m = re.match(r"^  ([A-Za-z0-9][\w.-]*):\s*$", line)
+            if m:
+                name = m.group(1)
+                continue
+            m = re.match(r"^    path:\s*(.+?)\s*$", line)
+            if m and name and name not in COLLECTIONS:
+                found[name] = os.path.expanduser(m.group(1).strip("\"'"))
+    except OSError:
+        pass
+    return found
+
+
+COLLECTIONS.update(_added_collections())
 MODEL_SHORT = {"qwen2.5:3b": "qwen2.5", "granite4.2:3b": "granite4.2", "gpt-oss:20b": "gpt-oss"}
 
-SYSTEM = """You answer <user>'s question using only his notes below.
+SYSTEM = """You answer the user's question using only their notes below.
 Rules:
 - 1 to 3 short sentences. Plain, simple words a 5-year-old could follow. Keep names, commands and numbers exactly as the notes write them.
 - Start with the title of the note that answers it, like this: "Your <title> note says ...". Use the real title from the notes; pick the note that really answers the question, not just the first one.
@@ -743,16 +753,12 @@ def _word_rule_fix(q, rule, label, by, again):
         label, by = f"job:{rule}", "rule"
     elif label[4:] in jobslib.AGENT_JOBS and rule != label[4:] and jobslib.two_asks(q, label[4:]):
         label, again = "unsure", True   # two asks in one line never hand off to agent-os: say it again
-    elif rule in jobslib.DESKTOP_JOBS + jobslib.DAY_JOBS and label in ("question", "chitchat", "job:open-note"):
+    elif rule in jobslib.DAY_JOBS and label in ("question", "chitchat", "job:open-note"):
         label, by = f"job:{rule}", "rule"
-    elif jobslib.route_label(rule, label, q) != label:   # "send it to the laptop" is not an open-file
-        label, by = jobslib.route_label(rule, label, q), "rule"
     return label, by, again
 
 
 def _question_not_job(q, rule, label):
-    if label[4:] in jobslib.DESKTOP_JOBS and jobslib.is_how_question(q):
-        return "question"
     if label[4:] in jobslib.AGENT_JOBS and rule != label[4:] and jobslib.is_how_question(q):
         return "question"   # "what should I fix on my remember list?" is a question, whatever the decider says
     return label

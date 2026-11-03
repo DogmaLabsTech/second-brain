@@ -1,9 +1,0 @@
-{
-  "id": "music",
-  "label": "{action_words}",
-  "phrases": ["pause the music", "play", "next song", "skip this", "previous track", "resume the music"],
-  "match": "^(?!.*\\b(record|recording|theme|wallpaper|background|workspace|reminder)\\b)(please )?(play|pause|resume|stop|skip|next|previous|go back)\\b.*|\\b(song|track|music)\\b.*\\b(next|previous|pause|play|skip|stop)\\b|\\b(next|previous) (song|track)\\b",
-  "needs_confirm": false,
-  "args": {"action": ["PlayPause", "Play", "Pause", "Next", "Previous"]},
-  "command": ["{jobs}/bin/music", "{action}"]
-}

@@ -23,8 +23,7 @@ sys.path.insert(0, JOBS)
 import details  # noqa: E402
 import jobs  # noqa: E402
 
-KEYS = {"open-app": ("app", "monitor"), "open-file": ("path",), "open-note": ("path",), "send-file": ("device", "paths"),
-        "desktop": ("action", "value"), "start-claude": ("project",), "tv": ("action",), "music": ("action",)}
+KEYS = {"open-note": ("path",), "start-claude": ("project",)}
 
 
 def tsv(name):
@@ -59,14 +58,6 @@ def make():
 
 # <user>'s real island asks (asks.jsonl, from: island, 2026-10-15) with the details they should give.
 REAL = """# real
-open-file	open my downloads folder	open my downloads folder
-open-app	Open Spotify.	open spotify
-open-app	Can you open up VS Code on my second monitor?	open visual studio code on my other screen
-open-app	Can you open up Chrome?	open google chrome
-send-file	Can you send the latest example-game files to the laptop?	send the latest example-game files to the laptop
-send-file	Send a screenshot to the laptop.	send the latest screenshot to the laptop
-desktop	Can you turn my brightness up to eighty percent?	-
-send-file	I'm gonna send it over to the laptop. I don't want it if the laptop	-
 """
 
 
@@ -103,7 +94,7 @@ def run(save=False):
             res["writer"]["used"] += 1
         if b.get("details") in ("local", "none"):
             res["writer"]["local_ms"].append(ms)
-        is_real = i >= len(rows) - 8
+        is_real = i >= len(rows) - (len(REAL.strip().splitlines()) - 1)   # REAL's rows are the last ones
         for name, r in (("rules", a), ("writer", b)):
             got = key(r)
             v = "right" if got == want else "none" if got is None else "wrong"

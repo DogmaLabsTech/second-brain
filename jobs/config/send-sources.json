@@ -1,4 +1,0 @@
-{
-  "_note": "Extra folders to look in when <user> says 'send the latest <project> files to the laptop'. Key = the project's folder name under projects (lowercase, dashes). Value = folders (~ works). They are searched two levels deep for shareable files, on top of Downloads/<project>, files named after the project in Downloads, Documents, Media and _inbox, and the project's own folder.",
-  "example-game": []
-}

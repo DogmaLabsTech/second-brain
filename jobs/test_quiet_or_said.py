@@ -1,5 +1,5 @@
-"""Files that may be missing stay quiet; files that are broken or unreadable are said (details.py, sendfiles.py,
-bars.py, asklog.py, convert.py): python3 -I jobs/test_quiet_or_said.py"""
+"""Files that may be missing stay quiet; files that are broken or unreadable are said (details.py,
+asklog.py, convert.py): python3 -I jobs/test_quiet_or_said.py"""
 import contextlib
 import io
 import os
@@ -13,10 +13,8 @@ ROOT = os.path.dirname(HERE)
 for d in (HERE, os.path.join(ROOT, "deciders"), os.path.join(ROOT, "ask"), os.path.join(ROOT, "chats")):
     sys.path.insert(0, d)
 import asklog  # noqa: E402
-import bars  # noqa: E402
 import convert  # noqa: E402
 import details  # noqa: E402
-import sendfiles  # noqa: E402
 
 
 @contextlib.contextmanager
@@ -56,15 +54,6 @@ class Files(unittest.TestCase):
             os.environ.pop("BRAIN_DETAILS", None)
             self.check(details.on, "{oops", False, ('{"on": true}', True))
 
-    def test_sendfiles_sources(self):
-        with mock.patch.object(sendfiles, "SOURCES", self.path):
-            self.check(sendfiles._sources, "{oops", {}, ('{"example": ["~/x"]}', {"example": ["~/x"]}))
-
-    def test_bars_load(self):
-        with mock.patch.object(bars, "PATH", self.path):
-            self.check(lambda: bars.load("ck"), "{oops", {},
-                       ('{"checkpoint": "ck", "bars": {"a": 0.9}}', {"a": 0.9}))
-
     def test_asklog_read(self):
         self.check(lambda: asklog.read(self.path), "{oops\n", [], ('{"id": "1"}\n', [{"id": "1"}]))
 
@@ -85,7 +74,7 @@ class Fill(unittest.TestCase):
         with mock.patch.object(details, "schema", return_value={"type": "object"}), \
                 mock.patch.object(details, "loaded", return_value=True), \
                 mock.patch.object(details.http.client, "HTTPConnection", side_effect=error), stderr() as err:
-            return details.fill("open-app", "open spotify"), err.getvalue()
+            return details.fill("start-claude", "start a claude on example"), err.getvalue()
 
     def test_a_writer_that_is_down_is_said(self):
         got, out = self.fill(ConnectionRefusedError("down"))

@@ -219,7 +219,7 @@ class SayAgain(unittest.TestCase):
         self.assertEqual(out["answer"], ask.NOT_FOUND)
         out = self.run_ask("what port does rockceen run on", {"label": "unsure", "confidence": 0.3, "by": "fallback"})
         self.assertEqual(out["answer"], ask.NOT_FOUND)
-        out = self.run_ask("pause the music", {"label": "unsure", "confidence": 0.9, "by": "local_decider"})
+        out = self.run_ask("remember that the dentist is on friday", {"label": "unsure", "confidence": 0.9, "by": "local_decider"})
         self.assertEqual(out["kind"], "job")   # a word rule fits: the rule still wins
 
 

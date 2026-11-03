@@ -392,15 +392,6 @@ class Jobs(unittest.TestCase):
         self.assertEqual(self.job("what did I get done yesterday")["args"], {"when": "yesterday"})
         self.assertIsNone(jobs.match_rule("what changed in the bar config"))
 
-    def test_goodnight_asks_first(self):
-        for t in ("goodnight", "ok I'm going to bed", "close out the day", "bedtime", "end of day", "EOD",
-                  "okay end of the day"):
-            j = self.job(t)
-            self.assertEqual((j["id"], j["needs_confirm"]), ("goodnight", True), t)
-            self.assertIn("day eod", j["command"])
-        self.assertNotEqual(jobs.match_rule("good night light on"), "goodnight")
-        self.assertNotEqual(jobs.match_rule("remind me at the end of the day to call mom"), "goodnight")
-
     def test_yesterday_asks(self):
         for t in ("what about yesterday?", "how was yesterday", "what did we do yesterday", "tell me about yesterday"):
             self.assertEqual(self.job(t)["args"], {"when": "yesterday"}, t)

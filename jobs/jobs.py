@@ -22,10 +22,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import desktop  # noqa: E402
 import details  # noqa: E402
-import sendfiles  # noqa: E402
-import servers  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HOME = os.path.expanduser("~")
@@ -49,14 +46,9 @@ def clean_text(text):
     return WAKE.sub("", " ".join(str(text).split())).strip(" .?!")
 
 
-# Words that mean the TV or the music job, never a desktop action ("mute the tv", "next song").
-NOT_DESKTOP = re.compile(r"\b(tv|television|telly|songs?|tracks?|music|spotify)\b", re.I)
-# Jobs whose own rule beats the decider's "question" or "unsure" (their rules are tight commands, and a
-# decider trained before they existed doesn't know their labels).
-DESKTOP_JOBS = ("desktop", "open-app", "open-file", "send-file", "team-screen", "servers")   # team-screen: agent-os, 2026-10-19
-# Jobs that sound like questions ("what moved today?"): their rule beats the decider's "question" too, and a
-# how-question doesn't undo them (they are new to the decider; add them to the next the local decider round).
-DAY_JOBS = ("what-changed", "goodnight")
+# Jobs that sound like questions ("what moved today?"): their rule beats the decider's "question" too (they are new to
+# the decider; add them to the next the local decider round).
+DAY_JOBS = ("what-changed",)
 # Jobs that hand <user>'s words to agent-os (jobs/bin/agent-os-start: `boss prepare`). Their rules are tight (anchored at the start of
 # the sentence), so a fitting rule beats any decider label until the local decider knows them; a line holding two asks never fits.
 AGENT_JOBS = ("remember-fix", "start-job")
@@ -76,7 +68,7 @@ def day_when(text):
     if OVERNIGHT_WORDS.search(t):
         return "overnight"
     return "yesterday" if re.search(r"\byesterday\b", t, re.I) else "today"
-# "How do I turn on the night light" is a question about it, not the job ("can you ..." still is a job).
+# "How do I fix the thing on my remember list" is a question about it, not the job ("can you ..." still is a job).
 HOW_QUESTION = re.compile(r"^(how|why|what|where|when|who|which|did|does|do i|is|was|should|where'?s|what'?s|how'?s)\b"
                           r"(?!.*\b(remind|reminders?)\b)", re.I)
 
@@ -85,42 +77,12 @@ def is_how_question(text):
     return bool(HOW_QUESTION.search(clean_text(text)))
 
 
-def _send_rule_label(label, t):
-    """The send rule fits: the decider's open-file/app/note, or a desktop label with no action, becomes send-file."""
-    if label in ("job:open-file", "job:open-app", "job:open-note"):
-        return "job:send-file"
-    if label == "job:desktop" and not desktop.find_action(t)[0]:
-        return "job:send-file"
-    return None
-
-
-def route_label(rule, label, text):
-    """The decider's label, corrected only where a rule is sure and the decider's job can't do it. A decider
-    trained before the send and screen-move jobs existed calls "send it to the laptop" an open-file and "move
-    chrome to my other screen" an open-app. A desktop label stays unless no desktop action fits the words, and a
-    send-file label gives way to another job's rule (the send rule is strict, so when it doesn't fit, "remind
-    me to put the charger on the laptop" is a reminder, not a send)."""
-    t = clean_text(text).lower()
-    if rule == "servers" and label.startswith("job:") and label != "job:servers":
-        return "job:servers"   # "start the llc namer" is not an open-app: the name is one of the hosted servers
-    if rule == "send-file":
-        fixed = _send_rule_label(label, t)
-        if fixed:
-            return fixed
-    elif label == "job:send-file" and rule:
-        return f"job:{rule}"
-    if rule == "desktop" and label in ("job:open-file", "job:open-app", "job:open-note") and desktop.is_window_move(t):
-        return "job:desktop"
-    return label
-
-
 def match_rule(text, jobs=None):
-    """The simple rule: the first job (lowest `order`, default 50) whose `match` regex fits.
-    `@desktop.find_action` means: desktop.find_action finds an action; `@sendfiles.is_send_request` means that
-    function says yes. Used when the decider is unsure, and to correct it (route_label)."""
+    """The simple rule: the first job (lowest `order`, default 50) whose `match` regex fits. Used when the decider
+    is unsure, and to correct it."""
     text = clean_text(text).lower()
     for job in sorted((jobs or load()).values(), key=lambda j: j.get("order", 50)):
-        if _rule_fits(job, text):
+        if _regex_rule_fits(job, text):
             return job["id"]
     return None
 
@@ -134,22 +96,6 @@ def _regex_rule_fits(job, text):
     if job["id"] == "start-job" and not all(job_project(text)):
         return False   # "start a run on tuesday" names no project: not this job
     return True
-
-
-def _desktop_rule_fits(text):
-    # "move spotify to the left screen" is a window move, not music
-    return bool(desktop.is_window_move(text) or (not NOT_DESKTOP.search(text) and desktop.find_action(text)[0]))
-
-
-CODE_RULES = {"@desktop.find_action": _desktop_rule_fits,
-              "@servers.is_request": lambda text: bool(servers.is_request(text)),
-              "@sendfiles.is_send_request": lambda text: bool(sendfiles.is_send_request(text))}
-
-
-def _rule_fits(job, text):
-    """Does this one job's `match` (a regex or an `@module.function` check) fit the text?"""
-    check = CODE_RULES.get(job.get("match"))
-    return check(text) if check else _regex_rule_fits(job, text)
 
 
 # ---------- arguments ----------
@@ -218,30 +164,6 @@ def find_project(text, local_writer=None):
         return close
     if local_writer:
         return _writer_picks_project(text, names, local_writer)
-    return None
-
-
-def music_action(text):
-    t = text.lower()
-    if re.search(r"\b(next|skip)\b", t):
-        return "Next"
-    if re.search(r"\b(previous|go back|last (song|track)|back one)\b", t):
-        return "Previous"
-    if re.search(r"\b(pause|stop)\b", t):
-        return "Pause"
-    if re.search(r"\b(resume|unpause|play)\b", t):
-        return "Play"
-    return "PlayPause"
-
-
-def tv_action(text):
-    t = text.lower()
-    if re.search(r"\bun-?mute|\bmute|\bsilence|\bquiet\b(?! ?down)", t):
-        return "mute"
-    if re.search(r"\b(up|louder|raise|increase|higher)\b", t):
-        return "up"
-    if re.search(r"\b(down|quieter|lower|softer|decrease|turn it down)\b", t):
-        return "down"
     return None
 
 
@@ -395,63 +317,6 @@ def note_topic(text):
     return t.strip() or clean_text(text)
 
 
-NOTE_WORDS = re.compile(r"\b(notes?|readme|bible|guide|docs?|plan)\b", re.I)
-FILE_WORDS = re.compile(r"\b(folder|directory|file|picture|photo|image|video|pdf|spreadsheet|png|jpe?g|mp4|docx|"
-                        r"downloads?|documents|screenshots?)\b", re.I)
-
-
-def _open_order(job_id, t):
-    order = ["open-app", "open-file", "open-note"]
-    if FILE_WORDS.search(t) or job_id == "open-file":
-        order = ["open-file", "open-app", "open-note"]
-    if NOTE_WORDS.search(t) and not FILE_WORDS.search(t):
-        order = ["open-note", "open-file", "open-app"]
-    if desktop.known_folder(t):
-        order.insert(0, "open-file")
-    return order
-
-
-def _try_open_file(t, order):
-    # Without file words it's an app that isn't installed, so only a project or known folder counts
-    # (a loose name search opened window-chrome.ts for "open chrome").
-    path, what, _ = desktop.find_file(t, [os.path.join(PROJECTS, p) for p in project_names()],
-                                      min_score=0.6 if order[0] == "open-file" else 1.0)
-    if not path:
-        return None
-    name = os.path.basename(path) or path
-    return ("open-file", {"path": path, "name": name}, f"Open {name}", f"Opening the {what} {name}.", [])
-
-
-def _try_open_note(t, order, search):
-    if not (search and (order[0] != "open-app" or NOTE_WORDS.search(t))):
-        return None
-    hits = search(note_topic(t))
-    if not hits:
-        return None
-    top = hits[0]
-    return ("open-note", {"path": top["path"], "title": top["title"]}, f"Open {top['title']}",
-            f"Opening your note {top['title']}.", hits[:3])
-
-
-def resolve_open(job_id, text, search=None):
-    """"Open X": an app, a file or folder, or a note? Tries them in the order the words suggest
-    (file words: file first; note words: note first; else app first). Returns
-    (job id, args, label, answer, sources) or None."""
-    t = clean_text(text)
-    order = _open_order(job_id, t)
-    for kind in order:
-        if kind == "open-app":
-            app_id, name, _ = desktop.find_app(t)
-            found = ("open-app", {"app": app_id, "name": name}, f"Open {name}", f"Opening {name}.", []) if app_id else None
-        elif kind == "open-file":
-            found = _try_open_file(t, order)
-        else:
-            found = _try_open_note(t, order, search)
-        if found:
-            return found
-    return None
-
-
 # ---------- building the job object ----------
 
 def _command(job, args):
@@ -460,7 +325,7 @@ def _command(job, args):
 
 
 def _cmd_string(job, args):
-    return " ".join(_fill(_command(job, args), {"monitor": "", **args}))
+    return " ".join(_fill(_command(job, args), args))
 
 
 def _fill(argv, args):
@@ -469,82 +334,26 @@ def _fill(argv, args):
     return [re.sub(r"\{(\w+)\}", lambda m: subs.get(m.group(1), m.group(0)), a) for a in argv]
 
 
-def _build_window_move(job, text, value):
-    """The card for "move this window to my other screen". The window is picked when it runs, not now."""
-    plain = lambda msg: {"kind": "answer", "answer": msg, "sources": [], "job": None}  # noqa: E731
-    spec, app_id, said = value.get("to"), value.get("app"), value.get("said")
-    if said and not app_id:
-        return plain(desktop.NOT_AN_APP if value.get("not_app") else f"I couldn't find an app called {said}.")
-    if not spec:
-        return plain("Which screen? Say the left screen or the right screen.")
-    try:
-        spec = desktop.check_monitor_spec(spec)
-    except ValueError as why:
-        return plain(str(why)[:1].upper() + str(why)[1:].rstrip(".") + ".")
-    if len(desktop.monitors()) < 2:
-        return plain("You only have one screen right now.")
-    if app_id and not desktop.app_windows(app_id):
-        # Not open yet: open it, then move it.
-        name = desktop.app_name(app_id)
-        args = {"app": app_id, "name": name, "monitor": spec}
-        label = f"Open {name} on {desktop.spec_say(spec)}"
-        obj = {"id": "open-app", "label": label, "needs_confirm": False,
-               "command": _cmd_string(load()["open-app"], args), "args": args}
-        return {"kind": "job", "answer": f"{name} isn't open yet, so I'll open it there.", "sources": [], "job": obj}
-    args = {"action": "window-monitor", "value": {"to": spec, "app": app_id}}
-    label = desktop.action_label("window-monitor", args["value"])
-    obj = {"id": "desktop", "label": label, "needs_confirm": False,
-           "command": _cmd_string(job, args), "args": args}
-    return {"kind": "job", "answer": label + ".", "sources": [], "job": obj}
-
-
-def _desktop_job(job, action, value):
-    args = {"action": action, "value": value}
-    label = desktop.action_label(action, value)
-    obj = {"id": "desktop", "label": label, "needs_confirm": desktop.ACTIONS[action][3],
-           "command": _cmd_string(job, args), "args": args}
-    return {"kind": "job", "answer": label + ".", "sources": [], "job": obj}
-
-
-MUSIC_WORDS = re.compile(r"\b(play|pause|resume|unpause|stop|next|skip|previous|back)\b", re.I)
-
-
-def _unsure_first(job_id, got, text):
-    """The word rules built something, but a job the writer should check instead: an "open" that fell through to a
-    note, or music with no play/pause/skip word."""
-    return (job_id in ("open-app", "open-file") and got == "open-note") or \
-        (job_id == "music" and got and not MUSIC_WORDS.search(text))
-
-
-def _job_from_form(job_id, t, f, search, local_writer):
+def _job_from_form(job_id, f, search, local_writer):
     """The job the writer's form `f` makes, built again from plain words so every value is found and checked as usual."""
-    if f and job_id == "desktop":
-        checked = details.desktop_args(f)
-        if checked and checked[0] == "window-monitor":
-            return _build_window_move(load()["desktop"], t, checked[1])
-        if checked:
-            return _desktop_job(load()["desktop"], *checked)
-    elif f and details.as_text(job_id, f):
+    if f and details.as_text(job_id, f):
         return build(job_id, details.as_text(job_id, f), search, local_writer)
     return None
 
 
 def build_with_details(job_id, text, search=None, local_writer=None, fill=None, how="typed"):
-    """build(), and when its word rules come up empty (no job) or unsure (an "open" that fell through to a note,
-    music with no play/pause/skip word), the local writer's form for that job (details.py), turned back into a
-    plain command and built again, so every value is found and checked as usual. Adds "details": "rules",
-    "local" (the writer's form made the job) or "none" (it didn't help), and "details_ms"."""
+    """build(), and when its word rules come up empty (no job), the local writer's form for that job (details.py),
+    turned back into a plain command and built again, so every value is found and checked as usual. Adds "details":
+    "rules", "local" (the writer's form made the job) or "none" (it didn't help), and "details_ms"."""
     t0 = time.monotonic()
     first = build(job_id, text, search, local_writer, how=how)
-    got = (first.get("job") or {}).get("id")
-    unsure = _unsure_first(job_id, got, text)
-    if (got and not unsure) or job_id not in details.JOBS or not details.on():
+    if (first.get("job") or {}).get("id") or job_id not in details.JOBS or not details.on():
         return dict(first, details="rules")
     t = clean_text(text)
     f = (fill or details.fill)(job_id, t, project_names() if job_id == "start-claude" else ())
-    out = _job_from_form(job_id, t, f, search, local_writer)
+    out = _job_from_form(job_id, f, search, local_writer)
     ms = int((time.monotonic() - t0) * 1000)
-    if out and out.get("kind") == "job" and (out["job"]["id"] != "open-note" or not unsure):
+    if out and out.get("kind") == "job":
         return dict(out, details="local", details_ms=ms, form=f)
     return dict(first, details="none", details_ms=ms, form=f)
 
@@ -562,45 +371,6 @@ TOO_LONG = "That was too long for one job. Say it in one short sentence."
 NO_PROJECT = "Which project? I didn't catch a project name I know."
 # Each _build_* below gets (job, job_id, text, search, local_writer, how) and gives back either a finished
 # answer dict (nothing to run) or (job_id, args, label, answer, sources) for the job card.
-
-
-def _build_open(job, job_id, text, search, local_writer, how):
-    picked = resolve_open(job_id, text, search)
-    if picked is None:
-        return _plain(f"I couldn't find {desktop.app_topic(clean_text(text)) or 'that'} as an app, a file or a note.")
-    job_id, args, label, answer, sources = picked
-    spec = desktop.monitor_spec(clean_text(text)) if job_id == "open-app" else None
-    if spec:
-        try:
-            args["monitor"] = desktop.check_monitor_spec(spec)
-        except ValueError as why:
-            return _plain(_sentence(why))
-        label += " on " + desktop.spec_say(args["monitor"])
-        answer = f"Opening {args['name']} on {desktop.spec_say(args['monitor'])}."
-    return job_id, args, label, answer, sources
-
-
-def _build_desktop(job, job_id, text, search, local_writer, how):
-    t = clean_text(text)
-    action, value = desktop.find_action(t)
-    if not action:
-        return _plain("I don't know how to do that on the desktop yet.")
-    if action == "reminder" and not value:
-        return _plain("When? Say, remind me at 2pm to stretch, or in 10 minutes.")
-    if action == "workspace" and not value:
-        return _plain("Which workspace, 1 to 10?")
-    if action == "window-monitor":
-        return _build_window_move(job, t, value)
-    return _desktop_job(job, action, value)
-
-
-def _build_send(job, job_id, text, search, local_writer, how):
-    picked = sendfiles.plan(clean_text(text), find_project=find_project, projects_root=PROJECTS,
-                            project_dirs=[os.path.join(PROJECTS, p) for p in project_names()])
-    if "paths" not in picked:
-        return _plain(picked["answer"])
-    args = {"device": picked["device"], "paths": picked["paths"], "name": picked["name"]}
-    return job_id, args, picked["label"], picked["answer"], []
 
 
 def _build_note(job, job_id, text, search, local_writer, how):
@@ -636,30 +406,6 @@ def _build_desk_pm(job, job_id, text, search, local_writer, how):
     if team_task(text)[0] == "desk":
         answer = "The whole desk has no team job, so this opens a Claude on the desk; your task was not used."
     return job_id, args, "Start a Claude on the whole desk", answer, []
-
-
-def _build_music(job, job_id, text, search, local_writer, how):
-    args = {"action": music_action(text)}
-    label = {"Next": "Next song", "Previous": "Previous song", "Pause": "Pause the music",
-             "Play": "Play the music", "PlayPause": "Play or pause the music"}[args["action"]]
-    return job_id, args, label, label + ".", []
-
-
-def _build_tv(job, job_id, text, search, local_writer, how):
-    action = tv_action(text)
-    if not action:
-        return _plain("I can only turn the TV up, down, or mute it.")
-    label = {"up": "Turn the TV up", "down": "Turn the TV down", "mute": "Mute the TV"}[action]
-    return job_id, {"action": action}, label, label + ".", []
-
-
-def _build_servers(job, job_id, text, search, local_writer, how):
-    t = clean_text(text)
-    action, site = servers.action_of(t), servers.find_server(t)
-    if not action or not site:
-        return _plain("Which server, and on or off? Say, turn on the LLC namer.")
-    label = f"Turn {action} {site['label']}"
-    return job_id, {"site": site["id"], "action": action}, label, label + ".", []
 
 
 def _build_remember(job, job_id, text, search, local_writer, how):
@@ -701,38 +447,24 @@ def _build_what_changed(job, job_id, text, search, local_writer, how):
     return job_id, args, label, "Checking.", []
 
 
-def _build_goodnight(job, job_id, text, search, local_writer, how):
-    return job_id, {}, job["label"], "I'll sum up the day, clear what's done and ask what may run tonight.", []
+def _build_unknown(job, job_id, text, search, local_writer, how):
+    return _plain("I don't know how to do that yet.")
 
 
-def _build_team_screen(job, job_id, text, search, local_writer, how):
-    return job_id, {}, job["label"], "Opening the team screen.", []
-
-
-def _build_whats_waiting(job, job_id, text, search, local_writer, how):
-    return job_id, {}, job["label"], "Checking who needs you.", []
-
-
-BUILDERS = {"desktop": _build_desktop, "send-file": _build_send, "open-note": _build_note, "music": _build_music,
-            "tv": _build_tv, "servers": _build_servers, "remember": _build_remember,
-            "what-changed": _build_what_changed, "goodnight": _build_goodnight, "team-screen": _build_team_screen,
+BUILDERS = {"open-note": _build_note, "remember": _build_remember, "what-changed": _build_what_changed,
             **{j: _build_agent for j in AGENT_JOBS}}
 
 
 def _builder_for(job_id, text):
-    if job_id in ("open-app", "open-file") or (job_id == "open-note" and not NOTE_WORDS.search(text)):
-        return _build_open
     if job_id == "start-claude":
         return _build_team if team_task(text)[0] not in (None, "desk") else _build_desk_pm
-    return BUILDERS.get(job_id, _build_whats_waiting)
+    return BUILDERS.get(job_id, _build_unknown)
 
 
 def _job_card(jobs, job_id, args, label, answer, sources):
     job = jobs[job_id]
     obj = {"id": job_id, "label": label, "needs_confirm": bool(job.get("needs_confirm")),
            "command": _cmd_string(job, args), "args": args}
-    if job_id == "servers":   # turning one on just happens; turning one off asks first (someone may be using it)
-        obj["needs_confirm"] = args["action"] == "off"
     if job.get("speak") or "text" in args and job_id == "start-claude":
         obj["speak"] = True
     return {"kind": "job", "answer": answer, "sources": sources, "job": obj}
@@ -774,40 +506,6 @@ def _check_claude(job_id, a):
     return {"project": repo, "name": pretty(repo)}
 
 
-def _check_app(job_id, a):
-    app_id = str(a.get("app", ""))
-    desktop.app_command(app_id)  # raises if it isn't installed
-    monitor = a.get("monitor")
-    if monitor not in (None, ""):
-        monitor = desktop.check_monitor_spec(monitor)
-    return {"app": app_id, "name": str(a.get("name") or app_id), "monitor": monitor or ""}
-
-
-def _check_send(job_id, a):
-    device, paths, _ = sendfiles.check_send(a.get("device"), a.get("paths"))
-    name = re.sub(r"[^\w .&'-]", "", str(a.get("name") or "Files"))[:40].strip() or "Files"
-    return {"device": device, "paths": paths, "name": name}
-
-
-def _check_file(job_id, a):
-    path = desktop.allowed_path(a.get("path", ""))
-    if not path:
-        raise ValueError("that isn't a file or folder I'm allowed to open")
-    return {"path": path, "name": os.path.basename(path) or path}
-
-
-def _check_desktop(job_id, a):
-    action, value = desktop.check_action(str(a.get("action", "")), a.get("value"))
-    return {"action": action, "value": value}
-
-
-def _check_choice(job_id, a):
-    allowed = load()[job_id]["args"]["action"]
-    if a.get("action") not in allowed:
-        raise ValueError("that isn't something I can do")
-    return {"action": a["action"]}
-
-
 def _check_agent(job_id, a):
     out = {"text": one_line(a.get("text")), "how": a.get("how") if a.get("how") in HOWS else "typed"}
     if job_id == "start-job":
@@ -816,13 +514,6 @@ def _check_agent(job_id, a):
             raise ValueError(f"I don't know a project called {repo or 'that'}")
         out = {"project": repo, "name": pretty(repo), **out}
     return out
-
-
-def _check_servers(job_id, a):
-    known = {e["id"]: e["label"] for e in servers.entries()}
-    if a.get("action") not in ("on", "off") or a.get("site") not in known:
-        raise ValueError("I don't know that server")
-    return {"site": a["site"], "action": a["action"]}
 
 
 def _check_what_changed(job_id, a):
@@ -838,9 +529,7 @@ def _check_remember(job_id, a):
     return {"text": text}
 
 
-CHECKS = {"open-note": _check_note, "start-claude": _check_claude, "open-app": _check_app,
-          "send-file": _check_send, "open-file": _check_file, "desktop": _check_desktop, "music": _check_choice,
-          "tv": _check_choice, "servers": _check_servers, "what-changed": _check_what_changed,
+CHECKS = {"open-note": _check_note, "start-claude": _check_claude, "what-changed": _check_what_changed,
           "remember": _check_remember, **{j: _check_agent for j in AGENT_JOBS}}
 
 
