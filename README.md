@@ -40,7 +40,7 @@ Ready to try it? Jump to the [Quickstart](#quickstart-about-five-minutes).
 <h2><img src="docs/media/readme/banner-2.svg" alt="2. Your chats become notes: Claude Code and Codex history, with secrets removed first" width="100%"></h2>
 
 <p align="center">
-  <img src="docs/media/readme/scene-chats.svg" alt="An animation. A chat that contains an API key passes under a scanning beam. The saved note shows the key replaced by the word redacted." width="100%">
+  <img src="docs/media/readme/scene-chats.svg" alt="An animation. A glowing chat window sends a stream of light through an amber scanner gate to a note card. The chat held an API key; the note shows the same line as redacted. Under the note sits a small network of linked nodes, the brain." width="100%">
 </p>
 
 <p><img src="docs/media/readme/icons/chat.svg" width="22" align="absmiddle"> <b>Past chats turn into notes you can search.</b> Claude Code and Codex are supported today. Gemini, ChatGPT exports and Cursor are not yet.<br>
@@ -101,7 +101,7 @@ Run `bin/brain` with no words for the full list.
 <h2><img src="docs/media/readme/banner-5.svg" alt="5. Your notes stay yours: local by default, redacted by default, private on request" width="100%"></h2>
 
 <p align="center">
-  <img src="docs/media/readme/scene-private.svg" alt="A diagram. Inside the box called this computer sit your notes, your chats and the search index, plus the private list. Outside, behind a closed gate, sit online models and services, reachable only if you set one up." width="100%">
+  <img src="docs/media/readme/scene-private.svg" alt="An illustration. Inside a glowing sealed dome called this computer sit note cards, chat bubbles, a small brain network and the search index. A heavy gate with a padlock, the private list, stands between the dome and a dim cloud called online services. A dashed line from the gate to the cloud stops at the gate." width="100%">
 </p>
 
 <p><img src="docs/media/readme/icons/local.svg" width="22" align="absmiddle"> <b>It lives on your computer.</b> The brain is a plain folder. It never lives inside a repository and is never pushed.<br>

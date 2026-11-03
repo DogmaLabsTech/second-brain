@@ -222,47 +222,47 @@ def terminal(name, title, lines, cycle=16, width=1000, fs=13.5):
 
 # ------------------------------------------------------------------ chats scene
 
-def chats_scene():
-    w, h, cyc = 1000, 312, 9
-    css = ("@keyframes sweep{0%{transform:translateX(0);opacity:0}8%{opacity:1}55%{transform:translateX(470px);opacity:1}62%{opacity:0}100%{transform:translateX(470px);opacity:0}}"
-           "@keyframes after{0%{opacity:0}50%{opacity:0}62%{opacity:1}92%{opacity:1}100%{opacity:0}}"
-           "@keyframes hot{0%,45%{fill:@A@}58%,100%{fill:@D@}}").replace("@A@", C["amber"]).replace("@D@", C["dim"])
-    o = []
+def picture(name, w, h):
+    import base64
+    with open(os.path.join(HERE, "source", name), "rb") as f:
+        return '<image href="data:image/jpeg;base64,%s" width="%d" height="%d"/>' % (base64.b64encode(f.read()).decode(), w, h)
 
-    def card(x, label, col):
-        return ('<polygon points="%s" fill="%s" stroke="%s" stroke-width="1.3"/><text x="%d" y="%d" font-family="%s" font-size="12" letter-spacing="3" fill="%s">%s</text>'
-                % (chamfer(x, 30, 360, 240, 16), C["panel"], col, x + 22, 62, SANS, col, label))
-    o.append(card(30, "YOUR CHAT", C["cyan"]))
-    o.append(card(610, "A NOTE IN YOUR BRAIN", C["green"]))
-    left = [("You", C["amber"]), ("we are debugging the checkout flow.", C["text"]), ("My API key is sk-ant-api03-EXAMPLE…", None), ("please do not echo it.", C["text"]),
-            ("Claude", C["cyan"]), ("The coupon field reads the cart total", C["text"]), ("before the subscription line is added.", C["text"])]
-    y = 96
-    for txt, col in left:
-        if col is None:
-            o.append('<text x="52" y="%d" font-family="%s" font-size="14" style="animation:hot %ds linear infinite" fill="%s">%s</text>' % (y, MONO, cyc, C["amber"], esc(txt)))
-        else:
-            o.append('<text x="52" y="%d" font-family="%s" font-size="14" fill="%s"%s>%s</text>' % (y, MONO, col, ' font-weight="700"' if txt in ("You", "Claude") else "", esc(txt)))
-        y += 25
-    right = [("You", C["amber"]), ("we are debugging the checkout flow.", C["text"]), ("My API key is [redacted]", "KEY"), ("please do not echo it.", C["text"]),
-             ("Claude", C["cyan"]), ("The coupon field reads the cart total", C["text"]), ("before the subscription line is added.", C["text"])]
-    y = 96
-    g = []
-    for txt, col in right:
-        if col == "KEY":
-            g.append('<text x="632" y="%d" font-family="%s" font-size="14" fill="%s" filter="url(#glow)">%s</text>' % (y, MONO, C["green"], esc(txt)))
-        else:
-            g.append('<text x="632" y="%d" font-family="%s" font-size="14" fill="%s"%s>%s</text>' % (y, MONO, col, ' font-weight="700"' if txt in ("You", "Claude") else "", esc(txt)))
-        y += 25
-    o.append('<g style="animation:after %ds linear infinite;opacity:0">%s</g>' % (cyc, "".join(g)))
-    # scanner
-    o.append('<g style="animation:sweep %ds linear infinite;opacity:0"><rect x="395" y="34" width="3" height="232" fill="url(#beam)" filter="url(#glow)"/>'
-             '<polygon points="386,150 402,150 394,162" fill="%s"/><polygon points="386,138 402,138 394,126" fill="%s"/></g>' % (cyc, C["cyan"], C["cyan"]))
-    o.append('<text x="500" y="298" text-anchor="middle" font-family="%s" font-size="12" letter-spacing="4" fill="%s">REDACTION PASS  //  BEFORE ANYTHING IS SAVED</text>' % (SANS, C["amber"]))
-    # arrow between cards
-    o.append('<path d="M404 150h12m-6-6 6 6-6 6M584 150h12m-6-6 6 6-6 6" stroke="%s" fill="none" stroke-width="2"/>' % C["cyan"])
+
+def label(x, y, text, color, size=12, anchor="middle", spacing=3):
+    return '<text x="%g" y="%g" text-anchor="%s" font-family="%s" font-size="%g" letter-spacing="%g" font-weight="700" fill="%s" filter="url(#glow)">%s</text>' % (x, y, anchor, SANS, size, spacing, color, esc(text))
+
+
+def chip(x, y, w, text, color, anim=""):
+    return ('<g %s><polygon points="%s" fill="#04070d" fill-opacity=".82" stroke="%s" stroke-width="1.2"/>'
+            '<text x="%g" y="%g" text-anchor="middle" font-family="%s" font-size="12.5" fill="%s">%s</text></g>'
+            % (anim, chamfer(x - w / 2, y - 16, w, 30, 8), color, x, y + 4, MONO, color, esc(text)))
+
+
+def chats_scene():
+    """Codex drew the picture (source/chat.jpg, prompt in source/scenes-prompt.txt). Captions, the flowing light and the
+    key-to-[redacted] callouts are drawn over it. Picture positions are in its own 1672x941 space, scaled by k."""
+    w, h, cyc = 1000, 563, 9
+    k = w / 1672
+    css = ("@keyframes before{0%,50%{opacity:1}60%,100%{opacity:.0}}"
+           "@keyframes after{0%,50%{opacity:0}62%,92%{opacity:1}100%{opacity:0}}"
+           "@keyframes gate{0%,100%{opacity:.04}50%{opacity:.2}}")
+    o = [picture("chat.jpg", w, h)]
+    o.append('<ellipse cx="%.0f" cy="%.0f" rx="70" ry="150" fill="%s" opacity=".4" filter="url(#glow2)" style="animation:gate 2.2s ease-in-out infinite"/>' % (850 * k, 400 * k, C["amber"]))
+    # light flows from the chat, through the gate, to the note
+    path = "M%.0f %.0f C %.0f %.0f %.0f %.0f %.0f %.0f" % (535 * k, 410 * k, 700 * k, 470 * k, 1000 * k, 330 * k, 1205 * k, 388 * k)
+    o.append('<path id="flow" d="%s" fill="none"/>' % path)
+    for i in range(7):
+        col = C["green"] if i % 2 else C["cyan"]
+        o.append('<circle r="3.2" fill="%s" filter="url(#glow)"><animateMotion dur="3.4s" begin="-%.1fs" repeatCount="indefinite"><mpath href="#flow"/></animateMotion></circle>' % (col, i * 0.48))
+    # captions in the three plates
+    for cx, text, col in ((328, "YOUR CHAT", C["cyan"]), (850, "REDACTION PASS", C["amber"]), (1360, "A NOTE IN YOUR BRAIN", C["green"])):
+        o.append(label(cx * k, 752 * k + 4, text, col))
+    # the key, before and after
+    o.append(chip(328 * k, 84, 250, "my key is sk-ant-api03-…", C["amber"], 'style="animation:before %ds linear infinite"' % cyc))
+    o.append(chip(1360 * k, 84, 250, "my key is [redacted]", C["green"], 'style="animation:after %ds linear infinite;opacity:0"' % cyc))
+    o.append('<path d="M%.0f 100 V%.0f" stroke="%s" stroke-width="1.2" stroke-dasharray="3 4" style="animation:after %ds linear infinite;opacity:0"/>' % (1360 * k, 357 * k - 6, C["green"], cyc))
     o.append('<rect width="%d" height="%d" fill="url(#scan)"/>' % (w, h))
-    body = "".join(o)
-    write("scene-chats.svg", svg(w, h, body, css))
+    write("scene-chats.svg", svg(w, h, "".join(o), css))
 
 
 # ------------------------------------------------------------------ map and privacy
@@ -303,24 +303,23 @@ def where_scene():
 
 
 def private_scene():
-    w, h = 1000, 340
-    o = ['<rect width="%d" height="%d" fill="url(#hex)" opacity=".8"/>' % (w, h)]
-    o.append('<polygon points="%s" fill="%s" fill-opacity=".5" stroke="%s" stroke-width="1.6"/>' % (chamfer(20, 20, 640, 300, 24), C["panel"], C["green"]))
-    o.append('<text x="46" y="56" font-family="%s" font-size="13" letter-spacing="4" fill="%s">THIS COMPUTER</text>' % (SANS, C["green"]))
-    parts = ((46, "your notes", "read in place,", "never changed"), (232, "your chats", "secrets removed", "before saving"), (418, "the index", "built here,", "searched here"))
-    for x, a, b, c in parts:
-        o.append('<polygon points="%s" fill="%s" stroke="%s"/>' % (chamfer(x, 92, 166, 112, 12), C["panel2"], C["cyan"]))
-        o.append('<text x="%d" y="126" text-anchor="middle" font-family="%s" font-size="16" font-weight="700" fill="%s">%s</text>' % (x + 83, SANS, C["text"], a))
-        o.append('<text x="%d" y="156" text-anchor="middle" font-family="%s" font-size="12.5" fill="%s">%s</text><text x="%d" y="176" text-anchor="middle" font-family="%s" font-size="12.5" fill="%s">%s</text>' % (x + 83, SANS, C["dim"], b, x + 83, SANS, C["dim"], c))
-    o.append('<polygon points="%s" fill="%s" fill-opacity=".08" stroke="%s" stroke-width="1.4"/>' % (chamfer(46, 232, 538, 56, 12), C["amber"], C["amber"]))
-    o.append('<text x="315" y="256" text-anchor="middle" font-family="%s" font-size="13" letter-spacing="2" font-weight="700" fill="%s">THE PRIVATE LIST</text><text x="315" y="276" text-anchor="middle" font-family="%s" font-size="12.5" fill="%s">words you choose keep a question away from any online model</text>' % (SANS, C["amber"], SANS, C["text"]))
-    # gate and outside
-    o.append('<path d="M660 170h110" stroke="%s" stroke-width="2" stroke-dasharray="4 8" fill="none" stroke-opacity=".6"/>' % C["red"])
-    o.append('<polygon points="%s" fill="%s" stroke="%s" stroke-width="2"/><path d="M706 156l28 28M734 156l-28 28" stroke="%s" stroke-width="3"/>' % (chamfer(694, 144, 52, 52, 10), C["panel"], C["red"], C["red"]))
-    o.append('<polygon points="%s" fill="%s" stroke="%s" stroke-dasharray="6 5" stroke-width="1.4"/>' % (chamfer(790, 100, 190, 140, 16), C["panel"], C["dim"]))
-    o.append('<text x="885" y="150" text-anchor="middle" font-family="%s" font-size="13" letter-spacing="3" fill="%s">ONLINE</text><text x="885" y="174" text-anchor="middle" font-family="%s" font-size="16" font-weight="700" fill="%s">models and services</text><text x="885" y="204" text-anchor="middle" font-family="%s" font-size="12" fill="%s">only if you set one up</text>' % (SANS, C["dim"], SANS, C["text"], SANS, C["dim"]))
+    """Codex drew the picture (source/private.jpg). Captions, the private-list tag and the blocked pulse are drawn over it."""
+    w, h = 1000, 563
+    k = w / 1672
+    css = ("@keyframes lock{0%,100%{opacity:.06}50%{opacity:.3}}"
+           "@keyframes try{0%{transform:translateX(0);opacity:0}10%{opacity:1}55%{transform:translateX(@A@px);opacity:1}70%,100%{transform:translateX(@B@px);opacity:0}}"
+           ).replace("@A@", "%.0f" % (50 * k)).replace("@B@", "%.0f" % (62 * k))
+    o = [picture("private.jpg", w, h)]
+    o.append('<circle cx="%.0f" cy="%.0f" r="46" fill="%s" opacity=".4" filter="url(#glow2)" style="animation:lock 2.4s ease-in-out infinite"/>' % (1010 * k, 480 * k, C["amber"]))
+    # a try to reach the outside stops at the gate
+    for i in range(3):
+        o.append('<circle cx="%.0f" cy="%.0f" r="3" fill="%s" filter="url(#glow)" style="animation:try 3s linear infinite;animation-delay:%.1fs;opacity:0"/>' % (1110 * k, 493 * k, C["amber"], i))
+    o.append(label(335, 798 * k + 4, "THIS COMPUTER  //  YOUR NOTES, CHATS AND INDEX", C["green"], 12))
+    o.append(label(1408 * k, 798 * k + 4, "ONLINE SERVICES", C["dim"], 12))
+    o.append(chip(990 * k, 118, 168, "THE PRIVATE LIST", C["amber"]))
+    o.append('<path d="M%.0f 134 V%.0f" stroke="%s" stroke-width="1.2" stroke-dasharray="3 4"/>' % (990 * k, 425 * k - 8, C["amber"]))
     o.append('<rect width="%d" height="%d" fill="url(#scan)"/>' % (w, h))
-    write("scene-private.svg", svg(w, h, "".join(o)))
+    write("scene-private.svg", svg(w, h, "".join(o), css))
 
 
 def main():
