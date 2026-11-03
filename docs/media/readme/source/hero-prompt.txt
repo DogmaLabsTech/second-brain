@@ -1,0 +1,9 @@
+Use your built-in image generation tool to make THREE different wide hero banner illustrations (landscape, about 21:9 or 16:9), then copy each finished image into the current folder as hero-a.png, hero-b.png and hero-c.png. Do not write any other files and do not change anything outside this folder.
+
+Subject: a holographic human brain, drawn so it is instantly recognisable as a brain: side view with the two hemispheres, clear folded gyri and sulci, the cerebellum at the back and the brain stem below. It is a glowing sci-fi hologram: fine cyan light lines and wireframe, small glowing nodes joined by thin connecting lines running across its surface like a neural network, with a few warm amber nodes as accents. It floats on the RIGHT half of the image, large, above a faint projector ring with soft volumetric light. A few thin orbiting rings and drifting light particles around it.
+
+Style: cinematic futuristic user-interface art, dark deep-space navy background almost black with a very faint hexagon grid, teal-cyan glow and orange-amber accents, crisp, high contrast, clean, premium game-interface feel. Keep the LEFT third of the image calm and dark and empty, because a title will be laid over it later.
+
+Hard rules: no text, no letters, no numbers, no logos, no watermarks, no people, no faces. 
+Variants: (a) side view, brain made mostly of glowing wireframe mesh; (b) three-quarter view, brain made of dense flowing light filaments and particles, slightly more painterly glow; (c) side view with the brain as a translucent glass-like shape with neural lines glowing inside it.
+When done, list the three file names.

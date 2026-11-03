@@ -18,7 +18,12 @@ this repository is enough.
 The script that draws them, docs/media/readme/make_art.py, is also available under
 the MIT licence in LICENSE; you may use it under either.
 
-Third-party material
---------------------
-None. The pictures are drawn from plain shapes and text. The terminal scenes show
-text that the brain command printed on a made-up folder.
+How they were made
+------------------
+The banners, icons and scenes are drawn from plain shapes and text by make_art.py.
+The terminal scenes show text that the brain command printed on a made-up folder.
+
+The brain in the hero is an image generated with OpenAI Codex's image tool from the
+prompt saved in docs/media/readme/source/hero-prompt.txt. The legal status of
+machine-generated images differs between countries; the licence above covers
+whatever rights the contributors hold in it.

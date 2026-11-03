@@ -4,9 +4,7 @@
 The terminal scenes show text that `brain` really printed on a made-up folder (see TERMINAL below). Everything is
 drawn with plain shapes; the look is a dark holographic panel with cyan and amber light."""
 import html
-import math
 import os
-import random
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 C = dict(bg="#04070d", panel="#08111f", panel2="#0b1a2e", line="#1b3a57", cyan="#3be6ff", amber="#ffa62b",
@@ -28,6 +26,7 @@ DEFS = """
 <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#070f1d"/><stop offset="1" stop-color="#03060b"/></linearGradient>
 <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3be6ff" stop-opacity="0"/><stop offset=".5" stop-color="#3be6ff" stop-opacity=".9"/><stop offset="1" stop-color="#3be6ff" stop-opacity="0"/></linearGradient>
 <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffc766"/><stop offset="1" stop-color="#ff8a00"/></linearGradient>
+<linearGradient id="leftfade" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#04070d" stop-opacity=".85"/><stop offset=".6" stop-color="#04070d" stop-opacity=".5"/><stop offset="1" stop-color="#04070d" stop-opacity="0"/></linearGradient>
 <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 <filter id="glow2" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 <pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="1" fill="#9be8ff" opacity=".05"/></pattern>
@@ -56,85 +55,45 @@ def write(name, text):
 
 # ------------------------------------------------------------------ hero
 
-def brain_points(rnd, cx, cy, a, b, n):
-    def outline(t):
-        r = 1 + 0.07 * math.sin(5 * t) + 0.04 * math.sin(9 * t + 1)
-        x = cx + a * math.cos(t) * r
-        y = cy + b * math.sin(t) * r * (0.78 if math.sin(t) > 0 else 1.0)
-        return x, y
-    poly = [outline(i / 200 * 2 * math.pi) for i in range(200)]
-
-    def inside(px, py):
-        ok = False
-        j = len(poly) - 1
-        for i in range(len(poly)):
-            xi, yi = poly[i]
-            xj, yj = poly[j]
-            if (yi > py) != (yj > py) and px < (xj - xi) * (py - yi) / (yj - yi) + xi:
-                ok = not ok
-            j = i
-        return ok
-    pts = []
-    while len(pts) < n:
-        px, py = cx + rnd.uniform(-a, a), cy + rnd.uniform(-b, b)
-        if inside(px, py) and all((px - x) ** 2 + (py - y) ** 2 > 24 ** 2 for x, y in pts):
-            pts.append((px, py))
-    return poly, pts
+# The hero's background is a picture Codex drew from the prompt in source/hero-prompt.txt (variant a). It holds no text.
+# The title, chips and the moving lights are drawn here, over it. Positions below are in the picture's own 1672x941 space.
+NODES = ((1240, 113), (945, 185), (1405, 220), (1075, 272), (1520, 283), (830, 327), (1218, 400), (1400, 425), (970, 427),
+         (1580, 392), (1325, 520), (1250, 585), (1410, 590), (1065, 345))
 
 
 def hero():
-    rnd = random.Random(11)
-    w, h = 1280, 440
-    cx, cy = 930, 222
-    poly, pts = brain_points(rnd, cx, cy, 235, 150, 86)
-    out = ['<rect width="%d" height="%d" fill="url(#sky)"/><rect width="%d" height="%d" fill="url(#hex)"/>' % (w, h, w, h)]
-    stars = "".join('<circle cx="%d" cy="%d" r="%.1f" fill="#bfeeff" opacity="%.2f"/>' % (rnd.randint(0, w), rnd.randint(0, h), rnd.uniform(.4, 1.3), rnd.uniform(.15, .6)) for _ in range(90))
-    out.append(stars)
-    # orbit rings
-    for i, (rx, ry, dur, col) in enumerate(((330, 205, 40, C["cyan"]), (300, 188, 55, C["amber"]), (360, 225, 70, C["cyan"]))):
-        out.append('<ellipse cx="%d" cy="%d" rx="%d" ry="%d" fill="none" stroke="%s" stroke-opacity=".28" stroke-width="1" stroke-dasharray="3 9">'
-                   '<animateTransform attributeName="transform" type="rotate" from="0 %d %d" to="%d %d %d" dur="%ds" repeatCount="indefinite"/></ellipse>'
-                   % (cx, cy, rx, ry, col, cx, cy, 360 if i % 2 == 0 else -360, cx, cy, dur))
-    # cerebellum and stem
-    out.append('<path d="M%d %d q40 34 78 18 q30 -14 14 -44" fill="none" stroke="%s" stroke-width="2" stroke-opacity=".8" filter="url(#glow)"/>' % (cx + 50, cy + 128, C["cyan"]))
-    out.append('<path d="M%d %d q6 40 -4 70 h26 q-4 -34 4 -62" fill="%s" fill-opacity=".05" stroke="%s" stroke-width="1.8" stroke-opacity=".8"/>' % (cx - 10, cy + 112, C["cyan"], C["cyan"]))
-    # links between near nodes
-    lines = []
-    for i, p in enumerate(pts):
-        for q in pts[i + 1:]:
-            d = math.hypot(p[0] - q[0], p[1] - q[1])
-            if d < 66:
-                lines.append('<line x1="%.0f" y1="%.0f" x2="%.0f" y2="%.0f" stroke-opacity="%.2f"/>' % (p[0], p[1], q[0], q[1], .55 - d / 150))
-    out.append('<g stroke="%s" stroke-width="1">%s</g>' % (C["cyan"], "".join(lines)))
-    pathd = "M" + " L".join("%.0f %.0f" % p for p in poly) + "Z"
-    out.append('<path d="%s" fill="%s" fill-opacity=".05" stroke="%s" stroke-width="2" filter="url(#glow)" stroke-opacity=".9"/>' % (pathd, C["cyan"], C["cyan"]))
-    mid = " ".join("%.0f,%.0f" % (cx + math.sin(i / 7) * 14 + (i - 11) * 0.5, cy - 118 + i * 11.2) for i in range(22))
-    out.append('<polyline points="%s" fill="none" stroke="%s" stroke-opacity=".55" stroke-width="1.5" stroke-dasharray="4 5"/>' % (mid, C["cyan"]))
-    nodes = []
-    for i, (x, y) in enumerate(pts):
-        amber = i % 9 == 0
-        col = C["amber"] if amber else C["cyan"]
-        nodes.append('<circle cx="%.0f" cy="%.0f" r="%.1f" fill="%s" filter="url(#glow)"><animate attributeName="opacity" values="1;.25;1" dur="%.1fs" begin="-%.1fs" repeatCount="indefinite"/></circle>'
-                     % (x, y, 3.6 if amber else 2.4, col, rnd.uniform(2.2, 5), rnd.uniform(0, 4)))
-    out.append("".join(nodes))
-    # scan plane
-    out.append('<rect x="%d" y="40" width="3" height="360" fill="url(#beam)" opacity=".8"><animate attributeName="x" values="%d;%d;%d" dur="7s" repeatCount="indefinite"/></rect>' % (cx - 250, cx - 250, cx + 250, cx - 250))
-    # left text block
-    out.append(brackets(48, 60, 600, 320, 22))
-    out.append('<text x="84" y="124" font-family="%s" font-size="15" letter-spacing="6" fill="%s">AGENTIC MEMORY  //  ON YOUR COMPUTER</text>' % (SANS, C["amber"]))
-    out.append('<text x="80" y="206" font-family="%s" font-size="86" font-weight="700" letter-spacing="4" fill="%s" filter="url(#glow2)">SECOND</text>' % (SANS, C["text"]))
-    out.append('<text x="80" y="288" font-family="%s" font-size="86" font-weight="700" letter-spacing="4" fill="%s" filter="url(#glow2)">BRAIN</text>' % (SANS, C["cyan"]))
-    out.append('<text x="84" y="334" font-family="%s" font-size="19" fill="%s">Your notes and your AI chats, in one searchable memory.</text>' % (SANS, C["dim"]))
-    chips = ("LOCAL", "PRIVATE", "SEARCHABLE")
+    import base64
+    with open(os.path.join(HERE, "source", "hero.jpg"), "rb") as f:
+        pic = base64.b64encode(f.read()).decode()
+    w, h = 1280, 720
+    k = w / 1672
+    o = ['<image href="data:image/jpeg;base64,%s" width="%d" height="%d" preserveAspectRatio="xMidYMid slice"/>' % (pic, w, h)]
+    o.append('<rect width="620" height="%d" fill="url(#leftfade)"/>' % h)
+    # slow beam across the brain
+    o.append('<rect x="560" y="60" width="4" height="560" fill="url(#beam)" opacity=".75" filter="url(#glow)"><animate attributeName="x" values="560;1240;560" dur="9s" repeatCount="indefinite"/></rect>')
+    # the base ring turns
+    o.append('<ellipse cx="%.0f" cy="%.0f" rx="%.0f" ry="%.0f" fill="none" stroke="%s" stroke-width="2" stroke-dasharray="10 14" stroke-opacity=".8">'
+             '<animate attributeName="stroke-dashoffset" values="0;48" dur="3s" repeatCount="indefinite"/></ellipse>' % (1170 * k, 836 * k, 395 * k, 52 * k, C["cyan"]))
+    # amber nodes breathe
+    for i, (x, y) in enumerate(NODES):
+        o.append('<circle cx="%.0f" cy="%.0f" r="5" fill="none" stroke="%s" stroke-width="1.5"><animate attributeName="r" values="4;16;4" dur="%.1fs" begin="-%.1fs" repeatCount="indefinite"/>'
+                 '<animate attributeName="opacity" values=".9;0;.9" dur="%.1fs" begin="-%.1fs" repeatCount="indefinite"/></circle>'
+                 % (x * k, y * k, C["amber"], 3.2 + (i % 4) * .7, i * .6, 3.2 + (i % 4) * .7, i * .6))
+    # title block
+    o.append(brackets(48, 200, 520, 342, 22))
+    o.append('<text x="84" y="258" font-family="%s" font-size="14" letter-spacing="5" fill="%s">AGENTIC MEMORY  //  YOUR COMPUTER</text>' % (SANS, C["amber"]))
+    o.append('<text x="80" y="346" font-family="%s" font-size="86" font-weight="700" letter-spacing="4" fill="%s" filter="url(#glow2)">SECOND</text>' % (SANS, C["text"]))
+    o.append('<text x="80" y="428" font-family="%s" font-size="86" font-weight="700" letter-spacing="4" fill="%s" filter="url(#glow2)">BRAIN</text>' % (SANS, C["cyan"]))
+    o.append('<text x="84" y="470" font-family="%s" font-size="19" fill="%s">Your notes and your AI chats, in one searchable memory.</text>' % (SANS, "#9fb4c8"))
     x = 84
-    for t in chips:
+    for t in ("LOCAL", "PRIVATE", "SEARCHABLE"):
         wd = 24 + len(t) * 11
-        out.append('<polygon points="%s" fill="%s" fill-opacity=".08" stroke="%s" stroke-width="1.2"/><text x="%d" y="364" font-family="%s" font-size="12" letter-spacing="3" fill="%s">%s</text>'
-                   % (chamfer(x, 344, wd, 28, 7), C["cyan"], C["cyan"], x + 12, SANS, C["cyan"], t))
+        o.append('<polygon points="%s" fill="%s" fill-opacity=".1" stroke="%s" stroke-width="1.2"/><text x="%d" y="512" font-family="%s" font-size="12" letter-spacing="3" fill="%s">%s</text>'
+                 % (chamfer(x, 492, wd, 28, 7), C["cyan"], C["cyan"], x + 12, SANS, C["cyan"], t))
         x += wd + 14
-    out.append('<rect width="%d" height="%d" fill="url(#scan)"/>' % (w, h))
-    out.append('<polygon points="%s" fill="none" stroke="%s" stroke-opacity=".5"/>' % (chamfer(1, 1, w - 2, h - 2, 26), C["line"]))
-    write("hero.svg", svg(w, h, "".join(out)))
+    o.append('<rect width="%d" height="%d" fill="url(#scan)"/>' % (w, h))
+    o.append('<polygon points="%s" fill="none" stroke="%s" stroke-opacity=".55" stroke-width="1.5"/>' % (chamfer(1, 1, w - 2, h - 2, 26), C["cyan"]))
+    write("hero.svg", svg(w, h, "".join(o)))
 
 
 # ------------------------------------------------------------------ banners and icons
