@@ -7,13 +7,26 @@ See README.md, "How redaction works", for the reasoning behind each rule.
 """
 
 import math
+import os
 import re
 
 MARK = "[redacted]"
 EMAIL_MARK = "[email]"
 
-# <user>'s own address(es): always dropped.
+# Your own address(es): always dropped. Add yours with BRAIN_OWN_EMAILS (comma separated) or one address per line in
+# ~/.config/second-brain/own-emails. Other people's addresses are left as they are.
 OWN_EMAILS = ("agent-os@users.noreply.github.com",)
+
+
+def own_addresses():
+    found = list(OWN_EMAILS) + [e.strip() for e in os.environ.get("BRAIN_OWN_EMAILS", "").split(",") if "@" in e]
+    path = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "second-brain", "own-emails")
+    try:
+        with open(path, encoding="utf-8") as f:
+            found += [line.strip() for line in f if "@" in line and not line.lstrip().startswith("#")]
+    except OSError:
+        pass
+    return found
 
 # 1. Whole blocks (run first so the inner lines are not half-redacted).
 _PRIVATE_KEY = re.compile(
@@ -130,7 +143,7 @@ def _hex_sub(text):
 
 def _own_emails(text):
     total = 0
-    for email in OWN_EMAILS:
+    for email in own_addresses():
         text, k = re.subn(re.escape(email), EMAIL_MARK, text, flags=re.I)
         total += k
         # Cut short by a column ("agent-os@users.noreply.github.com" in a tailscale status table): still his address.

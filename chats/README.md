@@ -33,8 +33,9 @@ This turns your old Claude Code chats into short notes the second brain can sear
 ## How redaction works
 
 Before a note is written, every message (and the title) goes through `redact.py`, and the finished
-note gets one more pass. Anything that looks like a secret becomes `[redacted]`, and your email
-address becomes `[email]`. It blanks out:
+note gets one more pass. Anything that looks like a secret becomes `[redacted]`. Your own email address
+becomes `[email]` once you list it (`BRAIN_OWN_EMAILS=you@example.com`, or one address per line in
+`~/.config/second-brain/own-emails`); other people's addresses are left as they are. It blanks out:
 
 - Known key shapes: `sk-…` (OpenAI, Anthropic), `ghp_…` and `github_pat_…` (GitHub), `AKIA…`
   (Amazon), `xoxb-…` (Slack), `tskey-…` (Tailscale), Google, Hugging Face, npm, Stripe and

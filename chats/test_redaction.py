@@ -15,6 +15,25 @@ from redact import redact  # noqa: E402
 FAKE = "Ab3dEf9hIj2LmN0pQr5tUv8xYz1"
 
 
+class OwnAddress(unittest.TestCase):
+    """Your own address is dropped once you list it; other people's stay."""
+
+    def test_a_listed_address_is_dropped_and_others_are_kept(self):
+        old = os.environ.get("BRAIN_OWN_EMAILS")
+        os.environ["BRAIN_OWN_EMAILS"] = "sam@mydomain.test"
+        try:
+            out, n = redact("write to sam@mydomain.test or to pat@other.test")
+        finally:
+            if old is None:
+                os.environ.pop("BRAIN_OWN_EMAILS")
+            else:
+                os.environ["BRAIN_OWN_EMAILS"] = old
+        self.assertNotIn("sam@mydomain.test", out)
+        self.assertIn("[email]", out)
+        self.assertIn("pat@other.test", out)
+        self.assertGreaterEqual(n, 1)
+
+
 class Positive(unittest.TestCase):
     """Things that must disappear."""
 

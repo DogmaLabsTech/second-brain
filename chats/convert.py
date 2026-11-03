@@ -307,7 +307,7 @@ def redact_turns(turns):
 def render_blocks(turns, agent="Claude"):
     blocks = []
     for role, ts, text in turns:
-        who = "<user>" if role == "user" else agent
+        who = "You" if role == "user" else agent
         when = ts.astimezone().strftime("%H:%M") if ts else ""
         body = trim(text, USER_MAX if role == "user" else ASSISTANT_MAX)
         blocks.append(f"**{who}** ({when}):\n\n{body}\n")
