@@ -263,7 +263,9 @@ class Session:
 
 def low_value(cwd, turns):
     p = cwd or ""
-    if p == "/tmp" or p.startswith(("/tmp/", os.path.join(HOME, ".cache") + "/")):
+    if p.startswith(os.path.join(HOME, ".cache") + "/"):
+        return True
+    if (p == "/tmp" or p.startswith("/tmp/")) and not p.startswith(HOME.rstrip("/") + "/"):   # a home that sits in /tmp is still a home
         return True
     if re.search(r"/pm-run(-\d+)?(/|$)", p):
         return True
