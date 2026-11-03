@@ -208,6 +208,7 @@ def write_qmd_config(notes, brain, home, dry):
     template = open(os.path.join(HERE, "index.yml"), encoding="utf-8").read()
     if brain != os.path.join(home, "brain"):
         template = template.replace("~/brain", brain)
+    template = re.sub(r"^(\s+path:\s*)~/", lambda m: m.group(1) + home.rstrip("/") + "/", template, flags=re.M)   # qmd does not expand ~
     taken, added = set(), []
     for n in notes:
         name = slug(n, taken)

@@ -196,6 +196,12 @@ class SearchConfigTests(OnboardCase):
         self.assertLess(text.index("\n  notes-notes:"), text.index("\nmodels:"))
         self.assertIn("+1 notes collections", out)
 
+    def test_the_search_config_has_full_paths_because_qmd_does_not_expand_a_tilde(self):
+        self.run_main("--yes", "--sessions", "none")
+        text = open(os.path.join(self.home, ".config", "qmd", "index.yml"), encoding="utf-8").read()
+        self.assertNotRegex(text, r"path:\s*~")
+        self.assertIn("path: %s\n" % os.path.join(self.home, "brain", "chats"), text)
+
     def test_a_second_run_leaves_the_search_config_alone(self):
         folder = self.notes()
         self.run_main("--yes", "--notes", folder, "--sessions", "none")

@@ -6,10 +6,13 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 conf="${XDG_CONFIG_HOME:-$HOME/.config}/qmd/index.yml"
 mkdir -p "$(dirname "$conf")" "${BRAIN_HOME:-$HOME/brain}/chats"
-if [[ -f "$conf" ]] && ! cmp -s "$here/index.yml" "$conf"; then
+# qmd does not expand a ~ in a collection path, so write the full path of this home folder
+want="$(mktemp)"; trap 'rm -f "$want"' EXIT
+sed "s#^\([[:space:]]*path:[[:space:]]*\)~/#\1${HOME%/}/#" "$here/index.yml" > "$want"
+if [[ -f "$conf" ]] && ! cmp -s "$want" "$conf"; then
   cp "$conf" "$conf.bak-$(date +%Y%m%d-%H%M%S)"
 fi
-cp "$here/index.yml" "$conf"
+cp "$want" "$conf"
 qmd update
 for c in $(python3 -I -c 'import os, yaml; print(" ".join(yaml.safe_load(open(os.path.expanduser("~/.config/qmd/index.yml")))["collections"]))'); do
   env -u QMD_EMBED_PARALLELISM qmd embed -c "$c"
