@@ -1,0 +1,13 @@
+Use your built-in image generation tool to make TWO landscape illustrations (16:9), then copy each finished image into the current folder as map-a.png and map-b.png. Do not write any other files and do not change anything outside this folder.
+
+Shared style (same family as my other holographic banners): cinematic futuristic user-interface art, dark deep-space navy background almost black with a very faint hexagon grid, teal-cyan light with orange-amber accents, crisp, clean, premium sci-fi game-interface feel, soft glow, a few drifting light particles.
+Hard rules: no text, no letters, no numbers, no logos, no watermarks, no people, no faces. EVERY panel must be completely EMPTY: just clear dark glass with a glowing edge and corner brackets. No placeholder lines, no icons, no bars and no shapes inside any panel, because real content will be added later.
+
+Layout (an architecture diagram as a holographic control room):
+- LEFT: one large tall rectangular glass panel, about 30% of the image width and 60% of its height, cyan edge, chamfered corners, small amber corner brackets.
+- CENTRE: a glowing index core: a compact cylindrical or spherical energy core on a ring pedestal, amber and cyan, with thin cyan light conduits (glowing lines, like fibre optic cables) running from the left panel into the core, and from the core out to the right panel.
+- RIGHT: one medium rectangular glass panel, about 26% of the image width and 50% of its height, cyan edge, chamfered corners, vertically centred.
+- BOTTOM: one wide, thin rectangular glass strip spanning about 90% of the width along the bottom, cyan edge, also empty, with faint light lines linking it up to the left panel.
+Keep the panels well separated with dark space between them, and keep the edges of the image calm and dark.
+Variant (a): flat, graphic, front-on. Variant (b): more depth, slight perspective and layered glow, but the panels must still be front-facing and rectangular enough to place text on.
+When done, list the two file names.

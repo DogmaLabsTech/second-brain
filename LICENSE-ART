@@ -23,8 +23,8 @@ How they were made
 The banners, icons and scenes are drawn from plain shapes and text by make_art.py.
 The terminal scenes show text that the brain command printed on a made-up folder.
 
-The brain in the hero, and the pictures behind the chat and private scenes, are images
+The brain in the hero, and the pictures behind the chat, private and folder-map scenes, are images
 generated with OpenAI Codex's image tool from the prompts saved in
-docs/media/readme/source/ (hero-prompt.txt and scenes-prompt.txt). The legal status of
+docs/media/readme/source/ (hero-prompt.txt, scenes-prompt.txt and map-prompt.txt). The legal status of
 machine-generated images differs between countries; the licence above covers
 whatever rights the contributors hold in it.

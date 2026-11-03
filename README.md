@@ -82,7 +82,7 @@ Run `bin/brain` with no words for the full list.
 <h2><img src="docs/media/readme/banner-4.svg" alt="4. Where everything lives: your folder, the index, and the code in this repository" width="100%"></h2>
 
 <p align="center">
-  <img src="docs/media/readme/scene-where.svg" alt="A diagram. Your brain folder holds rules, agents, projects, private, chats, days and inbox. A local qmd search index reads it. The brain command talks to the index. Below, the ten code folders of this repository." width="100%">
+  <img src="docs/media/readme/scene-where.svg" alt="An illustration of three glowing glass panels around a core. The left panel lists your brain folder: rules, agents, projects, private, chats, days and inbox. Light runs from it into a local qmd search index, then on to the right panel, the brain command: search, ask, onboard, day and status. A strip along the bottom lists the ten code folders of this repository." width="100%">
 </p>
 
 | Folder | What |

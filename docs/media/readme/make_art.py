@@ -268,38 +268,51 @@ def chats_scene():
 # ------------------------------------------------------------------ map and privacy
 
 def where_scene():
-    w, h = 1000, 470
-    o = ['<rect width="%d" height="%d" fill="url(#hex)" opacity=".8"/>' % (w, h)]
-    # left: the brain folder
-    o.append('<polygon points="%s" fill="%s" stroke="%s" stroke-width="1.3"/>' % (chamfer(20, 20, 400, 330, 20), C["panel"], C["cyan"]))
-    o.append('<text x="44" y="54" font-family="%s" font-size="13" letter-spacing="3" fill="%s">YOUR BRAIN  //  ~/brain</text>' % (SANS, C["cyan"]))
+    """Codex drew the glass panels, the index core and the light conduits (source/map.jpg, prompt in source/map-prompt.txt),
+    all empty. The folder names, commands and moving light are drawn over it, so every word is exact."""
+    w, h = 1000, 563
+    k = w / 1672
+    css = "@keyframes core{0%,100%{opacity:.1}50%{opacity:.4}}"
+    o = [picture("map.jpg", w, h)]
+    o.append('<circle cx="%.0f" cy="%.0f" r="52" fill="%s" filter="url(#glow2)" style="animation:core 2.6s ease-in-out infinite"/>' % (872 * k, 390 * k, C["amber"]))
+    # light runs along the two conduits and down to the code strip
+    for pid, d in (("c1", "M%.0f %.0f H%.0f" % (556 * k, 385 * k, 705 * k)), ("c2", "M%.0f %.0f H%.0f" % (1046 * k, 385 * k, 1198 * k)),
+                   ("c3", "M%.0f %.0f V%.0f H%.0f" % (118 * k, 668 * k, 792 * k, 160 * k))):
+        o.append('<path id="%s" d="%s" fill="none"/>' % (pid, d))
+        for i in range(3):
+            o.append('<circle r="2.6" fill="%s" filter="url(#glow)"><animateMotion dur="2.4s" begin="-%.1fs" repeatCount="indefinite"><mpath href="#%s"/></animateMotion></circle>' % (C["cyan"] if pid != "c2" else C["green"], i * 0.8, pid))
+    # left panel: the brain folder
+    lx, ly = 62 * k, 100 * k
+    o.append(label(lx + 18, ly + 26, "YOUR BRAIN  //  ~/brain", C["cyan"], 12, "start"))
     secs = (("rules", "how you want work done"), ("agents", "lessons your AI learned"), ("projects", "notes per project"), ("private", "never leaves this computer"),
             ("chats", "your AI chats as notes"), ("days", "day pages"), ("inbox", "things to sort"))
     for i, (n, d) in enumerate(secs):
-        y = 74 + i * 38
-        priv = n == "private"
-        col = C["amber"] if priv else C["cyan"]
-        o.append('<polygon points="%s" fill="%s" fill-opacity=".07" stroke="%s" stroke-width="1"/>' % (chamfer(44, y, 352, 30, 8), col, col))
-        o.append('<text x="60" y="%d" font-family="%s" font-size="14" font-weight="700" fill="%s">%s/</text><text x="150" y="%d" font-family="%s" font-size="12.5" fill="%s">%s</text>' % (y + 20, MONO, col, n, y + 20, SANS, C["dim"], esc(d)))
-    # middle: index
-    o.append('<path d="M420 190h96" stroke="%s" stroke-width="2" stroke-dasharray="6 6" fill="none"><animate attributeName="stroke-dashoffset" values="24;0" dur="1.2s" repeatCount="indefinite"/></path>' % C["cyan"])
-    o.append('<polygon points="%s" fill="%s" stroke="%s" stroke-width="1.3"/>' % (chamfer(516, 130, 130, 120, 14), C["panel2"], C["amber"]))
-    o.append('<text x="581" y="176" text-anchor="middle" font-family="%s" font-size="12" letter-spacing="3" fill="%s">LOCAL</text><text x="581" y="200" text-anchor="middle" font-family="%s" font-size="22" font-weight="700" fill="%s" filter="url(#glow)">qmd</text><text x="581" y="226" text-anchor="middle" font-family="%s" font-size="11" fill="%s">search index</text>' % (SANS, C["amber"], SANS, C["text"], SANS, C["dim"]))
-    o.append('<path d="M646 190h72" stroke="%s" stroke-width="2" stroke-dasharray="6 6" fill="none"><animate attributeName="stroke-dashoffset" values="24;0" dur="1.2s" repeatCount="indefinite"/></path>' % C["cyan"])
-    # right: commands
-    o.append('<polygon points="%s" fill="%s" stroke="%s" stroke-width="1.3"/>' % (chamfer(718, 70, 262, 240, 18), C["panel"], C["cyan"]))
-    o.append('<text x="740" y="102" font-family="%s" font-size="13" letter-spacing="3" fill="%s">THE BRAIN COMMAND</text>' % (SANS, C["cyan"]))
-    for i, (c, d) in enumerate((("brain search", "best five notes"), ("brain ask", "short answer + sources"), ("brain onboard", "choose what goes in"), ("brain day", "what moved today"), ("brain status", "is the index fresh?"))):
-        y = 136 + i * 34
-        o.append('<text x="740" y="%d" font-family="%s" font-size="14" font-weight="700" fill="%s">%s</text><text x="740" y="%d" font-family="%s" font-size="11.5" fill="%s">%s</text>' % (y, MONO, C["text"], c, y + 16, SANS, C["dim"], d))
-    # bottom: the code folders
-    o.append('<text x="20" y="392" font-family="%s" font-size="13" letter-spacing="3" fill="%s">THE CODE  //  THIS REPOSITORY</text>' % (SANS, C["amber"]))
+        y = ly + 42 + i * 40
+        col = C["amber"] if n == "private" else C["cyan"]
+        o.append('<polygon points="%s" fill="%s" fill-opacity=".08" stroke="%s" stroke-width="1"/>' % (chamfer(lx + 14, y, 267, 33, 8), col, col))
+        o.append('<text x="%.0f" y="%.0f" font-family="%s" font-size="13.5" font-weight="700" fill="%s">%s/</text><text x="%.0f" y="%.0f" font-family="%s" font-size="11.5" fill="#9fb4c8">%s</text>'
+                 % (lx + 26, y + 21, MONO, col, n, lx + 114, y + 21, SANS, esc(d)))
+    # centre: the index
+    o.append(label(872 * k, 676 * k, "LOCAL SEARCH INDEX  //  qmd", C["amber"], 12))
+    # right panel: the command
+    rx, ry = 1198 * k, 190 * k
+    o.append(label(rx + 18, ry + 26, "THE BRAIN COMMAND", C["cyan"], 12, "start"))
+    for i, (c, d) in enumerate((("brain search", "best five notes"), ("brain ask", "short answer + sources"), ("brain onboard", "choose what goes in"),
+                                ("brain day", "what moved today"), ("brain status", "is the index fresh?"))):
+        y = ry + 58 + i * 38
+        o.append('<text x="%.0f" y="%.0f" font-family="%s" font-size="13.5" font-weight="700" fill="%s">%s</text><text x="%.0f" y="%.0f" font-family="%s" font-size="11" fill="#9fb4c8">%s</text>'
+                 % (rx + 18, y, MONO, C["text"], c, rx + 18, y + 15, SANS, esc(d)))
+    # bottom strip: the code in this repository
+    sx, sy = 160 * k, 760 * k
+    o.append(label(sx, sy - 8, "THE CODE  //  THIS REPOSITORY", C["amber"], 12, "start"))
     code = ("bin", "ask", "chats", "index", "day", "jobs", "media", "eval", "deciders", "deck")
+    cw = (1430 * k - 14) / 10
     for i, n in enumerate(code):
-        x = 20 + i * 96.5
-        o.append('<polygon points="%s" fill="%s" fill-opacity=".06" stroke="%s" stroke-opacity=".7"/><text x="%g" y="438" text-anchor="middle" font-family="%s" font-size="13" fill="%s">%s/</text>' % (chamfer(x, 406, 88, 44, 9), C["cyan"], C["cyan"], x + 44, MONO, C["text"], n))
+        x = sx + 7 + i * cw
+        o.append('<polygon points="%s" fill="%s" fill-opacity=".08" stroke="%s" stroke-opacity=".7"/><text x="%.0f" y="%.0f" text-anchor="middle" font-family="%s" font-size="12.5" fill="%s">%s/</text>'
+                 % (chamfer(x, sy + 12, cw - 6, 34, 8), C["cyan"], C["cyan"], x + (cw - 6) / 2, sy + 34, MONO, C["text"], n))
     o.append('<rect width="%d" height="%d" fill="url(#scan)"/>' % (w, h))
-    write("scene-where.svg", svg(w, h, "".join(o)))
+    write("scene-where.svg", svg(w, h, "".join(o), css))
 
 
 def private_scene():
