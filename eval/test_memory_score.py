@@ -188,6 +188,7 @@ def shingles(text, n=6):
     return {tuple(w[i:i + n]) for i in range(len(w) - n + 1)}
 
 
+@unittest.skipUnless(os.path.exists(os.path.join(HERE, "memory-tuning.jsonl")), "needs your own question set (not shipped)")
 class SetFiles(unittest.TestCase):
     """The sets as they sit in this folder. The real held-out file is git-ignored; the example file is always here."""
 

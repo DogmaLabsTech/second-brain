@@ -64,6 +64,7 @@ class StopWriters(unittest.TestCase):
         self.assertIn("could not hang up on the standby Haiku", err.getvalue())
 
 
+@unittest.skipUnless(os.path.isdir(os.path.expanduser(os.environ.get("DECIDER_REPO", "~/projects/decider"))), "needs the optional decider repo")
 class HaikuWrite(unittest.TestCase):
     def test_a_standby_that_does_not_answer_is_said_before_haiku_starts_here(self):
         with mock.patch.object(ask.os.path, "exists", return_value=True), \

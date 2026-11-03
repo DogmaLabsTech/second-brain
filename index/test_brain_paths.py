@@ -72,6 +72,8 @@ class BrainPaths(unittest.TestCase):
                  "deciders/brain_decide.py", "index/index.yml", "index/brain-backup.sh", "index/setup.sh",
                  "index/reindex.sh", "index/codex-testbox.sh", "obsidian/second-brain-ask/main.js"]
         for rel in files:
+            if not os.path.exists(os.path.join(ROOT, rel)):
+                continue
             with open(os.path.join(ROOT, rel)) as f:
                 text = f.read()
             for o in old:

@@ -1,0 +1,6 @@
+{
+  "_note": "Copy to private.json (kept out of git) and put the real names in. Words in 'words' make an ask private, so it never goes to the second decider. 'partner' and 'kid' are used by the practice-data writers in tools/.",
+  "partner": "Sam",
+  "kid": "Max",
+  "words": ["sam", "max", "acme"]
+}

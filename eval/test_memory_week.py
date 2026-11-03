@@ -166,6 +166,7 @@ class InTheCheckup(unittest.TestCase):
         with mock.patch.object(checkup.memory_week, "report", lambda days: dict(fake, repeats=None, second_round=None)):
             self.assertEqual(checkup.memory_block(7), (["Agent memory for <user>:"], None, None))
 
+    @unittest.skipUnless(os.path.exists(os.path.join(os.path.dirname(HERE), "eval", "scores.tsv")), "needs your own score history (not shipped)")
     def test_the_old_scores_file_still_lines_up(self):
         path = os.path.join(os.path.dirname(HERE), "eval", "scores.tsv")
         rows = [l.split("\t") for l in read(path).splitlines()]

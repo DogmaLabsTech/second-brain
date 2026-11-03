@@ -18,6 +18,8 @@ sys.path.insert(0, HERE)
 os.environ["BRAIN_STATE"] = tempfile.mkdtemp(prefix="keep-test-state-")
 import drafts  # noqa: E402
 import memory_keep  # noqa: E402
+if not os.path.isdir(os.path.expanduser(os.environ.get("DECIDER_REPO", "~/projects/decider"))):
+    raise unittest.SkipTest("needs the optional decider repo (its names filter)")
 
 GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid"}

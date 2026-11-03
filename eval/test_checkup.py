@@ -17,6 +17,7 @@ os.environ["BRAIN_STATE"] = tempfile.mkdtemp(prefix="checkup-test-state-")
 import checkup  # noqa: E402
 
 
+@unittest.skipUnless(os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), "scores.tsv")), "needs your own score history (not shipped)")
 class Launcher(unittest.TestCase):
     def test_brain_checkup_with_isolated_python(self):
         root = os.path.dirname(HERE)

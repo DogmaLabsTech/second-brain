@@ -55,6 +55,7 @@ class SearchCli(unittest.TestCase):
         self.assertTrue(out[0].endswith("a.md — first"))
 
 
+@unittest.skipUnless(os.path.exists(os.path.expanduser("~/.config/qmd/index.yml")), "needs your search index config")
 class Collections(unittest.TestCase):
     def test_every_indexed_collection_has_a_folder(self):
         """A collection missing here comes back as a qmd:// link, not a note (agent-os and codex, 2026-10-18)."""
