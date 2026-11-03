@@ -161,6 +161,46 @@ def slug(path, taken):
     return name
 
 
+COLLECTION_HEAD = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$")
+
+
+def collection_blocks(text):
+    """{name: text of its block} for the `collections:` part of a qmd config written in the plain two-space form."""
+    blocks, name, lines = {}, None, []
+    inside = False
+    for line in text.splitlines(keepends=True):
+        if re.match(r"^collections:\s*$", line):
+            inside = True
+        elif inside and re.match(r"^\S", line) and not line.startswith("#"):
+            inside = False
+        elif inside:
+            m = COLLECTION_HEAD.match(line)
+            if m:
+                if name:
+                    blocks[name] = "".join(lines)
+                name, lines = m.group(1), [line]
+            elif name:
+                lines.append(line)
+    if name:
+        blocks[name] = "".join(lines)
+    return blocks
+
+
+def merge_collections(current, template):
+    """Your qmd config plus the collections in the template that it lacks. Nothing you have is changed or removed.
+    None when the file is in a form that cannot be extended safely (collections is not the last key)."""
+    mine, wanted = collection_blocks(current), collection_blocks(template)
+    if not re.search(r"^collections:\s*$", current, re.M):
+        return template if re.match(r"^\s*(global_context:.*\n)?\s*collections:\s*\{\}\s*$", current.strip() + "\n") or not mine else None
+    after = current[re.search(r"^collections:\s*$", current, re.M).end():]
+    if any(re.match(r"^[A-Za-z_]", l) for l in after.splitlines()):
+        return None
+    extra = "".join(b for n, b in wanted.items() if n not in mine)
+    if not extra:
+        return current
+    return current + ("" if current.endswith("\n") else "\n") + extra
+
+
 def write_qmd_config(notes, brain, home, dry):
     """~/.config/qmd/index.yml = the shipped sections + one collection for every notes folder chosen (qmd does not follow links)."""
     template = open(os.path.join(HERE, "index.yml"), encoding="utf-8").read()
@@ -175,9 +215,16 @@ def write_qmd_config(notes, brain, home, dry):
     conf = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(home, ".config"), "qmd", "index.yml")
     if not dry:
         os.makedirs(os.path.dirname(conf), exist_ok=True)
-        if os.path.isfile(conf) and open(conf, encoding="utf-8").read() != template:
-            shutil.copy2(conf, conf + ".bak-" + time.strftime("%Y%m%d-%H%M%S"))
-        open(conf, "w", encoding="utf-8").write(template)
+        if os.path.isfile(conf):
+            current = open(conf, encoding="utf-8").read()
+            merged = merge_collections(current, template)
+            if merged is None:      # a config we cannot extend safely: leave it alone and say so
+                added = []
+            elif merged != current:
+                shutil.copy2(conf, conf + ".bak-" + time.strftime("%Y%m%d-%H%M%S"))
+                open(conf, "w", encoding="utf-8").write(merged)
+        else:
+            open(conf, "w", encoding="utf-8").write(template)
     return conf, added
 
 

@@ -170,6 +170,29 @@ class SearchConfigTests(OnboardCase):
         self.assertIn("update", open(os.path.join(self.home, "qmd.calls")).read())
         self.assertTrue(glob.glob(os.path.join(self.home, ".config", "qmd", "index.yml.bak-*")))
 
+    def test_an_existing_search_config_is_extended_never_replaced(self):
+        mine = "global_context: mine\ncollections:\n  my-own:\n    path: /data/stuff\n    pattern: \"**/*.md\"\n  brain:\n    path: /custom/brain\n"
+        conf = self.write(".config/qmd/index.yml", mine)
+        folder = self.notes()
+        self.assertEqual(self.run_main("--yes", "--notes", folder, "--sessions", "none")[0], 0)
+        text = open(conf, encoding="utf-8").read()
+        self.assertTrue(text.startswith(mine))                      # what you had is untouched, in place
+        self.assertEqual(text.count("\n  brain:"), 1)                # your own "brain" is kept, not duplicated
+        self.assertIn("/custom/brain", text)
+        self.assertIn("\n  notes-notes:", text)                     # the chosen folder was added
+        self.assertIn("\n  rules:", text)                           # a shipped section you lacked was added
+        backups = glob.glob(os.path.join(self.home, ".config", "qmd", "index.yml.bak-*"))
+        self.assertEqual(open(backups[0], encoding="utf-8").read(), mine)
+
+    def test_a_second_run_leaves_the_search_config_alone(self):
+        folder = self.notes()
+        self.run_main("--yes", "--notes", folder, "--sessions", "none")
+        conf = os.path.join(self.home, ".config", "qmd", "index.yml")
+        first = open(conf, encoding="utf-8").read()
+        self.run_main("--yes", "--notes", folder, "--sessions", "none")
+        self.assertEqual(open(conf, encoding="utf-8").read(), first)
+        self.assertEqual(glob.glob(os.path.join(self.home, ".config", "qmd", "index.yml.bak-*")), [])
+
 
 if __name__ == "__main__":
     unittest.main()
