@@ -15,8 +15,11 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, "deciders", "tools"))
 import ask  # noqa: E402
-import haiku  # noqa: E402
-import haiku_standby  # noqa: E402
+try:
+    import haiku  # noqa: E402
+    import haiku_standby  # noqa: E402
+except ImportError:
+    raise unittest.SkipTest("needs the optional decider tools (not part of this repo)")
 
 FAKE = {"partner": "Thandoria", "kid": "Plorvik", "words": ["zorblax", "vex", "oszy"]}
 ASKED = "When is Zorblax coming? vexfamily said oszyfamily and Thandoria's dog are fine."

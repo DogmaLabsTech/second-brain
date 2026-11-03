@@ -60,7 +60,7 @@ THEMES = (
     ("permission-blocks", "permission blocks stall jobs", r"permission|not allowed|unsafe agent|allow rule"),
     ("worker-bugs", "worker first-pass fixes had bugs", r"flaky|miscount|merged before|review round"),
     ("privacy-leak", "private names reached a model", r"family name|private name|names? (filter|leak)|\[name"),
-    ("testbox-busy", "the test machine was busy or timed out", r"\brog\b|crabbox|queue|timed? ?out"),
+    ("testbox-busy", "the test machine was busy or timed out", r"\btestbox\b|crabbox|queue|timed? ?out"),
     ("wrong-recipient", "a closing note went to the wrong recipient", r"wrong recipient|closing note"),
     ("jargon", "jargon or over-complication", r"jargon|plain words|tailscale|firewall"),
     ("missing-tools", "the same fix said twice, no tool for it", r"\bhook\b|custom skill|headless|lock.and.retry"),

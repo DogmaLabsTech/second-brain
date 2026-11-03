@@ -80,7 +80,7 @@ class Case(unittest.TestCase):
 class Add(Case):
     def test_a_draft_is_written_in_the_note_format_with_its_source(self):
         got = self.add(files=["eval/drafts.py"])
-        self.assertEqual(got["path"], os.path.join(self.store, "drafts", "second-brain-lesson-testbox-busy-means-wait-in-the.md"))
+        self.assertEqual(got["path"], os.path.join(self.store, "drafts", "second-brain-lesson-test-machine-busy-means-wait-in.md"))
         text = self.text(got)
         self.assertTrue(text.startswith("---\nto: projects/second-brain/lessons\nsummary: test machine busy means wait in the queue\n"
                                         "files:\n  - eval/drafts.py\npinned: false\nalready-known: no\nwas-pushed: no\n"), text)

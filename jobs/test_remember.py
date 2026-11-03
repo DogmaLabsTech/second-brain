@@ -19,7 +19,7 @@ class Remember(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.file = os.path.join(self.tmp, "remembered.md")
         self.proj = os.path.join(self.tmp, "Projects")
-        for d in ("omarchy-setup", "example-game", "example", "factory", "second-brain", "example-game", ".hidden-thing"):
+        for d in ("omarchy-setup", "example-game", "example", "factory", "second-brain", "atlas", ".hidden-thing"):
             os.makedirs(os.path.join(self.proj, d))
         open(os.path.join(self.proj, "notes-file"), "w").close()
 
@@ -70,8 +70,8 @@ class Remember(unittest.TestCase):
         self.assertTrue(line.endswith("(repo: omarchy-setup)"), line)
 
     def test_no_partial_words(self):
-        self.assertNotIn("(repo:", self.run_it("titanium is a metal"))
-        self.assertTrue(self.run_it("the example-game fight").endswith("(repo: example-game)"))
+        self.assertNotIn("(repo:", self.run_it("atlases are heavy books"))
+        self.assertTrue(self.run_it("the atlas fight").endswith("(repo: atlas)"))
 
     def test_said_tag_must_look_like_a_folder(self):
         self.assertTrue(self.run_it("bar gap (repo: omarchy setup)").endswith("bar gap (repo: omarchy-setup)"))

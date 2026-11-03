@@ -29,7 +29,7 @@ class Hook(Base):
     def setUp(self):
         super().setUp()
         self.home = tempfile.mkdtemp(prefix="memory-hook-home-")
-        self.projects = os.path.join(self.home, "projects", "Projects")
+        self.projects = os.path.join(self.home, "projects")
         self.demo = os.path.join(self.projects, "demo")
         os.makedirs(self.demo)
         git("init", "-q", "-b", "main", cwd=self.demo)

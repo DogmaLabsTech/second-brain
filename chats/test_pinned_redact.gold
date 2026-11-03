@@ -255,7 +255,7 @@
 "random [redacted]",
 1
 ],
-"68: 'path ~/projects/some-long-p'": [
+"68: 'path ~/projects/some-long-project-name/file.md'": [
 "path ~/projects/some-long-project-name/file.md",
 0
 ],
@@ -295,7 +295,7 @@
 "[redacted]",
 1
 ],
-"77: 'mail agent-os@users.noreply.github.com and agent-os@users.noreply.github.com'": [
+"77: 'mail agent-os@users.noreply.github.com and agent-o'": [
 "mail [email] and [email] and [email] in a table",
 3
 ],

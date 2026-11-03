@@ -151,7 +151,7 @@ class WhichFiles(Folders):
 
 
 class RogLine(Folders):
-    def testbox(self, result, detail="", at=1, ok_at=None):
+    def box(self, result, detail="", at=1, ok_at=None):
         return {"at": hours_ago(at), "result": result, "detail": detail, "ok_at": hours_ago(ok_at) if ok_at else None}
 
     def verdict(self, testbox):
@@ -162,20 +162,20 @@ class RogLine(Folders):
         self.assertEqual((r["testbox"]["state"], r["warnings"]), ("unknown", []))
 
     def test_ok_is_quiet(self):
-        r = self.verdict(self.testbox("ok", ok_at=1))
+        r = self.verdict(self.box("ok", ok_at=1))
         self.assertEqual((r["testbox"]["state"], r["warnings"]), ("ok", []))
 
     def test_a_failed_embed_warns_and_says_why_and_the_last_good_run(self):
-        r = self.verdict(self.testbox("failed", "stopped at: embedding on the test machine (exit 1)", at=2, ok_at=50))
+        r = self.verdict(self.box("failed", "stopped at: embedding on the test machine (exit 1)", at=2, ok_at=50))
         self.assertEqual(r["testbox"]["state"], "failed")
         self.assertIn("failed (stopped at: embedding on the test machine (exit 1))", r["warnings"][0])
         self.assertIn("last good run 2d ago", r["warnings"][0])
 
     def test_rog_off_for_a_while_is_fine_but_not_for_days(self):
-        self.assertEqual(self.verdict(self.testbox("unreachable", at=1, ok_at=5))["warnings"], [])
-        r = self.verdict(self.testbox("unreachable", at=1, ok_at=30))
+        self.assertEqual(self.verdict(self.box("unreachable", at=1, ok_at=5))["warnings"], [])
+        r = self.verdict(self.box("unreachable", at=1, ok_at=30))
         self.assertIn("not been reachable", r["warnings"][0])
-        self.assertIn("not been reachable", self.verdict(self.testbox("unreachable"))["warnings"][0])
+        self.assertIn("not been reachable", self.verdict(self.box("unreachable"))["warnings"][0])
 
     def test_status_file_reading(self):
         p = os.path.join(self.dir, "s")

@@ -27,7 +27,7 @@ def msg(role, text, kind=None):
     return line("response_item", {"type": "message", "role": role, "content": [{"type": kind, "text": text}]})
 
 
-def meta(cwd="~/projects/project-manager", source="cli", thread_source="user"):
+def meta(cwd=os.path.expanduser("~/projects/project-manager"), source="cli", thread_source="user"):
     return line("session_meta", {"id": SID, "cwd": cwd, "source": source, "thread_source": thread_source,
                                  "timestamp": "2026-10-16T21:54:01.000Z"})
 
