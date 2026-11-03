@@ -24,11 +24,12 @@
 #                             messages lost) in ~/brain/days/canvas/; the hourly reindex and the day page run it
 #   brain tests-week [YYYY-Www]   this week's test failures and flaky tests, a page in ~/brain/days/tests/
 #   brain alarm list|history|cancel <id|all>   your reminders
+#   brain onboard [--plan|--yes --notes DIR --sessions claude,codex|none]   first run: you choose which notes and AI chats go into the brain
 set -euo pipefail
 root="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 . "$root/index/env.sh"
 
-usage() { sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; }
 
 cmd="${1:-}"; shift || true
 case "$cmd" in
@@ -87,6 +88,9 @@ case "$cmd" in
     ;;
   reindex)
     exec "$root/index/reindex.sh"
+    ;;
+  onboard)
+    exec python3 -I "$root/index/onboard.py" "$@"
     ;;
   day|changed|eod|goodnight|standup)
     if [[ $cmd == day ]]; then exec python3 -I "$root/day/day.py" day "$@"; fi

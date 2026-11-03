@@ -35,7 +35,7 @@ from redact import redact  # noqa: E402
 
 HOME = os.path.expanduser("~")
 SRC = os.path.join(HOME, ".codex", "sessions")
-OUT = os.path.join(HOME, "brain", "chats", "codex")
+OUT = os.path.join(os.environ.get("BRAIN_HOME") or os.path.join(HOME, "brain"), "chats", "codex")
 STATE_NAME = ".state.json"
 
 # What Codex itself puts in the user's turn: the AGENTS.md it read, the environment, plugin and skill lists.

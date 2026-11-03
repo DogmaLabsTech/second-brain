@@ -17,6 +17,7 @@ summary line at the end, a lock file stops two runs at once.
 
 import argparse
 import fcntl
+import fnmatch
 import glob
 import json
 import os
@@ -36,7 +37,8 @@ SRC = os.path.join(HOME, ".claude", "projects")
 # nodeterm starts its canvas agents with their own Claude folders (one per account); their chats live there, not in
 # SRC (2026-10-30). Same layout, read the same way.
 NODETERM_SRCS = os.path.join(".config", "node-terminal", "claude-accounts", "*", "projects")   # under HOME
-OUT = os.path.join(HOME, "brain", "chats")
+BRAIN = os.environ.get("BRAIN_HOME") or os.path.join(HOME, "brain")   # brain onboard can point the brain somewhere else
+OUT = os.path.join(BRAIN, "chats")
 STATE_NAME = ".state.json"
 
 USER_MAX = 1000
@@ -409,13 +411,19 @@ def _sessions_in(src, projdir, all_mains):
     return sessions
 
 
+def _excluded(projdir):
+    """BRAIN_EXCLUDE_PROJECTS: comma-separated globs matched against the project folder's name (brain onboard sets it)."""
+    globs = [g for g in os.environ.get("BRAIN_EXCLUDE_PROJECTS", "").split(",") if g.strip()]
+    return any(fnmatch.fnmatch(projdir, g.strip()) for g in globs)
+
+
 def find_sessions():
     srcs = [s for s in sources() if os.path.isdir(s)]
     all_mains = {os.path.basename(f)[:-6] for s in srcs for f in glob.glob(os.path.join(s, "*", "*.jsonl"))}
     sessions = []
     for src in srcs:
         for projdir in sorted(os.listdir(src)):
-            if os.path.isdir(os.path.join(src, projdir)):
+            if os.path.isdir(os.path.join(src, projdir)) and not _excluded(projdir):
                 sessions += _sessions_in(src, projdir, all_mains)
     return sessions
 
