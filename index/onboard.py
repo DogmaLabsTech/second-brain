@@ -188,17 +188,19 @@ def collection_blocks(text):
 
 def merge_collections(current, template):
     """Your qmd config plus the collections in the template that it lacks. Nothing you have is changed or removed.
-    None when the file is in a form that cannot be extended safely (collections is not the last key)."""
+    qmd itself adds a `models:` section after `collections:` on its first run, so new collections go at the end of
+    the collections part, before the next top-level key. None when the file cannot be extended safely."""
     mine, wanted = collection_blocks(current), collection_blocks(template)
-    if not re.search(r"^collections:\s*$", current, re.M):
+    head = re.search(r"^collections:\s*$", current, re.M)
+    if not head:
         return template if re.match(r"^\s*(global_context:.*\n)?\s*collections:\s*\{\}\s*$", current.strip() + "\n") or not mine else None
-    after = current[re.search(r"^collections:\s*$", current, re.M).end():]
-    if any(re.match(r"^[A-Za-z_]", l) for l in after.splitlines()):
-        return None
     extra = "".join(b for n, b in wanted.items() if n not in mine)
     if not extra:
         return current
-    return current + ("" if current.endswith("\n") else "\n") + extra
+    lines = current[head.end():].splitlines(keepends=True)
+    end = next((i for i, l in enumerate(lines) if re.match(r"^[A-Za-z_]", l)), len(lines))
+    before = current[:head.end()] + "".join(lines[:end])
+    return before + ("" if before.endswith("\n") else "\n") + extra + "".join(lines[end:])
 
 
 def write_qmd_config(notes, brain, home, dry):
@@ -261,6 +263,8 @@ def execute(brain, home, notes, sessions, excludes, index, dry):
     if index:
         conf, collections = write_qmd_config(notes, brain, home, dry)
         done.append("search config %s (+%d notes collections)%s" % (conf, len(collections), " (dry run)" if dry else ""))
+        if notes and not collections and not dry:
+            errors.append("your search config is in a form this step cannot extend safely, so your notes folders were not added; it was left as it is")
         if not dry:
             if shutil.which("qmd"):
                 p = subprocess.run(["qmd", "update"], capture_output=True, text=True, timeout=900)

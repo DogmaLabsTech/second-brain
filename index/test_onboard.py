@@ -184,6 +184,18 @@ class SearchConfigTests(OnboardCase):
         backups = glob.glob(os.path.join(self.home, ".config", "qmd", "index.yml.bak-*"))
         self.assertEqual(open(backups[0], encoding="utf-8").read(), mine)
 
+    def test_a_config_qmd_has_added_models_to_still_gets_the_new_folder(self):
+        # qmd adds a `models:` section after `collections:` the first time it runs
+        mine = "collections:\n  my-own:\n    path: /data/stuff\n    pattern: \"**/*.md\"\nmodels:\n  embed: some-model\n"
+        conf = self.write(".config/qmd/index.yml", mine)
+        folder = self.notes()
+        code, out, _ = self.run_main("--yes", "--notes", folder, "--sessions", "none")
+        self.assertEqual(code, 0)
+        text = open(conf, encoding="utf-8").read()
+        self.assertTrue(text.endswith("models:\n  embed: some-model\n"))   # the models section stays last and untouched
+        self.assertLess(text.index("\n  notes-notes:"), text.index("\nmodels:"))
+        self.assertIn("+1 notes collections", out)
+
     def test_a_second_run_leaves_the_search_config_alone(self):
         folder = self.notes()
         self.run_main("--yes", "--notes", folder, "--sessions", "none")
