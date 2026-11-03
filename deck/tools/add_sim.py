@@ -1,5 +1,5 @@
 import os, json, sys, numpy as np, pathlib
-P = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/.local/share/second-brain/viz")) / "data.js"
+P = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/.local/share/second-brain/deck")) / "data.js"
 raw = P.read_text(); B = json.loads(raw[raw.index("=") + 1:].rstrip().rstrip(";")); D = B["docs"]
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent)); from vectors import index, pieces   # the shared index reader
 c = index(); byhash = pieces(c)

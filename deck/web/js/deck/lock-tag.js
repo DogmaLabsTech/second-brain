@@ -1,5 +1,5 @@
 import { RD, S, decode, docOf, editing, note, pvCache, renderNote, say } from '../deck-main.js';
-// ---- 🔒 this computer only (brief 22): memory notes only. GET /private reads the note's tag; the toggle asks the server to run
+// ---- 🔒 this computer only: memory notes only. GET /private reads the note's tag; the toggle asks the server to run
 // `brain private <note> on|off`, which changes the note (the Deck never edits it); then the note is read again. Turning it off asks first.
 let lockSt = null; const BYW = { owner: 'you', filter: 'the names filter' };
 export function lockShow(st) { lockSt = st; const on = !!(st && st.local_only), who = st && st.by ? (st.local_only ? 'locked' : 'turned off') + ' by ' + (BYW[st.by] || st.by) + (st.at ? ' on ' + st.at : '') : '';

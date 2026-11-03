@@ -285,7 +285,7 @@ def _cwd(pid, proc="/proc"):
         return ""
 
 
-DECK_FOLDERS = ("brain-prototypes", "second-brain/viz")   # where the Deck's server.py runs from (the old prototype, the repo)
+DECK_FOLDERS = ("brain-prototypes", "second-brain/deck")   # where the Deck's server.py runs from (the old prototype, the repo)
 
 
 def known_program(comm, argv, cwd=""):

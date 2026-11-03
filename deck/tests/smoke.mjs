@@ -1,4 +1,4 @@
-// Smoke test of the Deck app (app/main.js) with a window that is never shown (brief 26). It starts Electron on the test port 8797
+// Smoke test of the Deck app (app/main.js) with a window that is never shown. It starts Electron on the test port 8797
 // (DECK_TEST_PORT; never the real 8765), with fake media devices (no real mic), muted sound and a fresh app folder, and drives the page
 // over the DevTools protocol. It needs this computer's data.js (the private map), so run it here: CRABBOX_LOCAL=1 node tests/smoke.mjs
 // Checks: page, WebGL, 13 sections, all notes, no page errors; links and requests; start twice = one window; server gone after close;
@@ -9,8 +9,8 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
-const VIZ = path.resolve(import.meta.dirname, '..'), PORT = Number(process.env.DECK_TEST_PORT || 8797), CDP = PORT + 1000;
-const ELECTRON = path.join(VIZ, 'node_modules/electron/dist/electron');
+const DECK_DIR = path.resolve(import.meta.dirname, '..'), PORT = Number(process.env.DECK_TEST_PORT || 8797), CDP = PORT + 1000;
+const ELECTRON = path.join(DECK_DIR, 'node_modules/electron/dist/electron');
 const OUT = process.env.DECK_SMOKE_OUT || fs.mkdtempSync(path.join(os.tmpdir(), 'deck-smoke-'));
 const NOTES = Number(process.env.DECK_SMOKE_NOTES || 2385), SECTIONS = 13;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -22,7 +22,7 @@ const health = () => fetch(`http://127.0.0.1:${PORT}/health`).then(r => r.json()
 const portFree = p => new Promise(done => { const s = net.connect(p, '127.0.0.1'); s.on('connect', () => { s.destroy(); done(false); }); s.on('error', () => done(true)); });
 
 function launch(userData, { cdp = true } = {}) {
-  const args = [VIZ, '--ozone-platform=headless', '--use-fake-device-for-media-stream', '--mute-audio',
+  const args = [DECK_DIR, '--ozone-platform=headless', '--use-fake-device-for-media-stream', '--mute-audio',
     ...(cdp ? [`--remote-debugging-port=${CDP}`, '--remote-debugging-address=127.0.0.1'] : [])];
   const p = spawn(ELECTRON, args, { env: { ...process.env, DECK_PORT: String(PORT), DECK_TEST_HIDDEN: '1', DECK_USER_DATA: userData }, stdio: ['ignore', 'pipe', 'pipe'] });
   p.log = ''; for (const s of [p.stdout, p.stderr]) s.on('data', d => { p.log += d; });
@@ -122,7 +122,7 @@ async function main() {
   check('the port is free again', await until(() => portFree(PORT), 3000));
 
   // 6. a Deck server that already runs is used, and left running
-  const mine = spawn('python3', ['-I', path.join(VIZ, 'server/server.py')], { env: { ...process.env, DECK_PORT: String(PORT) }, stdio: ['pipe', 'ignore', 'ignore'] });
+  const mine = spawn('python3', ['-I', path.join(DECK_DIR, 'server/server.py')], { env: { ...process.env, DECK_PORT: String(PORT) }, stdio: ['pipe', 'ignore', 'ignore'] });
   await until(health, 15000);
   const r = launch(home);
   const rp = await until(async () => (await pages())?.find(x => x.url.endsWith('/deck.html')), 30000);

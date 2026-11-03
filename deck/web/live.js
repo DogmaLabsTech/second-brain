@@ -1,4 +1,4 @@
-// Live searches (brief 15): the scene stays calm until someone searches the brain (a chat, the voice island, the terminal, the
+// Live searches: the scene stays calm until someone searches the brain (a chat, the voice island, the terminal, the
 // Deck's own Ask box or voice). Then, per search: only the sections holding its notes wake up (the rest dims), a query point
 // with the question and who asked appears above the notes, and a line grows to each note one by one in rank order with a spark
 // riding its tip; the note pulses, gets its number, and the shell ripples at that spot. After ~8 s it all fades back to calm.
@@ -76,7 +76,7 @@ export function makeLive({ cur, root, camera, project, V, cloud, docs, kc, cols,
   return { play, release, frame, snap, clear() { [...evs].forEach(drop); }, get count() { return evs.length; } };
 }
 // 08 Live: the recent searches, newest on top: time, who, the question, how many notes. Click = play it again; hover = its notes,
-// and a click on one of those opens it in the reader (also a note that is no dot in the scene, e.g. one newer than the snapshot: brief 22).
+// and a click on one of those opens it in the reader (also a note that is no dot in the scene, e.g. one newer than the snapshot: ).
 export function makeFeed(el, { docs, kc, nice, esc, onReplay, onHide, onOpen }) {
   el.innerHTML = `<div class="h"><span><i class="num">08</i>Live</span><b><em class="lf-st" data-r="st">connecting</em><span class="hdbtn" data-r="hide" title="hide  (L)">✕</span></b></div>
     <div class="lf-list" data-r="list"><div class="lf-empty">Calm. Searches show up here as they happen.</div></div><div class="lf-pop" data-r="pop"></div>`;

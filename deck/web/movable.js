@@ -1,4 +1,4 @@
-// Movable panels (brief 10): drag a panel by its title bar anywhere on screen. It snaps gently to the screen edges and to the
+// Movable panels: drag a panel by its title bar anywhere on screen. It snaps gently to the screen edges and to the
 // other movable panels, never leaves the screen (re-clamped on resize), and its place is remembered (localStorage deckPanel.<key>).
 // Double-click the title bar, or its RESET control, to put it back. The panel stays in its docked slot and is only shifted with a
 // transform, so the slot keeps its space and nothing else on the page moves.

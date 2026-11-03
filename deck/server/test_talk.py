@@ -1,4 +1,4 @@
-"""Tests for the Deck's voice gate and talk helpers (brief 27): python3 -I viz/server/test_talk.py
+"""Tests for the Deck's voice gate and talk helpers: python3 -I deck/server/test_talk.py
 Starts its own server on DECK_TEST_PORT (8799) with a stand-in `brain` (DECK_BRAIN) that only writes down what it was asked, so no
 real job ever runs. Checks: a job runs only from the server's own copy of the plan, once, after a Yes click or a plain spoken yes;
 a spoken no, silence or an unclear answer does nothing; a plan the page makes up is refused; /talk/warm answers at once;

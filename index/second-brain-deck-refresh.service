@@ -1,0 +1,11 @@
+[Unit]
+Description=Second brain: refresh the Deck's map (deck/tools/refresh.sh; skips when the index did not change)
+# Started by second-brain-reindex.service when it is done (second-brain-reindex.service.d/deck.conf), never on its own.
+
+[Service]
+Type=oneshot
+ExecStart=%h/projects/second-brain/deck/tools/refresh.sh
+Nice=10
+IOSchedulingClass=idle
+CPUSchedulingPolicy=batch
+TimeoutStartSec=20min

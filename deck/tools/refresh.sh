@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Make a new map (data.js) after the hourly reindex (plan: brief 24 part 3). Run by second-brain-viz-refresh.service, which the
-# reindex starts when it is done; by hand: viz/tools/refresh.sh (--force: build even if the index did not change).
+# Make a new map (data.js) after the hourly reindex (). Run by second-brain-deck-refresh.service, which the
+# reindex starts when it is done; by hand: deck/tools/refresh.sh (--force: build even if the index did not change).
 # - one run at a time (a lock); low priority (nice 10)
 # - skips the work when the index did not change since the last good map (note count, newest change, number of note pieces)
 # - builds into a temporary folder, checks the result (enough notes, every note's neighbours scored: `ns`), and only then
 #   swaps it in (an atomic rename, so the Deck never reads half a file). A failed run keeps the old data.js.
-# - one line per run in ~/.local/state/second-brain/viz-refresh.log
-# Env: VIZ_OUT (the map's folder, ~/.local/share/second-brain/viz), VIZ_INDEX (the search index, read-only),
-# VIZ_MIN_NOTES (100: fewer notes than this, or under half of the old map's, counts as broken).
+# - one line per run in ~/.local/state/second-brain/deck-refresh.log
+# Env: DECK_OUT (the map's folder, ~/.local/share/second-brain/deck), DECK_INDEX (the search index, read-only),
+# DECK_MIN_NOTES (10: fewer notes than this, or under half of the old map's, counts as broken).
 set -uo pipefail
 here="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-out="${VIZ_OUT:-$HOME/.local/share/second-brain/viz}"; index="${VIZ_INDEX:-$HOME/.cache/qmd/index.sqlite}"; min="${VIZ_MIN_NOTES:-100}"
-logf="$HOME/.local/state/second-brain/viz-refresh.log"
+out="${DECK_OUT:-$HOME/.local/share/second-brain/deck}"; index="${DECK_INDEX:-$HOME/.cache/qmd/index.sqlite}"; min="${DECK_MIN_NOTES:-10}"
+logf="$HOME/.local/state/second-brain/deck-refresh.log"
 mkdir -p "$out" "$(dirname "$logf")"
 log() { printf '%s %s\n' "$(date -Iseconds)" "$*" | tee -a "$logf"; }
 exec 9>"$out/refresh.lock"
@@ -30,7 +30,7 @@ if [[ ${1:-} != --force && -f $out/data.js && "$(cat "$out/refresh.sig" 2>/dev/n
 fi
 
 tmp=$(mktemp -d "$out/.refresh-XXXXXX"); trap 'rm -rf "$tmp"' EXIT
-if ! { VIZ_INDEX="$index" nice -n 10 python3 -I "$here/build_data.py" "$tmp" && VIZ_INDEX="$index" nice -n 10 python3 -I "$here/add_sim.py" "$tmp"; } >"$tmp/run.log" 2>&1; then
+if ! { DECK_INDEX="$index" nice -n 10 python3 -I "$here/build_data.py" "$tmp" && DECK_INDEX="$index" nice -n 10 python3 -I "$here/add_sim.py" "$tmp"; } >"$tmp/run.log" 2>&1; then
   log "FAILED: the map makers stopped ($(grep -v '^\s*$' "$tmp/run.log" | tail -1 | cut -c1-200)); old data.js kept"; exit 1
 fi
 # the check: the file reads back, enough notes, positions and neighbour scores filled in for every note

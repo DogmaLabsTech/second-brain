@@ -1,4 +1,4 @@
-// 05 Timeline (brief 10): one bar per day (notes changed that day), oldest left, today right. Hover a bar = its date and count,
+// 05 Timeline: one bar per day (notes changed that day), oldest left, today right. Hover a bar = its date and count,
 // click = jump there, drag across the bars or the track = scrub. ▶ replays the brain day by day (notes fade in as their day
 // arrives), NOW goes back to live. The panel owns its markup and state; the Deck only hears onChange(cut) and asks alpha(age).
 // cut = how many days back we stand (0 = live, float while replaying); a note of age a is shown fully when a >= cut.

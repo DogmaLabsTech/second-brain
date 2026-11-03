@@ -1,4 +1,4 @@
-"""Tests for viz/server/server.py: it serves the Deck from web/, the private data.js from outside git, and keeps the Host check.
+"""Tests for deck/server/server.py: it serves the Deck from web/, the private data.js from outside git, and keeps the Host check.
 Starts its own server on DECK_TEST_PORT (8796), never the real 8765. The /note check needs this computer's search index
 (run with CRABBOX_LOCAL=1); without the index it is skipped."""
 import http.client
@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-VIZ = HERE.parent
+DECK_DIR = HERE.parent
 PORT = int(os.environ.get("DECK_TEST_PORT", "8796"))
 INDEX = Path("~/.cache/qmd/index.sqlite").expanduser()
 
@@ -150,12 +150,12 @@ class ParentWatch(unittest.TestCase):
 
 class Repo(unittest.TestCase):
     def test_private_files_are_ignored(self):
-        for f in ("viz/data.js", "viz/web/data.js", "viz/talk-log.jsonl", "viz/server/talk-log.jsonl"):
-            r = subprocess.run(["git", "-C", str(VIZ), "check-ignore", "-q", f.removeprefix("viz/")], timeout=30)
+        for f in ("deck/data.js", "deck/web/data.js", "deck/talk-log.jsonl", "deck/server/talk-log.jsonl"):
+            r = subprocess.run(["git", "-C", str(DECK_DIR), "check-ignore", "-q", f.removeprefix("deck/")], timeout=30)
             self.assertEqual(r.returncode, 0, f + " is not git-ignored")
 
     def test_page_has_no_paths_out_of_web(self):
-        for f in (VIZ / "web").rglob("*.html"):
+        for f in (DECK_DIR / "web").rglob("*.html"):
             self.assertNotIn('src="../', f.read_text(), f.name)
 
 

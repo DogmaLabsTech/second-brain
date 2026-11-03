@@ -2,7 +2,7 @@
 # Start the Deck's window (app/main.js). Extra switches are passed on, e.g. `app/deck --disable-gpu` if the graphics card misbehaves.
 # Env: DECK_PORT (8765), DECK_DEBUG=1 (dev tools). The launcher in ~/.local/bin and the app-menu entry come later (plan step 6).
 set -euo pipefail
-viz="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
-electron="$viz/node_modules/electron/dist/electron"
-[[ -x $electron ]] || { echo "deck: Electron is not installed yet: cd $viz && npm ci" >&2; exit 1; }
-exec "$electron" --ozone-platform-hint=auto "$viz" "$@"
+deck="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+electron="$deck/node_modules/electron/dist/electron"
+[[ -x $electron ]] || { echo "deck: Electron is not installed yet: cd $deck && npm ci" >&2; exit 1; }
+exec "$electron" --ozone-platform-hint=auto "$deck" "$@"

@@ -10,7 +10,7 @@ const NICE = {
   pm: 'Project manager', projects: 'Projects', memory: 'Agent memory'
 };
 const DOCS = BRAIN.docs;
-// a collection this file does not know yet (data.js is rebuilt by the desk) still gets a neutral colour, a name and a place in every view (brief 23)
+// a collection this file does not know yet (data.js is rebuilt by the desk) still gets a neutral colour, a name and a place in every view
 for (const d of DOCS) if (!COL[d.c]) { COL[d.c] = '#9aa6b2'; NICE[d.c] = d.c.replace(/[-_]+/g, ' ').replace(/^./, m => m.toUpperCase()); }
 const COLS = Object.keys(COL).filter(c => DOCS.some(d => d.c === c))
   .sort((a, b) => DOCS.filter(d => d.c === b).length - DOCS.filter(d => d.c === a).length);

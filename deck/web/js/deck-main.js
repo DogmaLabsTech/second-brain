@@ -32,8 +32,8 @@ function frame(t) {
   for (const k in vis) vis[k] += ((view === k ? 1 : 0) - vis[k]) * .06; const e = eff();
   for (const m of mats) { const u = m.userData; m.opacity = u.op * vis[u.view] * (u.sec && e ? (u.sec === e ? 1 : .25) : 1); }
   sets.map.visible = vis.map > .02; sets.tunnel.visible = vis.tunnel > .02; sets.radar.visible = vis.radar > .02;
-  const sweep = (t * .00045) % TAU; sweepG.rotation.y = -sweep; cloud.m.uniforms.uSweep.value = sweep; cloud.m.uniforms.uSweepOn.value = 0;   // calm (brief 15): the sweep no longer pings notes
-  const slY = yOf(S.cutoff); slice.position.y = slY; const cu = cloud.m.uniforms; cu.uScan.value = -2.6 + Math.abs(Math.sin((S.beamT = (S.beamT + dt * .00012) % 1) * Math.PI)) * 5.2; cu.uScanA.value = 0;   /* calm (brief 15): no roaming map beam over the notes */ cu.uScan2.value = slY; cu.uScanB.value = vis.tunnel;
+  const sweep = (t * .00045) % TAU; sweepG.rotation.y = -sweep; cloud.m.uniforms.uSweep.value = sweep; cloud.m.uniforms.uSweepOn.value = 0;   // calm: the sweep no longer pings notes
+  const slY = yOf(S.cutoff); slice.position.y = slY; const cu = cloud.m.uniforms; cu.uScan.value = -2.6 + Math.abs(Math.sin((S.beamT = (S.beamT + dt * .00012) % 1) * Math.PI)) * 5.2; cu.uScanA.value = 0;   /* calm: no roaming map beam over the notes */ cu.uScan2.value = slY; cu.uScanB.value = vis.tunnel;
   // scanner ring rides the transition
   scanner.visible = S.prog < 1; scanner.position.y = scanFrom + (yOf(-1) - scanFrom) * ease(S.prog); scanner.material.opacity = S.prog >= 1 ? 0 : .95 * Math.min(clamp(scanOp0 + S.prog * 5), clamp((1 - S.prog) * 4));
   shell.frame(t, ease(S.prog), scanner.position.y, scanner.material.opacity);

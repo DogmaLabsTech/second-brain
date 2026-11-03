@@ -121,7 +121,7 @@ canvas{display:block}
 #right.locked #secbody>.h,#right.locked #secbody .mini,#right.locked #secbody>.nb,#right.locked #secbody>.k{display:none}
 #right.locked #secbody .fresh{margin:4px 0 0}
 #right{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--c) 33%,transparent) transparent}
-/* ===== rounded glass (brief 09): radius, glass, borders and the corner marks all follow the skin tokens (skins.css) */
+/* ===== rounded glass: radius, glass, borders and the corner marks all follow the skin tokens (skins.css) */
 .panel{border-radius:var(--r);border-color:var(--line);background:linear-gradient(var(--glass),var(--glass2));backdrop-filter:blur(var(--blur)) saturate(var(--sat));
   box-shadow:inset 0 1px 0 var(--inner),inset 0 0 0 1px color-mix(in srgb,var(--inner) 35%,transparent),0 12px 34px var(--shadow)}
 .panel::before,.panel::after{width:calc(var(--r) + 10px);height:calc(var(--r) + 10px);opacity:var(--corner)}   /* the HUD corner marks bend with the corner */

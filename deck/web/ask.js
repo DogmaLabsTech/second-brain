@@ -1,8 +1,8 @@
-// 06 Ask (brief 10): a search box on the brain's meaning search (GET /search?q= on the Deck server runs `brain search`, read-only).
+// 06 Ask: a search box on the brain's meaning search (GET /search?q= on the Deck server runs `brain search`, read-only).
 // Enter, or a short pause in typing, searches; the results drop out of the panel as a short list (title, group chip, score) and
 // light up their notes in the scene; click one = open it in the reader. The quick chips are suggestions: click = search that.
-// A found note that is not a dot in the scene (newer than data.js) still opens in the reader when the index knows it (brief 22).
-// Each search carries the Deck's live nonce (X-Deck-Live), so the live feed knows it already played this one (brief 15).
+// A found note that is not a dot in the scene (newer than data.js) still opens in the reader when the index knows it.
+// Each search carries the Deck's live nonce (X-Deck-Live), so the live feed knows it already played this one.
 // The box keeps the id "q", so the Deck's key handlers still know it is a text field ( / focuses it, Esc clears then leaves).
 export function makeAsk(el, { chips, find, docs, kc, nice, esc, onResults, onOpen, onOpenLoose, onClear, live }) {
   el.innerHTML = `<div class="h"><span><i class="num">06</i>Ask</span><b>meaning search</b></div>

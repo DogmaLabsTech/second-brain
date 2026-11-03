@@ -1,4 +1,4 @@
-// Shared HUD parts for the three concepts. COL, NICE, DOCS, COLS, ago, esc come from common.js; BRAIN from data.js (the server serves it from ~/.local/share/second-brain/viz/).
+// Shared HUD parts for the three concepts. COL, NICE, DOCS, COLS, ago, esc come from common.js; BRAIN from data.js (the server serves it from ~/.local/share/second-brain/deck/).
 import * as THREE from 'three';
 export { THREE };
 const _t = new Date(); export const NOW = Date.UTC(_t.getFullYear(), _t.getMonth(), _t.getDate(), 12);
@@ -8,8 +8,8 @@ export const hex3 = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 25
 export function chrome(sub, active) {
   document.body.insertAdjacentHTML('afterbegin', `<div class="vig"></div><div class="scan"></div>
   <div id="topbar"><span class="t">SECOND<i>·</i>BRAIN</span><span class="s">${sub}</span>
-  <div class="nav2"><a href="deck.html" class="${active === 0 ? 'on' : ''}">DECK</a><a href="holo.html" class="${active === 1 ? 'on' : ''}">HOLO-CORE</a><a href="radar.html" class="${active === 2 ? 'on' : ''}">RADAR</a><a href="tunnel.html" class="${active === 3 ? 'on' : ''}">TUNNEL</a></div>
-  <div class="stat"><span>NOTES <b>${DOCS.length.toLocaleString()}</b></span><span>GROUPS <b>${COLS.length}</b></span><span>CHECK-UP <b>${BRAIN.scores.at(-1).top3}/${BRAIN.scores.at(-1).of}</b></span><span id="clock"></span></div></div>
+  <div class="nav2"><a href="deck.html" class="${active === 0 ? 'on' : ''}">DECK</a></div>
+  <div class="stat"><span>NOTES <b>${DOCS.length.toLocaleString()}</b></span><span>GROUPS <b>${COLS.length}</b></span><span>CHECK-UP <b>${(s=>s?s.top3+'/'+s.of:'–')(BRAIN.scores.at(-1))}</b></span><span id="clock"></span></div></div>
   <div id="tip"></div>`);
   const clk = document.getElementById('clock'); const tick = () => clk.textContent = new Date().toTimeString().slice(0, 8); tick(); setInterval(tick, 1000);
 }

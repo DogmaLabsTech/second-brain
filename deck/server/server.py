@@ -5,32 +5,32 @@ search index copy (read-only). POST saves an edited note: only an existing .md f
 only if it did not change since it was loaded (hash), with a backup copy first and an atomic write.
 Loopback only. No CORS headers (other sites can't read it), a Host check against DNS rebinding, and POST needs the
 X-Deck: 1 header plus a JSON body (a plain web form can't send either).
-Folders (the second-brain viz/ build): the page files are web/ (served at /, the Deck is /deck.html); the private data stays
-out of git: GET /data.js reads ~/.local/share/second-brain/viz/data.js (DECK_DATA overrides), the talk log is
+Folders (the second-brain deck/ build): the page files are web/ (served at /, the Deck is /deck.html); the private data stays
+out of git: GET /data.js reads ~/.local/share/second-brain/deck/data.js (DECK_DATA overrides), the talk log is
 ~/.local/state/second-brain/talk-log.jsonl (DECK_TALK_LOG overrides).
 Test mode: DECK_TEST_MAP=<file.yml> replaces the collection folders (e.g. {computer: /tmp/x}); DECK_PORT changes the port.
-Talking (07 Voice panel), the voice island's way (~/.config/omarchy/plugins/user.brain-island/bin: listen, ask, say, job),
+Talking (07 Voice panel), an optional voice add-on's way (listen, ask, say, job),
 all POST with X-Deck: 1: /talk/stt (any audio -> ffmpeg 16 kHz mono wav -> the warm STT server, else `voxtype transcribe`),
 /talk/ask (`brain ask --stream --from deck --how voice`, JSON lines back: first sentence early, then the result with the
 notes mapped to collection + path; one line per question in the talk log), /talk/say (one sentence as a WAV from the
 island's Kokoro server, voice bm_george; started like bin/say if it is down), /talk/job (runs a job only after the Yes click),
-/talk/outcome (said No / stopped, for the brain's check-up). Brief 27: /talk/warm (wake the search and the voice while he talks),
+/talk/outcome (said No / stopped, for the brain's check-up). /talk/warm (wake the search and the voice while he talks),
 /talk/confirm (a spoken yes/no to a plan; only a plain yes runs it), /talk/stt X-Preroll (talking over the brain: the half second
 before the voice was noticed comes first, as a WAV). Jobs run only from the server's own copy of the plan, by the ask's id.
-GET /live (brief 15): a read-only stream of every search and ask (the brain's logs + the Deck's own calls) for the live animation.
-GET /private?id=N and POST /private {id, on} (brief 22, X-Deck: 1): a memory note's "this computer only" tag. GET reads its front
+GET /live: a read-only stream of every search and ask (the brain's logs + the Deck's own calls) for the live animation.
+GET /private?id=N and POST /private {id, on} (X-Deck: 1): a memory note's "this computer only" tag. GET reads its front
 matter (read-only); POST runs `brain private <note> on|off --json` (the Deck never edits the note itself). Only memory notes.
 Test mode: with DECK_TEST_MAP the command is pointed at that map's memory folder (BRAIN_MEMORY_STORE) and a backups folder beside it.
-GET /live also sends `data` {v} (brief 28): the stamp of data.js when the page connects, and again when a new map is swapped in
+GET /live also sends `data` {v}: the stamp of data.js when the page connects, and again when a new map is swapped in
 (checked every DECK_DATA_POLL seconds, 3), so the page can offer NEW DATA · RELOAD.
-GET /health (brief 26): {"app": "second-brain-deck", "ready": true, "pid": ...} once the server answers. The Electron app waits for it,
+GET /health: {"app": "second-brain-deck", "ready": true, "pid": ...} once the server answers. The Electron app waits for it,
 and uses it to tell an already running Deck server (reuse it) from some other program on the port (ask, never kill).
 DECK_PARENT_WATCH=1 (set by the app): the server reads its stdin pipe and exits when it closes, i.e. when the app is gone, even after a
 forced kill, so no server is left behind."""
 import http.server, socketserver, sqlite3, hmac, array, math, wave, json, urllib.parse, urllib.request, pathlib, os, sys, hashlib, shutil, tempfile, datetime, subprocess, signal, threading, time, re, yaml
 ROOT = pathlib.Path(__file__).resolve().parent.parent / "web"; PORT = int(os.environ.get("DECK_PORT", 8765)); DB = os.path.expanduser("~/.cache/qmd/index.sqlite")
-QMD = os.path.expanduser("~/.config/qmd/index.yml"); DATA = pathlib.Path(os.environ.get("DECK_DATA") or os.path.expanduser("~/.local/share/second-brain/viz/data.js")); TEST_MAP = os.environ.get("DECK_TEST_MAP")
-BACKUPS = os.path.expanduser("~/.cache/tmp/sb/note-backups"); MAXBODY = 4_000_000; SHOW = 150000
+QMD = os.path.expanduser("~/.config/qmd/index.yml"); DATA = pathlib.Path(os.environ.get("DECK_DATA") or os.path.expanduser("~/.local/share/second-brain/deck/data.js")); TEST_MAP = os.environ.get("DECK_TEST_MAP")
+BACKUPS = os.path.expanduser("~/.local/state/second-brain/note-backups"); MAXBODY = 4_000_000; SHOW = 150000
 def folders():
     if TEST_MAP: return {k: str(v) for k, v in (yaml.safe_load(open(TEST_MAP)) or {}).items()}
     return {k: v["path"] for k, v in (yaml.safe_load(open(QMD)).get("collections") or {}).items() if v.get("path")}
@@ -64,10 +64,8 @@ def private_state(f):
     return dict(local_only=on, by=fm.get("local-only-by") or ("filter" if on else ""), at=fm.get("local-only-at", ""), title=head or fm.get("summary", ""))
 # ---- talking: the island's settings (read-only, rise.json via its own helper), its brain, STT and Kokoro
 def island(module, key, default):
-    try:
-        a = os.path.expanduser("~/.config/omarchy/plugins/user.rise/addons"); a in sys.path or sys.path.insert(0, a); from addon_config import config
-        return config(module, key, default) or default
-    except Exception: return default
+    """Settings of an optional voice add-on; none is installed in the public copy, so the defaults apply."""
+    return default
 BRAIN = os.environ.get("DECK_BRAIN") or shutil.which(os.path.expanduser(island("brain", "executable", "brain"))) or os.path.expanduser("~/.local/bin/brain")   # DECK_BRAIN: tests only
 STT_URL = os.environ.get("BRAIN_STT_URL") or island("brainVoice", "sttEndpoint", "http://127.0.0.1:8183/transcribe")
 TTS = island("brainVoice", "ttsEndpoint", "") or "http://127.0.0.1:%d" % int(os.environ.get("EXPLAIN_VOICE_PORT", "47821"))
@@ -179,7 +177,7 @@ def warm():
     if os.environ.get("DECK_NO_WARM") != "1":
         threading.Thread(target=ping, daemon=True).start(); threading.Thread(target=ensure_tts, daemon=True).start()
     return dict(ok=True, stt="warm" if stt_up() else "slow", tts=tts_up())
-# ---- the gate for jobs (brief 27): the server keeps every plan the brain proposed (by its ask id, 10 minutes, used once) and runs only
+# ---- the gate for jobs: the server keeps every plan the brain proposed (by its ask id, 10 minutes, used once) and runs only
 # that copy, never a job the page sends. It runs after a Yes click, or a spoken answer the server itself hears as a plain yes.
 PLANS, PLAN_SECONDS = {}, 600; _plans_lock = threading.Lock()
 def plan_keep(i, job):
@@ -203,7 +201,7 @@ def yes_no(said):
     if NO_START.match(t): return "no"
     if YES_START.match(t) and not NOT_YES.search(t): return "yes"
     return "unclear"
-# ---- live searches (brief 15): GET /live is a read-only Server-Sent Events stream, one event per search or ask anywhere:
+# ---- live searches: GET /live is a read-only Server-Sent Events stream, one event per search or ask anywhere:
 # it tails asks.jsonl (every `brain ask`) and searches.jsonl (the chats' MCP searches and `brain search`; it may appear later),
 # read-only, and the Deck's own /search and /talk/ask emit directly (their own log lines are then skipped, so nothing shows twice).
 # Test mode: DECK_ASKS_LOG / DECK_SEARCHES_LOG point at temp copies. The page's token is put into deck.html as it is served.
@@ -271,7 +269,7 @@ def agent_of(pid):
         if not p or pid <= 1: return None
         comm, cwd, ppid, cmd = p; name = comm.lower().split("-")[0]
         if name in AGENTS: return " · ".join(x for x in (AGENTS[name], os.path.basename(cwd.rstrip("/")) if cwd.rstrip("/") != HOME else "") if x)
-        if "server.py" in cmd and any(d in cmd + cwd for d in ("brain-prototypes", "second-brain/viz")): return "Deck"
+        if "server.py" in cmd and any(d in cmd + cwd for d in ("brain-prototypes", "second-brain/deck")): return "Deck"
         pid = ppid
     return None
 def ask_caller(q):
@@ -360,7 +358,7 @@ def live_tail():
                 e = live_event(src, o)
                 if e: live_emit(e)
 threading.Thread(target=live_tail, daemon=True).start()
-# ---- new map (brief 28): the hourly refresh (tools/refresh.sh) swaps in a new data.js. The server looks every few seconds and,
+# ---- new map: the hourly refresh (tools/refresh.sh) swaps in a new data.js. The server looks every few seconds and,
 # once the file has stopped changing, tells the open pages on the live stream (a `data` event with the file's new stamp).
 DATA_POLL = float(os.environ.get("DECK_DATA_POLL") or 3)
 def data_stamp():
@@ -382,7 +380,7 @@ class H(http.server.SimpleHTTPRequestHandler):
     def log_message(s, *a): pass
     def end_headers(s):
         # static files (the Deck's html/css/js): no-cache = the browser must check with us before using its copy (a cheap 304 when
-        # unchanged). Without it Chromium guessed "fresh for 10% of the file's age" and kept an old hud.css after an edit (brief 12).
+        # unchanged). Without it Chromium guessed "fresh for 10% of the file's age" and kept an old hud.css after an edit.
         if b"Cache-Control" not in b"".join(getattr(s, "_headers_buffer", [])): s.send_header("Cache-Control", "no-cache")
         super().end_headers()
     def ok_host(s): return s.headers.get("Host", "") in (f"127.0.0.1:{PORT}", f"localhost:{PORT}")
@@ -402,7 +400,7 @@ class H(http.server.SimpleHTTPRequestHandler):
         if u in ("/", "/hud/deck.html"): s.send_response(302); s.send_header("Location", "/deck.html"); s.send_header("Content-Length", "0"); s.end_headers(); return
         if u == "/data.js":   # private, outside git (tools/ writes it there)
             try: body = DATA.read_bytes()
-            except OSError: return s.send_error(404, "no data.js yet: run tools/build_data.py and tools/add_sim.py")
+            except OSError: return s.send_error(404, "no map yet: run tools/refresh.sh --force")
             s.send_response(200); s.send_header("Content-Type", "text/javascript; charset=utf-8"); s.send_header("Content-Length", str(len(body))); s.end_headers(); s.wfile.write(body); return
         if u == "/deck.html":   # the page carries this server's live token (never cached: a new server, a new token)
             body = (ROOT / "deck.html").read_bytes().replace(b'<meta name="deck-live" content="">', f'<meta name="deck-live" content="{LIVE_TOKEN}">'.encode(), 1)
@@ -431,7 +429,7 @@ class H(http.server.SimpleHTTPRequestHandler):
         def send(kind, obj): s.wfile.write(f"event: {kind}\ndata: {json.dumps(obj)}\n\n".encode()); s.wfile.flush()
         try:
             with _live_cv: last = _live["seq"]; hist = list(_live["events"]); dv = _data["v"]
-            send("history", hist[-20:]); send("data", dict(v=dv))   # the map's stamp now; a new one later = a new map (brief 28)
+            send("history", hist[-20:]); send("data", dict(v=dv))   # the map's stamp now; a new one later = a new map
             while True:
                 with _live_cv:
                     _live_cv.wait_for(lambda: _live["seq"] > last or _data["v"] != dv, timeout=15); new = [e for e in _live["events"] if e["id"] > last]; last = _live["seq"]; nv = _data["v"]
@@ -495,7 +493,7 @@ class H(http.server.SimpleHTTPRequestHandler):
             return s.js(500, dict(error=f"could not save: {e}"))
         return s.js(200, dict(hash=sha(new), backup=bk, modified=datetime.datetime.now().isoformat(timespec="seconds")))
     def private(s):
-        """Brief 22: a memory note's "this computer only" tag (online writers never get the note). GET ?id= reads its state from
+        """a memory note's "this computer only" tag (online writers never get the note). GET ?id= reads its state from
         the front matter; POST {id, on} runs `brain private <note> on|off --json` and returns its JSON. X-Deck: 1 both ways (a
         custom header needs a CORS preflight, which this server never allows); POST has the Origin check of the other POSTs."""
         if s.headers.get("X-Deck") != "1": return s.js(403, dict(ok=False, error="missing the Deck's header"))

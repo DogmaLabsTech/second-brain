@@ -1,4 +1,4 @@
-/* brief 10: 05 Timeline, 06 Ask and the movable-panel helper (movable.js). Skin tokens only (skins.css): no colours, fonts or radii here. */
+/* 05 Timeline, 06 Ask and the movable-panel helper (movable.js). Skin tokens only (skins.css): no colours, fonts or radii here. */
 #bottom{z-index:9}   /* a panel dragged over the reader or the right column stays on top of them */
 /* ---- movable panels: the title bar is the handle; RESET (or a double-click) puts the panel back */
 .pm-handle{cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none}

@@ -1,4 +1,4 @@
-// note rings (brief 11): FRESHNESS, LENGTH, NEAREST in the 04 Target acquired panel.
+// note rings: FRESHNESS, LENGTH, NEAREST in the 04 Target acquired panel.
 // Each ring is a 270° instrument: a scale with ticks at real values, a soft track, a gradient arc (conic, masked) with a glowing
 // round tip, the value in the middle. Values sweep with an eased tween; on a note change they sweep from the last note's value.
 // Test switch: #...&ringt=0.5 freezes every ring half way through its sweep.

@@ -1,4 +1,4 @@
-/* Live searches (brief 15): the drawing over the scene (live.js makeLive) and the 08 Live panel (makeFeed). Skin tokens only. */
+/* Live searches: the drawing over the scene (live.js makeLive) and the 08 Live panel (makeFeed). Skin tokens only. */
 #livesvg{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;overflow:visible}
 .lv-ln{stroke:var(--k);stroke-width:1.5;stroke-linecap:round;filter:drop-shadow(0 0 calc(3px*var(--glow)) var(--k))}
 .lv-sp{fill:var(--hi);filter:drop-shadow(0 0 calc(5px*var(--glow)) var(--c)) drop-shadow(0 0 2px var(--c))}
@@ -11,7 +11,7 @@
 .lv-q .t{overflow:hidden;text-overflow:ellipsis}.lv-q .t::before{content:"“"}.lv-q .t::after{content:"”"}
 .lv-q .w{flex:0 0 auto;color:var(--amber);font-size:.86em;letter-spacing:calc(.08em*var(--sp));text-transform:uppercase}
 .lv-tag{transition:none}
-/* brief 18: a read (a chat opening a note) is lighter; a note newer than the snapshot gets a dashed line to the middle of its section */
+/* a read (a chat opening a note) is lighter; a note newer than the snapshot gets a dashed line to the middle of its section */
 .lv-ev.light .lv-ln{stroke-width:1;filter:none}.lv-ev.light .lv-qd{r:2.5px}.lv-ev.light .lv-qr{display:none}
 .lv-q.light{font-size:calc(10px*var(--z));padding:1px 6px;gap:5px;border-color:var(--line);color:var(--tx)}.lv-q.light i{width:4px;height:4px}
 .lv-ln.sec{stroke-dasharray:3 5;stroke-width:1.2}
@@ -32,13 +32,13 @@
 @keyframes lfin{from{background:color-mix(in srgb,var(--c) 22%,transparent)}to{background:transparent}}
 .lf-pop{display:none;position:absolute;left:calc(100% + 8px);width:290px;padding:8px 10px;background:var(--glass-pop);border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:0 10px 30px var(--shadow);pointer-events:auto;font-size:11px}
 .lf-pop.left{left:auto;right:calc(100% + 8px)}.lf-pop.on{display:block}
-#livep:has(.lf-pop.on){z-index:10}   /* brief 22: the pop shows (and takes clicks) above an open reader */
+#livep:has(.lf-pop.on){z-index:10}   /* the pop shows (and takes clicks) above an open reader */
 .lf-pop b{display:block;color:var(--tx-hi);font-weight:600;margin-bottom:5px;white-space:normal}
 .lf-pop div{display:flex;gap:7px;align-items:baseline;padding:1px 0;border-left:2px solid var(--k);padding-left:6px;margin:2px 0}
 .lf-pop div i{font-style:normal;color:var(--k);font-weight:700}.lf-pop div span{flex:1;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lf-pop div em{font-style:normal;color:var(--dim2);font-size:.9em}
 .lf-pop p{margin:4px 0 0;color:var(--dim2)}
 .lf-pop div.new span{color:var(--dim)}
-.lf-pop div.go{cursor:pointer;border-radius:calc(var(--r-sm)*.5)}.lf-pop div.go:hover{background:var(--surf-hi)}.lf-pop div.go:hover span{color:var(--tx-hi)}   /* brief 22: a click opens the note */
+.lf-pop div.go{cursor:pointer;border-radius:calc(var(--r-sm)*.5)}.lf-pop div.go:hover{background:var(--surf-hi)}.lf-pop div.go:hover span{color:var(--tx-hi)}   /* a click opens the note */
 #livebtn{margin-left:10px;padding:1px 8px;font:inherit;font-size:.9em;letter-spacing:calc(.14em*var(--sp));color:var(--dim2);background:var(--surf);border:1px solid var(--line);border-radius:99px;cursor:pointer}
 #livebtn:hover,#livebtn.on{color:var(--c);border-color:color-mix(in srgb,var(--c) 45%,var(--line))}
 #livebtn i{font-style:normal;color:var(--dim)}#livebtn.ok i{color:var(--ok)}

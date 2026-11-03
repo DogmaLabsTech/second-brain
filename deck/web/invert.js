@@ -1,4 +1,4 @@
-// Inverted palettes (brief 14): every skin gets an inverted twin, made from its own tokens by one function (invert), so new skins get one too.
+// Inverted palettes: every skin gets an inverted twin, made from its own tokens by one function (invert), so new skins get one too.
 // Dark skins become light and light skins dark. Not a colour negative: in OKLCH the backgrounds and the text swap lightness (hue and tint kept),
 // the accents, the group colours and the scene colours keep their hue and chroma and move only as far in lightness as they must to read on
 // the new background (text: WCAG AA 4.5 even over the worst backdrop the glass can blur; accents and dots: 3), then the group colours are pushed

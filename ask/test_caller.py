@@ -72,8 +72,8 @@ class Caller(unittest.TestCase):
                 self.assertEqual(p.caller(11)["program"], want)
 
     def test_the_deck_run_from_the_repo_is_named_by_its_folder(self):
-        # the Deck starts as `python3 -I server/server.py` from the repo's viz/ folder: only the folder says it is the Deck
-        for cwd in (HOME + "/projects/second-brain/viz", HOME + "/Downloads/agent-notes/brain-prototypes"):
+        # the Deck starts as `python3 -I server/server.py` from the repo's deck/ folder: only the folder says it is the Deck
+        for cwd in (HOME + "/projects/second-brain/deck", HOME + "/Downloads/agent-notes/brain-prototypes"):
             with self.subTest(cwd=cwd):
                 p = FakeProc().add(10, "python3", ["python3", "-I", "server/server.py"], 1, cwd).add(11, "bash", ["bash"], 10, cwd)
                 self.assertEqual(p.caller(11)["program"], "deck")

@@ -22,7 +22,7 @@ function allowPermission(permission, url, details, origin) {
 }
 
 // the saved window size and place, made safe: at least 800x500, no bigger than the screen it was on, and the place only if the
-// window's middle is still on one of today's screens (else the desktop places it). On Wayland Hyprland decides the place anyway.
+// window's middle is still on one of today's screens (else the desktop places it). On Wayland the compositor decides the place anyway.
 function fitBounds(saved, areas) {
   const out = { width: 1600, height: 1000 };
   if (!saved || !Array.isArray(areas) || !areas.length) return out;

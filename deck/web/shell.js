@@ -26,7 +26,7 @@ vec3 shape(vec2 uv) { float th = uv.x * 6.2831853; vec2 cs = vec2(cos(th), sin(t
 float converge(float v) { return uW.x * sin(v * 3.1415927) + uW.y + uW.z * cos(v * 1.5707963); }`;   // where meridians bunch up (poles, dome top)
 const RIP = `uniform float uRipA, uRipP, uRipB, uRipQ, uRipK;   // two trains of rings: out (speaking, A at phase P) and in (listening, B at Q)
 float ripple(float q) { return pow(.5 + .5 * cos((q * uRipK - uRipP) * 6.2831853), 5.) * uRipA + pow(.5 + .5 * cos((q * uRipK - uRipQ) * 6.2831853), 5.) * uRipB; }`;
-// live searches (brief 15): a soft ring runs out over the shell from the spot nearest a searched note (spot(x, y, z)); w = its age in s, < 0 = off
+// live searches: a soft ring runs out over the shell from the spot nearest a searched note (spot(x, y, z)); w = its age in s, < 0 = off
 const SPOT = `uniform vec4 uSpot[6];
 float spots(vec3 p) { float o = 0.; for (int i = 0; i < 6; i++) { vec4 s = uSpot[i]; if (s.w < 0.) continue; float d = length(p - s.xyz) - s.w * 1.1;
   o += exp(-d * d / .05) * exp(-s.w * 1.3) * smoothstep(0., .2, s.w); } return o; }`;
@@ -95,7 +95,7 @@ export function makeShell(fits) {
       u.uRipA.value = ta * (.15 + 1.05 * env); u.uRipP.value = ripP; u.uRipB.value = li * (.3 + .8 * env); u.uRipQ.value = ripQ; u.uScanV.value = scanV - .05; u.uScanVA.value = th; u.uScanY.value = scanY; u.uScanYA.value = scanOn; }
     for (let i = 0; i < 6; i++) { const w = spotAt[i] < 0 ? -1 : (t - spotAt[i]) / 1000; U.uSpot.value[i].w = w > 2.6 ? -1 : w; if (w > 2.6) spotAt[i] = -1; }
     lines.material.uniforms.uGlow.value = glow * gain * (1 + err); points.material.uniforms.uGlow.value = glow * gain * 1.3 * (1 + err);
-    dotP += dt * (ta * (.35 + .7 * env) - li * (.3 + .45 * env)); dotU.uVA.value = 0; dotU.uVP.value = dotP; dotU.uShim.value = 0;   // calm (brief 15): no voice wave or shimmer over all the notes; only searched notes light up (live.js) dotU.uVT.value = s; dotU.uVC.value.copy(C); dotU.uVR.value.copy(R);
+    dotP += dt * (ta * (.35 + .7 * env) - li * (.3 + .45 * env)); dotU.uVA.value = 0; dotU.uVP.value = dotP; dotU.uShim.value = 0;   // calm: no voice wave or shimmer over all the notes; only searched notes light up (live.js) dotU.uVT.value = s; dotU.uVC.value.copy(C); dotU.uVR.value.copy(R);
   }
   const dotU = { uVC: { value: new THREE.Vector3() }, uVR: { value: new THREE.Vector2(1, 1) }, uVA: { value: 0 }, uVP: { value: 0 }, uShim: { value: 0 }, uVT: { value: 0 } };
   // theme(T): the skin's scene theme (skins.js): state colours, glow strength, and add (glow on dark) or normal (ink on light) blending

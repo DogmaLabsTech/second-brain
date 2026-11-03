@@ -446,8 +446,8 @@ It also says whether the Codex vectors made on the test machine worked: `index/c
 
 ## The Deck (the map of your brain)
 
-The 3D map of all your notes (views 1 Map, 2 Tunnel, 3 Radar; click a dot to read it; the voice panel) lives in `viz/`.
-How to start it and refresh it: `viz/README.md`. It only runs on this computer.
+The 3D map of all your notes (views 1 Map, 2 Tunnel, 3 Radar; click a dot to read it; the voice panel) lives in `deck/`.
+How to start it and refresh it: `deck/README.md`. It only runs on this computer.
 
 ## How it works (the short version)
 
@@ -480,8 +480,8 @@ To stop it, see "How to undo" below.
 | Settings (which folders) | `~/.config/qmd/index.yml`, copied from `index/index.yml` here |
 | The index and models | `~/.cache/qmd/` |
 | Hourly update | `~/.config/systemd/user/second-brain-reindex.timer` |
-| The Deck's map after it | `~/.config/systemd/user/second-brain-viz-refresh.service` → `viz/tools/refresh.sh`, started by the reindex (`second-brain-reindex.service.d/viz.conf`; can't fail or slow it); log `~/.local/state/second-brain/viz-refresh.log` |
-| The Deck's launcher | `~/.local/bin/brain-deck` and `~/.local/share/applications/second-brain-deck.desktop` (copies of `viz/app/`) |
+| The Deck's map after it | `~/.config/systemd/user/second-brain-deck-refresh.service` → `deck/tools/refresh.sh`, started by the reindex (`second-brain-reindex.service.d/deck.conf`; can't fail or slow it); log `~/.local/state/second-brain/deck-refresh.log` |
+| The Deck's launcher | `~/.local/bin/brain-deck` and `~/.local/share/applications/second-brain-deck.desktop` (copies of `deck/app/`) |
 | Brain backup | `~/.config/systemd/user/brain-backup.timer` → `index/brain-backup.sh` (21:15 nightly: all of `~/brain`, private notes and its git included, to `~/backups/brain/`, 14 newest kept) |
 | Search server | `~/.config/systemd/user/second-brain-mcp.service` (qmd, http://localhost:8182, this computer only) |
 | Chats' door to it | `~/.config/systemd/user/second-brain-chat-search.service` → `ask/chat_proxy.py` (http://localhost:8181) |
@@ -501,7 +501,7 @@ Numbers from the first build: `~/brain/projects/second-brain/docs/history/index-
 systemctl --user disable --now second-brain-day.timer second-brain-reindex.timer second-brain-chat-search.service second-brain-mcp.service second-brain-ollama.service second-brain-stt.service brain-backup.timer
 rm ~/.config/systemd/user/brain-backup.{timer,service}
 rm ~/.config/systemd/user/second-brain-{day,reindex}.{timer,service} ~/.config/systemd/user/second-brain-{chat-search,mcp,ollama,stt}.service
-rm -r ~/.config/systemd/user/second-brain-viz-refresh.service ~/.config/systemd/user/second-brain-reindex.service.d ~/.local/bin/brain-deck ~/.local/share/applications/second-brain-deck.desktop
+rm -r ~/.config/systemd/user/second-brain-deck-refresh.service ~/.config/systemd/user/second-brain-reindex.service.d ~/.local/bin/brain-deck ~/.local/share/applications/second-brain-deck.desktop
 claude mcp remove --scope user brain
 rm ~/.local/bin/brain
 npm uninstall -g @tobilu/qmd
@@ -548,7 +548,7 @@ working.
 | Your notes and their copies, the chat notes | your private writing | your note folders, `~/brain/` (chat notes in `~/brain/chats/`) |
 | The search index and its models | big, and built from your notes | `~/.cache/qmd/` |
 | Ask logs, 👍/👎 ratings, check-up answers | your questions and answers | `~/.local/state/second-brain/` |
-| The Deck's map data (`data.js`) and its talk log | every note's title and path; what you said to the Deck | `~/.local/share/second-brain/viz/`, `~/.local/state/second-brain/talk-log.jsonl` |
+| The Deck's map data (`data.js`) and its talk log | every note's title and path; what you said to the Deck | `~/.local/share/second-brain/deck/`, `~/.local/state/second-brain/talk-log.jsonl` |
 | Wake word training audio and test clips, recordings | big, and recordings stay private | `~/.local/share/second-brain/wake-data/` |
 | Virtual environments, model files (except the 400 KB wake word model) | big, rebuilt on each computer | `~/.local/share/second-brain/*-venv`, `~/.local/share/decider/checkpoints/` |
 | `deciders/private.json` | the real names (family, clients) the privacy check looks for | here; start one from `deciders/private.example.json` |

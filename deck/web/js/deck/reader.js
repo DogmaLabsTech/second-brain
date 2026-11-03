@@ -1,6 +1,6 @@
 import { ringWords } from '../../rings.js';
 import { KC, S, W, Z, clamp, decode, leftW, lock, lockLoad, lockShow, mdRender, nh, pvCache, pvHide, pvShow, say } from '../deck-main.js';
-// notes that are not dots in the scene (notes newer than data.js; the memory store used to be one, since brief 23 its notes are dots) still open in the reader (brief 22): they are
+// notes that are not dots in the scene (notes newer than data.js; the memory store used to be one, since its notes are dots) still open in the reader: they are
 // kept in LOOSE and numbered from LOOSE0 up, so the reader's history works the same; docOf(i) is the note for either kind
 export const LOOSE0 = 1e6, LOOSE = [], docOf = i => i >= LOOSE0 ? LOOSE[i - LOOSE0] : DOCS[i];
 export function loose(h) { let k = LOOSE.findIndex(d => d.id === h.id); if (k < 0) k = LOOSE.push({ id: h.id, c: h.c, p: h.p || '', t: h.t || (h.p || '').split('/').pop(), d: '' }) - 1; return LOOSE0 + k; }

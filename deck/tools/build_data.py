@@ -1,5 +1,5 @@
 import os, json, re, sys, numpy as np, pathlib, time
-OUT = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/.local/share/second-brain/viz"))
+OUT = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/.local/share/second-brain/deck"))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent)); from vectors import index, pieces   # the shared index reader
 c = index(); byhash = pieces(c)
 docs = c.execute("select id,collection,path,title,hash,modified_at from documents where active=1").fetchall()
@@ -48,14 +48,11 @@ Y3, Y2 = norm(Y3), norm(Y2)
 for i, r in enumerate(rows):
     r["xyz"] = [round(float(v), 4) for v in Y3[i]]; r["uv"] = [round(float(v), 4) for v in Y2[i]]
 # scores
-scores = []
-for l in open(pathlib.Path(__file__).resolve().parents[2] / "eval" / "scores.tsv").read().splitlines()[1:]:
+scores = []   # optional check-up history: set DECK_SCORES to a tab-separated file (date, top-1, top-3, ..., note)
+_sp = pathlib.Path(os.environ.get("DECK_SCORES") or "")
+for l in (_sp.read_text().splitlines()[1:] if _sp.is_file() else []):
     f = l.split("\t"); m1 = re.match(r"(\d+)/(\d+)", f[1]); m3 = re.match(r"(\d+)/(\d+)", f[2])
     if m1 and m3: scores.append(dict(when=f[0], top1=int(m1[1]), top3=int(m3[1]), of=int(m3[2]), note=f[-1][:80]))
-# canned "ask" demos via keyword search (lex) so the lighting-up can be shown
-asks = {}
-for q in ["testbox handheld tests", "top bar", "weather", "voice island", "backup", "hdd offload"]:
-    ids = [r[0] for r in c.execute("select rowid from documents_fts where documents_fts match ? order by bm25(documents_fts) limit 14", ('"' + q + '"',))]
-    asks[q] = ids
+asks = {}   # suggestion chips for the ask panel: none until you add your own queries
 OUT.mkdir(parents=True, exist_ok=True); (OUT / "data.js").write_text("window.BRAIN=" + json.dumps(dict(docs=rows, scores=scores, asks=asks), separators=(",", ":")) + ";")
 print("wrote", (OUT / "data.js").stat().st_size // 1024, "KB")

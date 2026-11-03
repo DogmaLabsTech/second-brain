@@ -1,7 +1,7 @@
 import { KC, RD, S, addLabel, ask, byPath, clamp, clearLabels, editing, leftAway, live, liveNonce, liveOwn, lock, pk, shell } from '../deck-main.js';
 // ---- 07 Voice: talk to the brain like the voice island (the TALK button, or hold Space). Mic -> /talk/stt -> /talk/ask
 // (first sentence early) -> /talk/say per sentence (Kokoro bm_george), played through an analyser so the shell follows the voice.
-// Brief 27: talking over the answer (or Space) cuts it off and listens; a plan that changes something is said out loud and waits for a
+// talking over the answer (or Space) cuts it off and listens; a plan that changes something is said out loud and waits for a
 // spoken or clicked yes (the server hears the yes and runs only its own copy of the plan); the search and the voice wake while he talks.
 const TV = RD('voicep'), TB = RD('tbtn'), MUTE = location.hash.includes('mute'), post = (u, body, sig) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Deck': '1' }, body: JSON.stringify(body), signal: sig });
 const TSUB = { idle: 'click talk or hold space', listening: 'talk now · click or let go to send', thinking: 'looking in your notes', speaking: 'talk over me to stop', unheard: 'speak closer or louder · check the mic below' };
@@ -84,7 +84,7 @@ function showAnswer(r, spoke, g) { tId = r.id || ''; caption(undefined, r.answer
 // the voice: sentence by sentence (bin/say's split), each made while the one before plays
 function sentences(text) { const raw = text.split(/\s+/).join(' ').split(/(?<=[.!?])\s+/).map(x => x.trim()).filter(Boolean), out = [];
   for (const p of raw) { if (out.length && out[out.length - 1].length < 25) out[out.length - 1] += ' ' + p; else out.push(p); } if (!out.length) out.push(text);
-  // the first piece short, so the first sound comes soon (brief 27): at "note says", a comma, a colon, a bracket, else a word break near 70 letters
+  // the first piece short, so the first sound comes soon: at "note says", a comma, a colon, a bracket, else a word break near 70 letters
   if (out[0].length > 60) { const m = out[0].match(/^(.{12,60}?\bnotes? says?)\s+(.+)$/) || out[0].match(/^(.{20,70}?,)\s+(.+)$/) || out[0].match(/^(.{20,90}?[;:)])\s+(.+)$/) || out[0].match(/^(.{30,70})\s+(.+)$/); if (m) out.splice(0, 1, m[1], m[2]); } return out; }
 // what is said aloud leaves out file paths ("(~/.claude/plans/x.md)"); the caption keeps them
 const speakable = text => text.replace(/\s*\((?:~|\/)[^)]*\)/g, '').replace(/(^|\s)~?\/[\w.\/-]+/g, '$1');

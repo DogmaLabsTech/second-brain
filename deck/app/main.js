@@ -1,9 +1,9 @@
-// The Deck's own window (plan: brief 24 part 2). One window, no menu, one copy at a time. It starts the Deck's server
+// The Deck's own window (). One window, no menu, one copy at a time. It starts the Deck's server
 // (server/server.py) as its child, or uses one that already answers /health, and stops its own server when the window closes.
 // Loopback only: the window shows only http://127.0.0.1:<port>, web links open in the normal browser, new windows are refused.
 // Env: DECK_PORT (8765), DECK_DEBUG=1 (dev tools), DECK_USER_DATA (the app's folder, ~/.config/second-brain-deck),
 // F11 full screen. The window's size and place are kept in window.json in the app's folder. The window class (Wayland app_id)
-// is second-brain-deck, for a Hyprland rule later. Only the microphone may be used, only by the Deck's own page.
+// is second-brain-deck, so a window rule can match it. Only the microphone may be used, only by the Deck's own page.
 // DECK_TEST_HIDDEN=1 (tests: a window that is never shown, fixed size, web links only logged, errors printed instead of asked).
 // Privacy: no crash reporter and no auto-updater are started (Electron sends neither by itself), spell-check is off (it would
 // download dictionaries), and every request that is not the Deck's own server is blocked.
@@ -12,7 +12,7 @@ const { app, BrowserWindow, Menu, dialog, screen, session, shell } = require('el
 const { spawn } = require('child_process'), fs = require('fs'), http = require('http'), path = require('path');
 const { allowPermission, fitBounds, linkAction, mayLoad } = require('./rules');
 
-const VIZ = path.resolve(__dirname, '..'), PORT = Number(process.env.DECK_PORT || 8765), ORIGIN = `http://127.0.0.1:${PORT}`;
+const DECK_DIR = path.resolve(__dirname, '..'), PORT = Number(process.env.DECK_PORT || 8765), ORIGIN = `http://127.0.0.1:${PORT}`;
 const HIDDEN = process.env.DECK_TEST_HIDDEN === '1', DEBUG = process.env.DECK_DEBUG === '1', TITLE = 'Second Brain Deck';
 const say = m => console.error('deck: ' + m);
 
@@ -43,7 +43,7 @@ function fail(msg) {
 }
 
 async function startServer() {
-  child = spawn('python3', ['-I', path.join(VIZ, 'server', 'server.py')], { cwd: VIZ, env: { ...process.env, DECK_PORT: String(PORT), DECK_PARENT_WATCH: '1' },
+  child = spawn('python3', ['-I', path.join(DECK_DIR, 'server', 'server.py')], { cwd: DECK_DIR, env: { ...process.env, DECK_PORT: String(PORT), DECK_PARENT_WATCH: '1' },
     stdio: ['pipe', 'ignore', 'pipe'] });   // its stdin is our pipe: when this app is gone, the server sees it close and exits
   child.stderr.setEncoding('utf8'); child.stderr.on('data', d => { childErr = (childErr + d).slice(-2000); });
   child.on('error', e => { childErr += String(e); });

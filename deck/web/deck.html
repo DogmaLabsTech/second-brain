@@ -1,7 +1,7 @@
 <!doctype html><meta charset="utf-8"><meta name="deck-live" content=""><title>Brain · Deck</title>
 <link rel="stylesheet" href="hud.css"><link rel="stylesheet" href="rings.css">
 <script>try { const s = (location.hash.match(/[#&]skin=([\w-]+)/) || [])[1] || localStorage.getItem('deckSkin'); if (/^[a-z][a-z-]{0,30}$/.test(s)) document.documentElement.dataset.skin = s;
-  // inverted palette (brief 14): on only for exactly '1' (or the test hash `invert`); last time's generated rules go in at once, skins.js rebuilds them
+  // inverted palette: on only for exactly '1' (or the test hash `invert`); last time's generated rules go in at once, skins.js rebuilds them
   if (/[#&]invert\b/.test(location.hash) || localStorage.getItem('deckInvert') === '1') { const c = localStorage.getItem('deckInvCSS'); if (c && c.startsWith('/*inv v1*/')) { const st = document.createElement('style'); st.id = 'skin-inv'; st.textContent = c; document.head.append(st); } document.documentElement.dataset.inv = ''; } } catch {}</script>
 <link rel="stylesheet" href="css/deck.css">
 <link rel="stylesheet" href="panels.css"><link rel="stylesheet" href="live.css">
@@ -53,5 +53,10 @@
   <div class="rd-err" id="rderr"></div>
   <div class="hint" id="rdhint"></div></div>
 <div class="pv" id="pv"><i class="cn tl"></i><i class="cn br"></i><div class="pv-h"><span class="tg-chip" id="pvg"></span><span id="pvd"></span><span class="go">CLICK TO OPEN ▸</span></div><div class="pv-t" id="pvt"></div><div class="pv-p" id="pvp"></div><div class="rd-body" id="pvb"></div><div class="pv-n" id="pvn"></div></div>
-<script src="data.js"></script><script src="common.js"></script>
-<script type="module" src="js/deck-main.js"></script>
+<script src="data.js"></script><script>
+if (window.BRAIN) document.write('<script src="common.js"><\/script><script type="module" src="js/deck-main.js"><\/script>');
+else {
+  document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;inset:0;display:grid;place-content:center;text-align:center;font:16px/1.6 monospace;color:#bfeaf5;background:#02080c"><b>NO MAP YET</b>Run the onboarding (brain onboard) or build the map: deck/tools/refresh.sh --force<br>This page reloads when the map exists.</div>');
+  setInterval(() => fetch('/health').then(r => r.json()).then(h => h.data && location.reload()).catch(() => {}), 3000);
+}
+</script>

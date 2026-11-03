@@ -1,5 +1,5 @@
 import { RD, editing, leaveEdit, readerOpen, say, setOpen, talkBusy, typingIn } from '../deck-main.js';
-// ---- a new map (brief 28): the hourly refresh swaps in a new data.js and the server says so on the live stream (live.js passes it on
+// ---- a new map: the hourly refresh swaps in a new data.js and the server says so on the live stream (live.js passes it on
 // as a `deck-data` event with the file's stamp). The first stamp is the map this page drew; a different one shows the chip
 // NEW DATA · RELOAD (a click reloads now). The page reloads by itself only when it is idle: no note open, nothing being edited or
 // typed, Settings shut, no voice turn (listening, thinking, speaking or waiting for a yes) and a minute without a key, click or move.

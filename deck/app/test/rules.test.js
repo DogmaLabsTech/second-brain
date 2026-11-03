@@ -1,4 +1,4 @@
-// Unit tests for app/rules.js (no window needed): crabbox run -- node --test viz/app/test/
+// Unit tests for app/rules.js (no window needed): crabbox run -- node --test deck/app/test/
 'use strict';
 const test = require('node:test'), assert = require('node:assert');
 const { linkAction, mayLoad, allowPermission, fitBounds } = require('../rules');

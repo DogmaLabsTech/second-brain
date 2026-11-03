@@ -116,7 +116,7 @@
 .rd-ask{display:none;align-items:center;gap:1em;margin:.7em 1.3em 0;padding:.6em 1em;border:1px solid color-mix(in srgb,var(--amber) 53%,transparent);background:var(--warn-bg);color:var(--warn-tx);letter-spacing:calc(.1em*var(--sp));font-size:calc(10.5px*var(--z));flex:none}.rd-ask.on{display:flex}.rd-ask span{flex:1}
 .rd-ask .rd-btn.drop{color:var(--err-tx);border-color:color-mix(in srgb,var(--bad) 53%,transparent)}.rd-ask .rd-btn.drop:hover{background:var(--bad);color:var(--on-c)}
 .rd-err{display:none;margin:.7em 1.3em 0;padding:.55em 1em;border:1px solid color-mix(in srgb,var(--bad) 53%,transparent);background:var(--err-bg);color:var(--err-tx);font-size:calc(10.5px*var(--z));letter-spacing:calc(.06em*var(--sp));flex:none}.rd-err.on{display:block}
-/* 🔒 this computer only (brief 22): memory notes only; the toggle in the header, a badge in the info strip, a result line */
+/* 🔒 this computer only: memory notes only; the toggle in the header, a badge in the info strip, a result line */
 .rd-btn.lock{display:none;white-space:nowrap}.rd.mem .rd-btn.lock{display:inline-flex}.editing .rd-btn.lock{display:none!important}.rd-btn.lock.on{color:var(--on-c);background:var(--amber);border-color:var(--amber);font-weight:700}.rd-btn.lock.on kbd{color:var(--on-c);border-color:color-mix(in srgb,var(--on-c) 33%,transparent)}
 .rd-lockb{display:none;padding:.1em .6em;border:1px solid color-mix(in srgb,var(--amber) 45%,transparent);color:var(--amber);border-radius:99px}.rd-lockb.on{display:inline-block}
 .rd-note{display:none;margin:.7em 1.3em 0;padding:.55em 1em;border:1px solid color-mix(in srgb,var(--ok) 45%,transparent);background:color-mix(in srgb,var(--ok) 9%,transparent);color:var(--tx-hi);font-size:calc(10.5px*var(--z));letter-spacing:calc(.06em*var(--sp));border-radius:var(--r-sm);flex:none}.rd-note.on{display:block}
@@ -167,7 +167,7 @@ body.rdwide #right{display:none}
 .toast{font-size:calc(12px*var(--z))}
 #topbar{height:calc(46px*var(--z)/1.15)}#topbar .t{font-size:calc(13px*var(--z)/1.1)}#topbar .s,#topbar .stat,.nav2 a{font-size:calc(11px*var(--z)/1.1)}
 .ret2{transform:scale(calc(var(--z)*.85))}
-/* ===== rounded glass (brief 09): the reader stays more solid than the side panels (reading comfort); the hover card is the most solid */
+/* ===== rounded glass: the reader stays more solid than the side panels (reading comfort); the hover card is the most solid */
 .rd{border-radius:var(--r);backdrop-filter:blur(calc(var(--blur)*1.4)) saturate(var(--sat))}
 .rd::before,.rd::after,.rd .cn{width:calc(var(--r) + 14px);height:calc(var(--r) + 14px);opacity:var(--corner)}
 .rd .cn.tr{border-top-right-radius:var(--r)}.rd .cn.bl{border-bottom-left-radius:var(--r)}
@@ -180,14 +180,14 @@ body.rdwide #right{display:none}
 .rd-body::-webkit-scrollbar-thumb,.rd-edit::-webkit-scrollbar-thumb{border-radius:99px}
 #tdev{border-radius:calc(var(--r-sm)*.7)}.pv-n a{border-radius:calc(var(--r-sm)*.6)}.lbl.tag{border-radius:calc(var(--r-sm)*.6)}
 .pv .rd-body{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--c) 35%,transparent) transparent}
-/* skin line (01 View, brief 14): the current skin's name; the skins themselves are in Settings (gear or ","); K cycles */
+/* skin line (01 View, ): the current skin's name; the skins themselves are in Settings (gear or ","); K cycles */
 .skins{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);display:flex;align-items:center;gap:.5em;font-size:9.5px;letter-spacing:calc(.2em*var(--sp));color:var(--dim)}
 .skins .skl{color:var(--c);font-weight:700;letter-spacing:calc(.12em*var(--sp));min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .skins button{margin-left:auto;flex:none;font:inherit;letter-spacing:calc(.14em*var(--sp));color:var(--tx);background:var(--surf);border:1px solid var(--line);border-radius:var(--r-sm);padding:3px 8px;cursor:pointer}
 .skins button:hover,#gear:hover{color:var(--c);border-color:color-mix(in srgb,var(--c) 60%,transparent)}.skins kbd,.keys kbd,.setrow>kbd{font:inherit;opacity:.7}
 #gear{margin-left:4px;display:grid;place-items:center;width:30px;height:30px;padding:0;background:var(--surf);border:1px solid var(--line);border-radius:var(--r-sm);color:var(--dim2);cursor:pointer}
 #gear svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}#gear.on{color:var(--c);border-color:var(--c)}
-/* Settings (brief 14): a glass panel over the scene; Esc or a click outside closes it */
+/* Settings: a glass panel over the scene; Esc or a click outside closes it */
 #setveil{position:fixed;inset:0;z-index:40;background:color-mix(in srgb,var(--bg3) 34%,transparent);opacity:0;pointer-events:none;transition:opacity .2s}
 #setp{position:fixed;left:50%;top:50%;z-index:41;width:min(980px,calc(100vw - 48px));padding:16px 18px 18px;background:linear-gradient(var(--glass-rd),var(--glass-pop));
   opacity:0;pointer-events:none;transform:translate(-50%,-48%) scale(.985);transition:opacity .2s,transform .2s}

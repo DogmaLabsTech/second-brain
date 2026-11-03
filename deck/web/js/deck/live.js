@@ -2,7 +2,7 @@ import { makeLive, makeFeed } from '../../live.js';
 import { project, THREE } from '../../hud.js';
 import { movable } from '../../movable.js';
 import { H, KC, RD, W, byAny, byPath, camera, cloud, cur, editing, lock, loose, notePulse, openReader, pick, pk, root, say, setOpen, shell, shown, typingIn, visible } from '../deck-main.js';
-// ---- 08 Live (brief 15): every search and ask, from anywhere (chats, the voice island, the terminal, this Deck), as it happens.
+// ---- 08 Live: every search and ask, from anywhere (chats, the voice island, the terminal, this Deck), as it happens.
 // GET /live on the Deck server (read-only events; the token comes in this page's html). Each one plays the live animation
 // (live.js) and gets a line in the 08 Live panel. The Ask box and the voice play their own results at once (liveOwn) and tag
 // their calls with a nonce, so the server's copy of the same search is skipped here. L / the LIVE button / ✕ show or hide the panel.
@@ -29,5 +29,5 @@ else { const es = new EventSource('/live?k=' + LTOK);
   es.addEventListener('open', () => { feed.status('listening', 'ok'); LB.classList.add('ok'); });
   es.addEventListener('history', m => { try { JSON.parse(m.data).forEach(e => fromServer(e, true)); } catch {} });
   es.addEventListener('live', m => { try { fromServer(JSON.parse(m.data)); } catch {} });
-  es.addEventListener('data', m => { try { dispatchEvent(new CustomEvent('deck-data', { detail: JSON.parse(m.data) })); } catch {} });   // a new map (brief 28, fresh.js)
+  es.addEventListener('data', m => { try { dispatchEvent(new CustomEvent('deck-data', { detail: JSON.parse(m.data) })); } catch {} });   // a new map (fresh.js)
   es.onerror = () => { LB.classList.remove('ok'); feed.status(es.readyState === 2 ? 'server restarted: reload' : 'reconnecting', 'bad'); }; }
