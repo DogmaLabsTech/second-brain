@@ -73,6 +73,7 @@ Run bin/brain with no words for the full list.
 - Run things on a timer: index/install-units.sh copies the systemd user units into place with your real path filled in. It enables nothing. Turn on only the timers you want.
 - The Deck: see deck/README.md.
 - Local models: install Ollama and pull a small model, for example ollama pull qwen2.5:3b. Set BRAIN_LOCAL_MODEL to use another.
+- Better search: brain search works with keywords out of the box. For meaning-based search run qmd embed once (it downloads models), then set BRAIN_SEMANTIC=1.
 
 ## Tests
 

@@ -184,12 +184,18 @@ def search(q, limit=5):
         req = urllib.request.Request(BRAIN_URL + "/query", json.dumps(body).encode(),
                                      {"content-type": "application/json"})
         results = json.load(urllib.request.urlopen(req, timeout=60))["results"]
-    except Exception:  # noqa: BLE001  the server is down: qmd itself (loads its models, slower)
-        env = dict(os.environ, QMD_LLAMA_GPU=os.environ.get("QMD_LLAMA_GPU", "vulkan"),
-                   PATH=os.path.join(HOME, ".local/share/mise/shims") + ":" + os.environ.get("PATH", ""))
-        out = subprocess.run(["qmd", "query", doc, "--json", "-n", str(limit), "--no-rerank"],
-                             capture_output=True, text=True, env=env, timeout=120)
-        results = json.loads(out.stdout or "[]")
+    except Exception:  # noqa: BLE001  no search server is running: ask qmd directly
+        env = dict(os.environ, PATH=os.path.join(HOME, ".local", "bin") + ":" + os.path.join(HOME, ".local/share/mise/shims") + ":" + os.environ.get("PATH", ""))
+        if os.environ.get("BRAIN_SEMANTIC") == "1":
+            # qmd's model search: better answers, but it loads models (slow, and the first run downloads them)
+            cmd, timeout = ["qmd", "query", doc, "--json", "-n", str(limit), "--no-rerank"], 120
+        else:
+            cmd, timeout = ["qmd", "search", q, "--json", "-n", str(limit)], 30   # keywords only: instant, needs no models
+        try:
+            out = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=timeout)
+            results = json.loads(out.stdout or "[]")
+        except (OSError, subprocess.SubprocessError, ValueError):
+            results = []
     hits = []
     for r in results[:limit]:
         path = real_path(r.get("file", ""))
