@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Run every test in a throwaway HOME, one folder at a time (some folders reuse test file names).
+# Tests that need your own notes or services skip themselves. Exit 1 if any folder fails.
+set -uo pipefail
+root="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+home="$(mktemp -d)"
+trap 'rm -rf "$home"' EXIT
+export HOME="$home" PYTHONDONTWRITEBYTECODE=1
+fail=0
+for d in ask chats eval index jobs media; do
+  echo "== $d"
+  python3 -m unittest discover -s "$root/$d" -p 'test_*.py' || fail=1
+done
+echo "== day"
+(cd "$root/day" && python3 -m unittest test_day test_canvas test_error_paths test_tests_week) || fail=1
+echo "== deck"
+python3 -I "$root/deck/server/test_server.py" || fail=1
+python3 -I "$root/deck/server/test_talk.py" || fail=1
+exit $fail

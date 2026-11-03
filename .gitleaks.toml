@@ -1,0 +1,7 @@
+# gitleaks: the default rules, minus the made-up keys the chat-redaction test must find and hide on purpose.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "fake keys that the chat-redaction test must find and hide"
+paths = ['''(^|/)chats/test_pinned_redact\.(py|gold)$''']

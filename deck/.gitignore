@@ -1,4 +1,4 @@
-# Private: never commit. data.js holds every note's title and path; the talk log holds <user>'s questions.
+# Private: never commit. data.js holds every note's title and path; the talk log holds your questions.
 # They live outside the repo (~/.local/share/second-brain/deck/data.js, ~/.local/state/second-brain/talk-log.jsonl);
 # these lines are the second lock in case a copy lands here by mistake.
 data.js

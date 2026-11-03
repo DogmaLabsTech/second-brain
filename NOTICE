@@ -1,0 +1,12 @@
+second-brain
+Copyright (c) 2026 the second-brain contributors
+
+This product includes third-party material under its own licence:
+
+three.js (deck/web/vendor/three.core.min.js, three.module.min.js)
+  Copyright (c) 2010-2026 three.js authors. Licence: MIT.
+
+Used but not included (you install them): Electron (MIT), qmd (local notes search), PyYAML (MIT), NumPy (BSD-3-Clause),
+and the models you choose to run (for example through Ollama). Each keeps its own licence.
+
+The second-brain code is MIT licensed (LICENSE).

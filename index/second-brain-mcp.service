@@ -3,11 +3,9 @@ Description=Second brain: one shared qmd search server (MCP over HTTP, localhost
 
 [Service]
 # One server keeps the search models loaded once, instead of a copy per Claude chat.
-# Graphics card through Vulkan: on the processor, searches stalled for minutes (or failed with
-# "Object is disposed") whenever the computer was busy. Models are freed after 5 idle minutes.
-Environment=QMD_LLAMA_GPU=vulkan
 Environment=QMD_EMBED_PARALLELISM=1
-ExecStart=%h/.local/share/mise/shims/qmd mcp --http --port 8182
+Environment=PATH=%h/.local/bin:%h/.local/share/mise/shims:/usr/local/bin:/usr/bin
+ExecStart=/usr/bin/env qmd mcp --http --port 8182
 Nice=10
 Restart=on-failure
 RestartSec=10

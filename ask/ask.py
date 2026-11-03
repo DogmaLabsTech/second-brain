@@ -2,7 +2,7 @@
 
   python3 -I ask/ask.py "<question>" [--json] [--writer auto|local|local:<model>|haiku] [--how voice|typed]
 
-Steps (docs and timings: README.md, docs/writer-race.md):
+Steps (docs: README.md):
   1. intent (brain-decide intent) and the search run at the same time. The decider gets 2.5 s;
      when it is late or `unsure`, the jobs' own simple rules (jobs/*.json `match`) decide, else it's a question.
   2. question: top 5 notes (index/structq.py + ask/synonyms.tsv, the warm qmd server), then
@@ -16,7 +16,7 @@ Steps (docs and timings: README.md, docs/writer-race.md):
      rule, a decider's agent-os label on a question becomes a question and on two asks "say that again".
      --how (default typed; the island can't tell yet) is how the words came, passed to agent-os.
 
-Writers: local = Ollama (second-brain-ollama.service) qwen2.5 3B by default; haiku = `claude -p`
+Writers: local = Ollama (your own Ollama server) qwen2.5 3B by default; haiku = `claude -p`
 (Claude Haiku, tools and MCP off); auto (default) = local alone for BRAIN_HAIKU_WAIT (2 s), then Haiku
 joins if needed; a good local answer within BRAIN_LOCAL_SECONDS (4 s) still wins. Every answer says who wrote it (`writer`). Private text never goes to the second decider
 (brain-decide handles that); Haiku is the documented backup, and it never gets a private name: they are swapped for

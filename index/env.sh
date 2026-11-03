@@ -1,11 +1,7 @@
 # Shared settings for every second-brain script that calls qmd. Source it, don't run it.
-# qmd's models run on the graphics card through Vulkan. On the processor, searches stalled for
-# minutes (or failed) whenever the computer was busy, because llama.cpp's threads fight other
-# work for the cores. qmd's prebuilt CUDA build crashes on this GTX 1060 (Pascal: "no kernel image
-# is available"), so never use QMD_LLAMA_GPU=cuda. QMD_LLAMA_GPU=false forces the processor.
-# qmd frees the models (and the card's memory) after 5 idle minutes.
-export QMD_LLAMA_GPU="${QMD_LLAMA_GPU:-vulkan}"
+# qmd picks the best way to run its models on your computer. To force one, set QMD_LLAMA_GPU before you run a
+# script (for example QMD_LLAMA_GPU=false to use the processor only, or vulkan / cuda for a graphics card).
 # One model context for searches: faster to start when the computer is busy.
 export QMD_EMBED_PARALLELISM="${QMD_EMBED_PARALLELISM:-1}"
-# qmd is a global npm package in mise's node; the mise shim finds it from systemd too.
-export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:$PATH"
+# qmd is usually a global npm package; these folders hold npm and pip installs and are not always on PATH under systemd.
+export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
