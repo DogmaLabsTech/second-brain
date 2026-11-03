@@ -1,0 +1,24 @@
+second-brain art licence
+========================
+
+Copyright (c) 2026 the second-brain contributors
+
+The pictures in docs/media/readme/ (the hero, the section banners, the icons and
+the animated scenes) are licensed under the Creative Commons Attribution 4.0
+International licence (CC BY 4.0):
+
+    https://creativecommons.org/licenses/by/4.0/
+    Full legal text: https://creativecommons.org/licenses/by/4.0/legalcode
+
+You are free to share and adapt them, for any purpose, including commercially,
+as long as you give appropriate credit, link to the licence and say if you made
+changes. A credit line such as "Art from second-brain, CC BY 4.0" with a link to
+this repository is enough.
+
+The script that draws them, docs/media/readme/make_art.py, is also available under
+the MIT licence in LICENSE; you may use it under either.
+
+Third-party material
+--------------------
+None. The pictures are drawn from plain shapes and text. The terminal scenes show
+text that the brain command printed on a made-up folder.
