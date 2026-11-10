@@ -204,7 +204,8 @@ class Goodnight(Base):
         self.assertTrue(calls[1][1].startswith(("Nothing moved today.", "Today:")), calls[1][1])
         self.assertIn("1 ticked item cleared and 1 job finished, in your in-tray.", calls[1][1])
         self.assertIn("The day is closed. 1 thing will run tonight", calls[2][1])
-        self.assertEqual(calls[3], ("run", ["systemd-inhibit", "--what=sleep:idle"]))
+        self.assertEqual(calls[3], ("run", ["systemd-inhibit", "--what=sleep:idle"]))   # the probe: can it hold the computer awake?
+        self.assertEqual(calls[4], ("run", ["systemd-inhibit", "--what=sleep:idle"]))   # then the real run under it
         self.assertNotIn(("lock",), calls)
         lines = open(path).read().splitlines()
         self.assertEqual(len(lines), 2)                       # the ticked line left; open ones stay queued
@@ -248,12 +249,38 @@ class Goodnight(Base):
             (day.remind_list, day.say, day.busy, day.save_snapshot, day.all_commits, day.subprocess.run) = saved
         self.assertEqual([c for c in calls if c[0] == "say"], [])            # silent
         self.assertEqual(calls, [("run", [day.AGENT_OS, "intray"]),
+                                 ("run", ["systemd-inhibit", "--what=sleep:idle"]),    # the probe
                                  ("run", ["systemd-inhibit", "--what=sleep:idle"])])   # busy helpers keep running
         c = day.read_jsonl(day.CLOSEOUTS)[-1]
         self.assertEqual((c["picked"], c["running"]), (["research x"], ["example-game"]))
         lines = open(path).read().splitlines()
         self.assertEqual(lines[0], "- [ ] 2026-10-15: build the thing")      # not picked: stays on the list
         self.assertIn("→ started with Claude overnight", lines[1])
+
+    def test_when_systemd_inhibit_is_refused_tonights_picks_still_run_in_process(self):
+        # over ssh or without a login session systemd-inhibit exits 1 before it starts anything
+        calls, ran = [], []
+        saved = (day.subprocess.run, day.cmd_overnight_run)
+        day.subprocess.run = lambda argv, **k: calls.append(argv[:2]) or subprocess.CompletedProcess(argv, 1)
+        day.cmd_overnight_run = lambda args: ran.append(args) or 0
+        try:
+            self.assertEqual(day._run_overnight(dt.date(2026, 10, 15), []), 0)
+        finally:
+            day.subprocess.run, day.cmd_overnight_run = saved
+        self.assertEqual(ran, [["2026-10-15", "0"]])
+        self.assertEqual(len(calls), 1)    # only the probe: the wrapper never ran, so nothing can run twice
+
+    def test_a_working_systemd_inhibit_wraps_the_run_and_a_crash_is_not_run_again(self):
+        calls, ran = [], []
+        saved = (day.subprocess.run, day.cmd_overnight_run)
+        day.subprocess.run = lambda argv, **k: calls.append(argv) or subprocess.CompletedProcess(argv, 0 if argv[-1] == "true" else 3)
+        day.cmd_overnight_run = lambda args: ran.append(args) or 0
+        try:
+            self.assertEqual(day._run_overnight(dt.date(2026, 10, 15), []), 3)   # the child's own exit code
+        finally:
+            day.subprocess.run, day.cmd_overnight_run = saved
+        self.assertEqual(ran, [])
+        self.assertIn("overnight-run", calls[1])
 
     def test_goodnight_is_eod(self):
         self.assertIs(day.cmd_goodnight, day.cmd_eod)

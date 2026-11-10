@@ -633,15 +633,29 @@ def _eod_page_extra(cleared, finished):
         ([f"- Jobs finished today: {', '.join(f'{j} ({cut(r, 60)})' if r else j for j, r in finished)}"] if finished else [])
 
 
+def _can_inhibit():
+    """True when systemd-inhibit works here. Over SSH or without a login session it exits 1 ("Access denied")
+    before it starts its command, which used to leave tonight's picks marked as running and never run."""
+    try:
+        return subprocess.run(["systemd-inhibit", "--what=sleep:idle", "--who=Second brain", "--why=Overnight work", "true"],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def _run_overnight(d, running):
-    """Keep the computer from sleeping while the ticks run; with helpers already busy, until 7:00 at least."""
+    """Keep the computer from sleeping while the ticks run; with helpers already busy, until 7:00 at least.
+    Without the sleep hold the ticks still run, just without it."""
     hold_until = dt.datetime.combine(d + dt.timedelta(days=1), dt.time(7)).timestamp() if running else 0
+    args = [d.isoformat(), str(int(hold_until))]
+    if not _can_inhibit():
+        return cmd_overnight_run(args)
     argv = ["systemd-inhibit", "--what=sleep:idle", "--who=Second brain", "--why=Overnight work",
-            sys.executable, "-I", os.path.abspath(__file__), "overnight-run", d.isoformat(), str(int(hold_until))]
+            sys.executable, "-I", os.path.abspath(__file__), "overnight-run", *args]
     try:
         return subprocess.run(argv).returncode
     except OSError:
-        return cmd_overnight_run([d.isoformat(), str(int(hold_until))])
+        return cmd_overnight_run(args)
 
 
 def _flag_value(args, name):
