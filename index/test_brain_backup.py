@@ -67,6 +67,24 @@ class BrainBackup(unittest.TestCase):
         self.assertIn("brain/business/clients/acme.md", names)
         self.assertIn("brain/business/.git/HEAD", names)
 
+    def test_the_default_folder_is_on_the_drive_not_a_tilde_folder(self):
+        # a stand-in mountpoint says yes, so the drive can be a plain folder; BRAIN_BACKUP_DIR is not set
+        bin_dir = self.tmp / "bin"
+        bin_dir.mkdir()
+        fake = bin_dir / "mountpoint"
+        fake.write_text("#!/bin/sh\nexit 0\n")
+        fake.chmod(0o755)
+        drive, elsewhere = self.tmp / "drive", self.tmp / "cwd"
+        drive.mkdir()
+        elsewhere.mkdir()
+        env = {k: v for k, v in os.environ.items() if k != "BRAIN_BACKUP_DIR"}
+        env.update(BRAIN_DIR=str(self.store), BRAIN_BACKUP_MOUNT=str(drive), HOME=str(self.tmp / "home"),
+                   PATH=f"{bin_dir}:{os.environ['PATH']}")
+        r = subprocess.run([str(SCRIPT)], env=env, cwd=elsewhere, capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(len(list((drive / "brain").glob("brain-*.tar.gz"))), 1)
+        self.assertEqual(list(elsewhere.iterdir()), [])  # nothing written to a folder called "~" here
+
     def test_no_copy_when_the_drive_is_not_mounted(self):
         not_mounted = self.tmp / "empty-mount"
         not_mounted.mkdir()

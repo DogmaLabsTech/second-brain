@@ -7,7 +7,7 @@ brain="$(realpath -- "${BRAIN_DIR:-$HOME/brain}")"
 # The brain holds private notes: copies are for <user> only.
 umask 077
 mount="${BRAIN_BACKUP_MOUNT:-/mnt/backup}"
-dest="${BRAIN_BACKUP_DIR:-~/backups/brain}"
+dest="${BRAIN_BACKUP_DIR:-$mount/brain}"  # (a quoted ~ would stay a literal "~" folder)
 keep="${BRAIN_BACKUP_KEEP:-14}"
 # If the drive isn't mounted, stop: copying into the empty mount point would fill the main disk.
 mountpoint -q "$mount" || { echo "brain-backup: $mount is not mounted; nothing copied" >&2; exit 1; }
