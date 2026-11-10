@@ -42,10 +42,14 @@ becomes `[email]` once you list it (`BRAIN_OWN_EMAILS=you@example.com`, or one a
   Telegram keys, JWTs (`eyJ…`), private key blocks, Slack and Discord webhook links.
 - `Bearer …` / `Token …` / `Basic …` followed by something with a digit in it (or any `Bearer`
   value of 20+ letters).
-- Passwords inside links, like `postgres://user:PASSWORD@host`.
+- Passwords inside links, like `postgres://user:PASSWORD@host` (also with no user, `redis://:PASSWORD@host`,
+  or an `@` in the password), and `curl -u user:PASSWORD`.
 - A value after a name that mentions key, token, secret, password, passwd, auth, cookie and
   similar, written with `=` (`api_key=…`). With `:` (`"token": "…"`) only when the value has a digit
-  in it, so a sentence like "Key: the bar restarts" is kept.
+  in it, so a sentence like "Key: the bar restarts" is kept. For the plainly secret names (password,
+  passwd, passphrase, pwd, secret, token, api_key) the whole value goes either way: a quoted value to its
+  closing quote, an unquoted one up to a space (over `&` and `;`, but a query string keeps its next
+  `&name=`), and with `:` no digit is needed once the value is 8 or more letters.
 - `.env`-style lines: `UPPER_SNAKE=value` where the value is longer than 8 letters. Values that
   are clearly folders (`/…`, `~…`, `$VAR`) are kept.
 - Pairing codes: 6 to 8 digits within a short distance of the word "pair" or "pairing".

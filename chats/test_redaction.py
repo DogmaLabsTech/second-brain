@@ -173,5 +173,63 @@ class Negative(unittest.TestCase):
         self.same("rockceen is served on port 4197 via Tailscale.")
 
 
+class SecretShapesThatUsedToLeak(unittest.TestCase):
+    """Shapes found leaking by the 2026-11 audit: the secret must be gone and nearby words must stay."""
+
+    PW = "Zq8Lm2Xv9Rt4Wk7Ny3Pb6Hc1"
+
+    def gone(self, text, secret):
+        out, n = redact(text)
+        self.assertNotIn(secret, out)
+        self.assertGreaterEqual(n, 1)
+        return out
+
+    def test_a_link_with_an_empty_user(self):
+        self.gone("redis://:" + self.PW + "@host:6379", self.PW)
+
+    def test_a_link_whose_password_holds_an_at_sign(self):
+        out = self.gone("mysql://root:p@SECRET@host/db", "SECRET")
+        self.assertIn("host/db", out)
+
+    def test_the_tail_after_an_ampersand_semicolon_or_bracket(self):
+        self.gone("password=abc&Xk9fP2mQz7Lw", "Xk9fP2mQz7Lw")
+        self.gone("PASSWORD=ab12;cd34efghQ", "cd34efghQ")
+        self.gone("db_password=Ab3)Qw8zT5nM", "Qw8zT5nM")
+
+    def test_a_query_string_keeps_its_next_parameter(self):
+        self.assertEqual(redact("?token=abc123&page=2")[0], "?token=[redacted]&page=2")
+
+    def test_a_quoted_phrase_with_spaces(self):
+        self.gone('password="correct horse battery staple"', "horse")
+
+    def test_a_password_after_a_colon_without_a_digit(self):
+        self.gone("password: correcthorsebatterystaple", "correcthorsebatterystaple")
+        self.gone("api_key: abcdefghijklmnopqrstuvwxyz", "abcdefghijklmnopqrstuvwxyz")
+
+    def test_an_aws_secret_key_with_slashes(self):
+        key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        self.gone(key, "EXAMPLEKEY")
+        self.gone("AWS Secret Access Key [None]: " + key, "EXAMPLEKEY")
+
+    def test_curl_user_password(self):
+        out = self.gone("curl -u admin:" + self.PW + " http://x", self.PW)
+        self.assertIn("admin", out)
+
+    def test_a_lowercase_private_key_header(self):
+        self.gone("-----begin private key-----\nMIIEvQIBADANBgkq\n-----end private key-----", "MIIEvQIBADANBgkq")
+
+    def test_prose_and_paths_stay(self):
+        for text in ("Key: the bar restarts", "Password: required", "token: the one above",
+                     "see usr/local/share/applications/MyApp/Thing for it", "git push -u origin main"):
+            self.assertEqual(redact(text), (text, 0), text)
+
+    def test_a_long_run_does_not_take_forever(self):
+        import time
+        start = time.time()
+        redact("a-" * 6000)
+        redact("secret" * 3000)
+        self.assertLess(time.time() - start, 5)
+
+
 if __name__ == "__main__":
     unittest.main()

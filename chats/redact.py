@@ -31,7 +31,7 @@ def own_addresses():
 # 1. Whole blocks (run first so the inner lines are not half-redacted).
 _PRIVATE_KEY = re.compile(
     r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----.*?(?:-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----|\Z)",
-    re.S,
+    re.S | re.I,
 )
 
 # 2. Known token shapes: the whole match is replaced.
@@ -60,17 +60,29 @@ _AUTH_HEADER = re.compile(r"\b([Bb]earer|BEARER|Basic|Token)(\s+)(?=[A-Za-z0-9._
 
 _BEARER_LONG = re.compile(r"\b([Bb]earer)(\s+)([A-Za-z0-9._~+/=\-]{20,})")
 
-# 4. Passwords inside URLs: scheme://user:pass@host
-_URL_CREDS = re.compile(r"([a-z][a-z0-9+.\-]*://[^\s:/@]+:)([^\s@/]+)(@)")
+# 4. Passwords inside URLs: scheme://user:pass@host. The user may be empty (redis://:pass@host) and the password may
+# hold an "@": it runs to the last "@" before the host.
+_URL_CREDS = re.compile(r"([a-z][a-z0-9+.\-]*://[^\s:/@]*:)([^\s/]+)(@)")
+# curl -u user:pass / --user user:pass
+_CURL_USER = re.compile(r"((?<![\w\-])(?:-u|--user)[ =]+[^\s:]+:)(\S+)")
 
 # 5. name=value / name: value where name mentions a secret word.
+# The name starts where a run of word characters starts ((?<![\w\-.]) instead of \b): with \b every position inside a long
+# run began its own scan and a long token took quadratic time.
 _SECRET_WORDS = r"(?:key|token|secret|password|passwd|passphrase|pwd|credential|auth|cookie|session_?id|api_?key|private)"
 _ASSIGN_EQ = re.compile(
-    r"(?i)(\b[\w\-.]*" + _SECRET_WORDS + r"[\w\-.]*[\"']?\s*=\s*[\"']?)([^\s\"'`,;&)<>\]]{3,})"
+    r"(?i)((?<![\w\-.])[\w\-.]*" + _SECRET_WORDS + r"[\w\-.]*[\"']?\s*=\s*[\"']?)([^\s\"'`,;&)<>\]]{3,})"
 )
 _ASSIGN_COLON = re.compile(
-    r"(?i)(\b[\w\-.]*" + _SECRET_WORDS + r"[\w\-.]*[\"']?\s*:\s*[\"']?)([^\s\"'`,;&)<>\]]{8,})"
+    r"(?i)((?<![\w\-.])[\w\-.]*" + _SECRET_WORDS + r"[\w\-.]*[\"']?\s*:\s*[\"']?)([^\s\"'`,;&)<>\]]{8,})"
 )
+# Names that are clearly a password or a secret: the whole value goes, however it is written. A quoted value runs to
+# the closing quote (spaces and all); an unquoted one runs to a space or a quote, and over "&" or ";" unless "&name="
+# starts the next query parameter. The ":" form needs no digit here.
+_STRONG_WORDS = r"(?:password|passwd|passphrase|pwd|secret|token|api_?key)"
+_STRONG_VALUE = r"(\"[^\"\n]{3,}\"|'[^'\n]{3,}'|(?:[^\s\"'`&]|&(?!\w+=)){%d,})"
+_STRONG_EQ = re.compile(r"(?i)((?<![\w\-.])[\w\-.]*" + _STRONG_WORDS + r"[\w\-.]*[\"']?\s*=\s*)" + _STRONG_VALUE % 3)
+_STRONG_COLON = re.compile(r"(?i)((?<![\w\-.])[\w\-.]*" + _STRONG_WORDS + r"[\w\-.]*[\"']?\s*:\s*)" + _STRONG_VALUE % 8)
 _HARMLESS_VALUES = {"true", "false", "null", "none", "undefined", "yes", "no", "on", "off",
                     "required", "optional", "string", "number", "redacted", "[redacted]"}
 
@@ -118,6 +130,8 @@ def _b64_sub(m):
     if re.fullmatch(r"[0-9a-fA-F]+", tok):
         return tok  # pure hex was already judged by the hex rule (git ids are kept there)
     # Paths and slugs: judge each part between separators on its own.
+    if len(tok) == 40 and re.fullmatch(r"[A-Za-z0-9/+]+", tok) and _looks_random(tok):
+        return MARK  # an AWS secret access key: its "/" must not split it into short harmless pieces
     pieces = re.split(r"[/_\-.]", tok)
     if any(_looks_random(p) for p in pieces) or (len(pieces) == 1 and _looks_random(tok)):
         return MARK
@@ -166,7 +180,8 @@ def _auth_and_urls(text):
         text, k = pat.subn(lambda m: m.group(1) + m.group(2) + MARK, text)
         total += k
     text, k = _URL_CREDS.subn(lambda m: m.group(1) + MARK + m.group(3), text)
-    return text, total + k
+    text, k2 = _CURL_USER.subn(lambda m: m.group(1) + MARK, text)
+    return text, total + k + k2
 
 
 def _assign(m):
@@ -174,6 +189,15 @@ def _assign(m):
     if val.lower() in _HARMLESS_VALUES or val.startswith(("$", "{", "<", "[redacted")):
         return m.group(0)
     return m.group(1) + MARK
+
+
+def _strong(m):
+    raw = m.group(2)
+    val = raw.strip("\"'")
+    if val.lower() in _HARMLESS_VALUES or val.startswith(("$", "{", "<", "/", "~", "http", "[redacted")):
+        return m.group(0)
+    quote = raw[0] if raw[0] in "\"'" else ""
+    return m.group(1) + quote + MARK + quote
 
 
 def _assign_colon(m):
@@ -204,7 +228,8 @@ def _sub_counting(patterns_and_fns, text):
 
 
 def _assignments(text):
-    return _sub_counting(((_ASSIGN_EQ, _assign), (_ASSIGN_COLON, _assign_colon)), text)
+    return _sub_counting(((_STRONG_EQ, _strong), (_STRONG_COLON, _strong), (_ASSIGN_EQ, _assign),
+                          (_ASSIGN_COLON, _assign_colon)), text)
 
 
 def _env_lines(text):
