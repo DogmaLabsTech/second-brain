@@ -232,6 +232,19 @@ class Commands(Folders):
         self.assertIn("Codex vectors on the test machine: FAILED", out.stdout)
         self.assertIn("To retire (not deleted):", out.stdout)
 
+    def test_a_missing_pyyaml_gives_a_plain_message_not_a_traceback(self):
+        # a stand-in "yaml" that fails to import hides the real one, as on a Python without PyYAML
+        stub = os.path.join(self.dir, "no-yaml")
+        os.makedirs(stub)
+        with open(os.path.join(stub, "yaml.py"), "w") as f:
+            f.write("raise ImportError('no yaml here')\n")
+        env = dict(self.env, PYTHONPATH=stub)
+        out = subprocess.run([sys.executable, os.path.join(HERE, "freshness.py")], env=env,
+                             capture_output=True, text=True, timeout=60)
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("PyYAML is missing", out.stderr)
+        self.assertNotIn("Traceback", out.stderr)
+
     def test_brain_status_json(self):
         out = subprocess.run([sys.executable, "-I", os.path.join(HERE, "freshness.py"), "--json"], env=self.env,
                              capture_output=True, text=True, timeout=60)

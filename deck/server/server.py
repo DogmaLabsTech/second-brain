@@ -27,7 +27,11 @@ GET /health: {"app": "second-brain-deck", "ready": true, "pid": ...} once the se
 and uses it to tell an already running Deck server (reuse it) from some other program on the port (ask, never kill).
 DECK_PARENT_WATCH=1 (set by the app): the server reads its stdin pipe and exits when it closes, i.e. when the app is gone, even after a
 forced kill, so no server is left behind."""
-import http.server, socketserver, sqlite3, hmac, array, math, wave, json, urllib.parse, urllib.request, pathlib, os, sys, hashlib, shutil, tempfile, datetime, subprocess, signal, threading, time, re, yaml
+import http.server, socketserver, sqlite3, hmac, array, math, wave, json, urllib.parse, urllib.request, pathlib, os, sys, hashlib, shutil, tempfile, datetime, subprocess, signal, threading, time, re
+try:
+    import yaml
+except ImportError:
+    sys.exit("deck server: the Python package PyYAML is missing: run  pip install pyyaml  (see docs/getting-started.md)")
 ROOT = pathlib.Path(__file__).resolve().parent.parent / "web"; PORT = int(os.environ.get("DECK_PORT", 8765)); DB = os.path.expanduser("~/.cache/qmd/index.sqlite")
 QMD = os.path.expanduser("~/.config/qmd/index.yml"); DATA = pathlib.Path(os.environ.get("DECK_DATA") or os.path.expanduser("~/.local/share/second-brain/deck/data.js")); TEST_MAP = os.environ.get("DECK_TEST_MAP")
 BACKUPS = os.path.expanduser("~/.local/state/second-brain/note-backups"); MAXBODY = 4_000_000; SHOW = 150000

@@ -166,7 +166,10 @@ def rog_status(path):
 
 
 def load_config(path):
-    import yaml
+    try:
+        import yaml
+    except ImportError:
+        raise RuntimeError("the Python package PyYAML is missing: run  pip install pyyaml  (see docs/getting-started.md)") from None
     try:
         with open(path) as f:
             return (yaml.safe_load(f) or {}).get("collections") or {}
@@ -275,7 +278,11 @@ def _text(report, now):
 
 def main(argv):
     now = now_utc()
-    report = check(now)
+    try:
+        report = check(now)
+    except RuntimeError as e:
+        print(f"brain status: {e}", file=sys.stderr)
+        return 2
     if "--json" in argv:
         print(json.dumps(report, default=lambda o: o.isoformat() if hasattr(o, "isoformat") else str(o), indent=1))
     else:
