@@ -150,6 +150,73 @@ class Caller(unittest.TestCase):
         self.assertTrue(out["program"])
 
 
+class PrivateOk(unittest.TestCase):
+    """May this caller read private notes? Only this copy's Deck or Obsidian, positively found, with no online agent
+    anywhere in the chain; a terminal (yours, or a pane an agent types into) never."""
+    REAL_DECK = ["python3", "-I", searchlog.DECK_SERVER]
+    OBSIDIAN = ["/usr/lib/electron43/electron", "/usr/lib/obsidian/app.asar"]
+
+    def ok(self, p, start, **kw):
+        return searchlog.private_ok(start=start, proc=p.root, **kw)
+
+    def test_the_real_deck(self):
+        p = FakeProc().add(9, "deck", ["bash", "app/deck"], 1).add(10, "python3", self.REAL_DECK, 9, os.path.dirname(searchlog.DECK_SERVER))
+        self.assertTrue(self.ok(p, 10))
+        by_hand = FakeProc().add(10, "python3", ["python3", "-I", "server/server.py"], 1,
+                                 os.path.dirname(os.path.dirname(searchlog.DECK_SERVER)))
+        self.assertTrue(self.ok(by_hand, 10))
+
+    def test_obsidian_as_electron_runs_it(self):
+        # main process, then the zygote and the renderer whose title holds its whole command line in one string
+        p = (FakeProc().add(20, "electron", self.OBSIDIAN, 1)
+             .add(21, "electron", ["/usr/lib/electron43/electron --type=zygote"], 20)
+             .add(22, "electron", ["/usr/lib/electron43/electron --type=renderer --app-path=/usr/lib/obsidian/app.asar"], 21))
+        self.assertTrue(self.ok(p, 22))
+        self.assertTrue(self.ok(FakeProc().add(30, "obsidian", ["/opt/obsidian/obsidian"], 1), 30))
+        flags_first = ["/usr/lib/electron43/electron", "--ozone-platform=wayland", "--enable-wayland-ime", "/usr/lib/obsidian/app.asar"]
+        self.assertTrue(self.ok(FakeProc().add(31, "electron", flags_first, 1), 31))
+
+    def test_everyone_else_stays_out(self):
+        other_copy = "/tmp/elsewhere/second-brain/deck/server/server.py"
+        for name, comm, argv, cwd in [
+                ("your own or an agent's shell", "bash", ["bash"], "/tmp"),
+                ("a terminal window", "alacritty", ["alacritty"], "/tmp"),
+                ("the island", "quickshell", ["quickshell", "-p", "x"], "/tmp"),
+                ("another copy's Deck", "python3", ["python3", "-I", other_copy], "/tmp"),
+                ("the old prototype", "python3", ["python3", "/x/brain-prototypes/server.py"], "/tmp"),
+                ("another server.py", "python3", ["python3", "server.py"], "/tmp/second-brain/deck"),
+                ("another electron app", "electron", ["/usr/lib/electron43/electron", "/opt/other/app.asar"], "/tmp")]:
+            with self.subTest(name):
+                self.assertFalse(self.ok(FakeProc().add(40, comm, argv, 1, cwd), 40))
+
+    def test_an_online_agent_anywhere_in_the_chain_stays_out(self):
+        for agent in ("claude", "codex", "gemini", "opencode", "grok", "copilot", "cursor-agent"):
+            with self.subTest(agent):
+                below = FakeProc().add(50, "python3", self.REAL_DECK, 1, "/tmp").add(51, agent, [agent], 50).add(52, "bash", ["bash"], 51)
+                self.assertFalse(self.ok(below, 52))
+                above = FakeProc().add(60, agent, [agent], 1).add(61, "python3", self.REAL_DECK, 60, "/tmp")
+                self.assertFalse(self.ok(above, 61))
+
+    def test_anything_unreadable_hides(self):
+        gap = FakeProc().add(70, "python3", self.REAL_DECK, 69, "/tmp")   # its parent is gone: the chain is not whole
+        self.assertFalse(self.ok(gap, 70))
+        self.assertFalse(self.ok(FakeProc(), 999))
+        loop = FakeProc().add(71, "python3", self.REAL_DECK, 72, "/tmp").add(72, "bash", ["bash"], 71)
+        self.assertFalse(self.ok(loop, 71))
+        with mock.patch.object(searchlog, "_proc", side_effect=RuntimeError("boom")):
+            self.assertFalse(self.ok(FakeProc(), 70))
+
+    def test_the_time_limit_hides_and_is_longer_than_the_log_lines(self):
+        p = FakeProc().add(80, "python3", self.REAL_DECK, 1, "/tmp")
+        self.assertTrue(self.ok(p, 80))
+        self.assertFalse(self.ok(p, 80, max_ms=0))
+        self.assertGreater(searchlog.TRUST_MS, searchlog.MAX_MS)
+
+    def test_the_logged_program_does_not_change(self):
+        p = FakeProc().add(90, "electron", self.OBSIDIAN, 1)
+        self.assertEqual(p.caller(90), {"name": "brain search", "pid": 90, "program": "terminal", "folder": None})
+
+
 class Lines(unittest.TestCase):
     def setUp(self):
         for f in (searchlog.SEARCHES, asklog.ASKS):

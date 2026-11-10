@@ -1,5 +1,6 @@
 """Small tests for the check-up pieces (no network, no models): python3 ask/test_ask_units.py
 (not `-m unittest ask/…`: that imports the ask/ folder as `ask` instead of ask.py)."""
+import contextlib
 import io
 import json
 import os
@@ -138,8 +139,8 @@ class LocalOnly(unittest.TestCase):
 
 
 class OnlineAgents(unittest.TestCase):
-    """`brain ask` / `brain search` leave the private section out unless the island, the Deck or a person at a
-    terminal ran them (one brain, 2026-10-29; trusted launchers, 2026-11-10)."""
+    """`brain ask` / `brain search` leave the private section out unless this copy's Deck or Obsidian ran them, with no
+    online agent anywhere above (one brain, 2026-10-29; Deck or Obsidian only, 2026-11-10)."""
     def fake_qmd(self, files):
         body = json.dumps({"results": [{"file": f, "title": f, "snippet": "s", "line": 1, "score": 1} for f in files]})
         return mock.patch.object(ask.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(body.encode()))
@@ -152,29 +153,25 @@ class OnlineAgents(unittest.TestCase):
             with mock.patch.object(ask, "HIDE_PRIVATE", False):
                 self.assertEqual([h["file"] for h in ask.search("bank")], files)
 
-    def test_who_gets_the_private_section(self):
-        """Only a trusted launcher (island, Deck) or a terminal with a person at it gets the private section; an agent
-        the list does not know, a timer or a script is treated as an agent, not as the owner."""
+    def test_hidden_unless_searchlog_says_this_caller_may_read_them(self):
         import searchlog
-        for program, tty, hidden in (("island", False, False), ("deck", False, False),
-                                     ("terminal", True, False), ("node-terminal", True, False),
-                                     ("terminal", False, True), ("node-terminal", False, True),
-                                     ("claude", True, True), ("codex", False, True), ("obsidian", True, True),
-                                     ("some-new-agent", True, True), (None, True, True)):
-            with mock.patch.object(searchlog, "caller", lambda name, p=program: {"program": p}):
-                self.assertEqual(ask.private_hidden_for("brain search", tty=tty), hidden, (program, tty))
-        with mock.patch.object(searchlog, "caller", side_effect=OSError("no /proc")):
-            self.assertTrue(ask.private_hidden_for("brain search", tty=True))   # can't tell: keep them out
+        with mock.patch.object(searchlog, "private_ok", lambda: True):
+            self.assertFalse(ask.private_hidden())
+        with mock.patch.object(searchlog, "private_ok", lambda: False):
+            self.assertTrue(ask.private_hidden())
+        with mock.patch.object(searchlog, "private_ok", side_effect=OSError("no /proc")):
+            self.assertTrue(ask.private_hidden())   # can't tell: keep them out
 
-    def test_tty_read_from_stdin_when_not_given(self):
+    def test_brain_search_sets_it_from_the_same_check(self):
+        import search_cli
         import searchlog
-        with mock.patch.object(searchlog, "caller", lambda name: {"program": "terminal"}):
-            with mock.patch.object(ask.os, "isatty", lambda fd: fd == 0):
-                self.assertFalse(ask.private_hidden_for("brain ask"))
-            with mock.patch.object(ask.os, "isatty", lambda fd: False):
-                self.assertTrue(ask.private_hidden_for("brain ask"))
-            with mock.patch.object(ask.os, "isatty", side_effect=OSError("closed")):
-                self.assertTrue(ask.private_hidden_for("brain ask"))
+        with mock.patch.object(searchlog, "private_ok", lambda: False), \
+                mock.patch.object(search_cli.ask, "HIDE_PRIVATE", False), \
+                mock.patch.object(search_cli, "search", return_value=[]), \
+                mock.patch.object(search_cli.sys, "argv", ["search_cli.py", "bank"]), \
+                contextlib.redirect_stdout(io.StringIO()):
+            search_cli.main()
+            self.assertTrue(search_cli.ask.HIDE_PRIVATE)
 
 
 class FirstSentence(unittest.TestCase):

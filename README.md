@@ -107,6 +107,7 @@ Run `bin/brain` with no words for the full list.
 <p><img src="docs/media/readme/icons/local.svg" width="22" align="absmiddle"> <b>It lives on your computer.</b> The brain is a plain folder. It never lives inside a repository and is never pushed.<br>
 <img src="docs/media/readme/icons/shield.svg" width="22" align="absmiddle"> <b>Chats are redacted before they become notes.</b><br>
 <img src="docs/media/readme/icons/list.svg" width="22" align="absmiddle"> <b>The private list.</b> Put words in <code>deciders/private.json</code> (copy <code>private.example.json</code>) and any ask that contains them is kept away from online models. An empty or broken list stops anything being sent.<br>
+<img src="docs/media/readme/icons/shield.svg" width="22" align="absmiddle"> <b>The private folder is for the Deck and Obsidian.</b> Notes in <code>~/brain/private</code> show up only when you search from the Deck or Obsidian. <code>brain search</code> and <code>brain ask</code> in a terminal, the island and every coding agent get the brain without them: an agent typing into a terminal looks just like you.<br>
 <img src="docs/media/readme/icons/folder.svg" width="22" align="absmiddle"> <b>Folders you choose stay where they are.</b> The search reads them in place and never changes them.</p>
 
 ## Quickstart (about five minutes)

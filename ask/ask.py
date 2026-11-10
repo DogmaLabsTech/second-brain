@@ -164,27 +164,19 @@ def newer_first(hits, fresh_days=NEWER_DAYS):
     return sorted(hits, key=lambda h: -h["score"])
 
 
-# `brain ask` and `brain search` show the private section only to a caller known to be you: the island, the Deck,
-# or a terminal with a person at it (its input is a keyboard, not a pipe). Anything else (Claude, Codex, an agent
-# this code does not know by name, a timer, a script) gets the brain without it: its private hits are dropped before
-# anything is written or printed. An unknown caller counts as an agent, never as you (one brain, 2026-10-29; the
-# trusted-launcher rule, 2026-11-10). Set by main() and ask/search_cli.py from searchlog.caller().
-TRUSTED_LAUNCHERS = ("island", "deck")
-TERMINALS = ("terminal", "node-terminal")   # searchlog.caller's name when no known program is above the command
+# `brain ask` and `brain search` show the private section only when this copy's Deck or Obsidian ran them, with no
+# online agent anywhere above (searchlog.private_ok). Anything else (a terminal, the island, Claude, Codex, an agent
+# this code does not know, a timer, a script) gets the brain without it: its private hits are dropped before anything
+# is written or printed. A terminal is never trusted: a pane an agent types into looks just like yours (one brain,
+# 2026-10-29; Deck or Obsidian only, 2026-11-10). Set by main() and ask/search_cli.py from private_hidden().
 HIDE_PRIVATE = False
 
 
-def private_hidden_for(name, tty=None):
-    """False only when the program that ran this command (searchlog.caller) is a trusted launcher, or a plain
-    terminal whose input is a keyboard (`tty`; None reads stdin); True for everything else. Never raises."""
+def private_hidden():
+    """False only when searchlog.private_ok says this caller may read private notes; never raises."""
     try:
         import searchlog
-        program = searchlog.caller(name).get("program")
-        if program in TRUSTED_LAUNCHERS:
-            return False
-        if program in TERMINALS:
-            return not (os.isatty(0) if tty is None else tty)
-        return True
+        return not searchlog.private_ok()
     except Exception:  # noqa: BLE001  can't tell: keep them out
         return True
 
@@ -923,7 +915,7 @@ def main(argv):
     if stream:
         EMIT.append(lambda ev: print(json.dumps(ev), flush=True))
     global HIDE_PRIVATE
-    HIDE_PRIVATE = private_hidden_for("brain ask")
+    HIDE_PRIVATE = private_hidden()
     result = ask(q, writer, how)
     result["id"] = asklog.new_id()
     asklog.log_ask(result["id"], q, result, source)

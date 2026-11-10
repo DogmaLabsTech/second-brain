@@ -356,3 +356,44 @@ def caller(name, start=None, proc="/proc", env=None):
     except Exception:  # noqa: BLE001  best effort only: the line is still written
         pass
     return out
+
+
+# ---------- may this caller read private notes? (its own question: caller() and the logged `program` don't change) -----
+
+ONLINE_AGENTS = ("claude", "codex", "gemini", "opencode", "grok", "copilot", "cursor-agent")
+TRUST_MS = 1000   # MAX_MS is for a log line; a busy machine must not hide notes from your own Deck by mistake
+DECK_SERVER = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "deck", "server", "server.py"))
+OBSIDIAN_APP = "/obsidian/app.asar"   # /usr/bin/obsidian runs `electron /usr/lib/obsidian/app.asar`
+
+
+def _trusted_program(comm, argv, cwd):
+    """Is this process this copy's own Deck server (that exact file: not another copy's, not the old prototype) or
+    Obsidian?"""
+    if any(os.path.basename(a) == "server.py" and os.path.realpath(os.path.join(cwd, a)) == DECK_SERVER for a in argv):
+        return True
+    return comm.lower() == "obsidian" or any(OBSIDIAN_APP in a for a in argv)
+
+
+def private_ok(start=None, proc="/proc", max_ms=TRUST_MS):
+    """True only when the whole chain of parent processes was read to the top, it holds the Deck or Obsidian, and no
+    online agent is anywhere in it. Anything else is False: an unknown caller, your own terminal, the island, an
+    unreadable parent, a chain too deep, the time limit, any error. A shell an agent types into (a terminal pane it
+    drives) looks just like your own shell from here, which is why a plain terminal is never trusted. A guard rail, not
+    a lock: any local program can send the Deck its X-Deck header and have the Deck ask for it. Never raises."""
+    try:
+        deadline = time.monotonic() + max_ms / 1000
+        pid, hops, trusted = os.getppid() if start is None else start, 0, False
+        while pid > 1:
+            if hops >= MAX_HOPS or time.monotonic() >= deadline:
+                return False
+            p = _proc(pid, proc)
+            if not p:
+                return False
+            cwd = _cwd(pid, proc) if any("server.py" in a for a in p[1]) else ""
+            if known_program(p[0], p[1], cwd) in ONLINE_AGENTS:
+                return False
+            trusted = trusted or _trusted_program(p[0], p[1], cwd)
+            pid, hops = p[2], hops + 1
+        return trusted
+    except Exception:  # noqa: BLE001  can't tell: hide them
+        return False
