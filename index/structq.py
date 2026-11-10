@@ -13,7 +13,7 @@ we were what when where which who whom why will with would you your yours left m
 
 
 def keywords(q):
-    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9._-]*", q)
+    words = re.findall(r"[^\W_][\w.-]*", q)   # letters and digits of any language (café, Zürich), not only a-z
     keep = [w for w in words if w.lower() not in STOP and len(w) > 1]
     return " ".join(keep) or q
 
@@ -23,6 +23,8 @@ def document(q):
     neighbouring pair of keywords (qmd's word search needs every word, so pairs still match a
     note that uses only some of them). qmd fuses all the lists."""
     q = " ".join(q.split())
+    if not q:
+        return ""   # nothing to search for: no empty "vec:" and "lex:" lines
     words = keywords(q).split()
     lines = [f"vec: {q}", f"lex: {' '.join(words)}"]
     if len(words) > 2:
@@ -31,4 +33,8 @@ def document(q):
 
 
 if __name__ == "__main__":
-    print(document(" ".join(sys.argv[1:])))
+    text = document(" ".join(sys.argv[1:]))
+    if not text:
+        print("usage: structq.py <question>", file=sys.stderr)
+        sys.exit(2)
+    print(text)
