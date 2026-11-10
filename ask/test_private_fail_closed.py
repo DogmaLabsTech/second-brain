@@ -106,5 +106,19 @@ class FailClosed(unittest.TestCase):
             self.assertEqual(haiku.ask_json("plain", "plain"), [1])
 
 
+class GuardRecursion(unittest.TestCase):
+    def test_a_deeply_nested_list_is_a_broken_list_not_a_crash(self):
+        import tempfile
+        sys.path.insert(0, os.path.join(os.path.dirname(HERE), "deciders"))
+        import private_guard
+        d = tempfile.mkdtemp()
+        path = os.path.join(d, "private.json")
+        with open(path, "w") as f:
+            f.write("[" * 200000 + "]" * 200000)
+        data, problem = private_guard.load(path)
+        self.assertEqual(data, {})
+        self.assertIn("broken", problem)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -49,7 +49,7 @@ def load(path):
         return {}, "%s is empty. %s" % (label, SEND_NOTE)
     try:
         data = json.loads(text)
-    except ValueError:
+    except (ValueError, RecursionError):   # RecursionError: a list nested thousands deep
         return {}, "%s is broken (it is not valid JSON, maybe a stray comma). %s" % (label, SEND_NOTE)
     if not isinstance(data, dict) or not isinstance(data.get("words", []), list) \
             or not all(isinstance(w, str) for w in data.get("words", [])):

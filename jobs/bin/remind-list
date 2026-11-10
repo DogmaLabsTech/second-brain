@@ -45,7 +45,8 @@ AGENTS = {
 def items(path=PATH):
     """[(line number, date, text)] of the open items (no agent on them yet)."""
     try:
-        lines = open(path).read().splitlines()
+        with open(path) as f:
+            lines = f.read().splitlines()
     except OSError:
         return []
     out = []
@@ -59,7 +60,8 @@ def items(path=PATH):
 def mark(line_no, agent, path=PATH, text=None):
     """Put '→ started with <agent> <date>' on the item. With its text the line is found again by what it says (the
     list may have changed since it was shown); False when the item is gone, nothing is marked."""
-    lines = open(path).read().splitlines()
+    with open(path) as f:
+        lines = f.read().splitlines()
     if text is not None:
         def same(i):
             m = ITEM.match(lines[i])

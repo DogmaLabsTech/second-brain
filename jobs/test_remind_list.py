@@ -55,6 +55,16 @@ class RemindList(unittest.TestCase):
         self.assertFalse(rl.mark(0, "claude", self.path, text="Fix the bar clock"))   # already started: not open any more
         self.assertEqual(open(self.path).read(), before)
 
+    def test_reading_and_marking_leave_no_file_open(self):
+        import gc
+        import warnings
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            item = rl.items(self.path)[0]
+            rl.mark(item[0], "claude", self.path, text=item[2])
+            gc.collect()
+        self.assertEqual([w for w in caught if issubclass(w.category, ResourceWarning)], [])
+
     def test_every_agent_gets_the_task(self):
         for agent in rl.AGENTS:
             argv = rl.AGENTS[agent][1]("do the thing")

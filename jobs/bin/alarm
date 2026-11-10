@@ -90,7 +90,7 @@ def all_alarms():
     for n in names:
         if n.endswith(".json") and n != "fired.jsonl":
             a = load(n[:-5])
-            if a:
+            if isinstance(a, dict) and isinstance(a.get("at"), (int, float)) and a.get("id"):   # a foreign json is not an alarm
                 out.append(a)
     return sorted(out, key=lambda a: a["at"])
 
@@ -100,7 +100,7 @@ def cmd_set(args):
         return say("I didn't catch when to remind you.", 2)
     try:
         at = int(float(args[0]))
-    except ValueError:
+    except (ValueError, OverflowError):   # "inf" and "1e400" are not a time
         return say("I didn't catch when to remind you.", 2)
     message = " ".join(" ".join(args[1:]).split())[:200] or "Reminder"
     now = time.time()
@@ -243,6 +243,8 @@ def cmd_done(args):
 
 def history(n=10):
     """The last n reminders that went off: message, when, and when Done was pressed (None if not yet)."""
+    if n <= 0:
+        return []
     rows, done = [], {}
     for r in fired_log():
         if "done" in r:

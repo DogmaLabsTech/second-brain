@@ -33,5 +33,14 @@ class Wake(unittest.TestCase):
         self.assertIn("could not wake the writer: down", err.getvalue())
 
 
+class JobsCommandLine(unittest.TestCase):
+    def test_build_with_nothing_to_build_says_how_to_use_it(self):
+        import subprocess
+        out = subprocess.run([sys.executable, "-I", os.path.join(HERE, "jobs.py"), "build"], capture_output=True, text=True, timeout=30)
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("usage", out.stderr)
+        self.assertNotIn("Traceback", out.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

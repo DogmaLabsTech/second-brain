@@ -332,6 +332,27 @@ class Goodnight(Base):
         finally:
             day.ROOT = saved
 
+    def test_a_date_with_no_next_day_is_said_not_a_traceback(self):
+        err = __import__("io").StringIO()
+        with __import__("contextlib").redirect_stderr(err):
+            self.assertEqual(day.cmd_day(["9999-12-31"]), 2)
+        self.assertIn("say today, yesterday", err.getvalue())
+
+    def test_picks_flag_ignores_digits_int_cannot_read(self):
+        mod = types.SimpleNamespace(items=lambda: [(2, "d", "a"), (3, "d", "b")])
+        self.assertEqual(day.picks_from_flag(mod, "\u00b2,3"), [(3, "d", "b")])   # "²" is a digit to isdigit() but not to int()
+
+    def test_clearing_ticked_lines_leaves_no_file_open(self):
+        import gc
+        import warnings
+        path = os.path.join(self.tmp.name, "remembered.md")
+        day.write(path, "- [x] 2026-10-15: done thing\n- [ ] 2026-10-15: open thing\n")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            day.clear_ticked(path, os.path.join(self.tmp.name, "done.md"), dt.date(2026, 10, 15))
+            gc.collect()
+        self.assertEqual([w for w in caught if issubclass(w.category, ResourceWarning)], [])
+
     def test_goodnight_is_eod(self):
         self.assertIs(day.cmd_goodnight, day.cmd_eod)
 

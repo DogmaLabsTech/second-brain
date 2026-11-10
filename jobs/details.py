@@ -101,16 +101,19 @@ def fill(job_id, text, projects=(), timeout=SECONDS):
             "options": {"temperature": 0, "num_predict": 80, "num_ctx": 4096},   # ask.py's size, or Ollama reloads (13 s)
             "messages": msgs + [{"role": "user", "content": text}]}
     host, _, port = OLLAMA.partition(":")
+    conn = None
     try:
         conn = http.client.HTTPConnection(host, int(port or 11434), timeout=timeout)
         conn.request("POST", "/api/chat", json.dumps(body), {"content-type": "application/json"})
         r = conn.getresponse()
         out = json.loads(json.loads(r.read())["message"]["content"]) if r.status == 200 else None
-        conn.close()
     except (OSError, ValueError, KeyError) as why:
         if not _timed_out(why):   # too slow is expected; anything else is said
             print(f"details: the writer failed ({type(why).__name__}: {why}); no details", file=sys.stderr)
         return None
+    finally:
+        if conn is not None:
+            conn.close()   # also when the read or the parse fails
     return ground(job_id, out, text, projects) if isinstance(out, dict) else None
 
 

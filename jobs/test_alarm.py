@@ -40,6 +40,30 @@ class Alarm(unittest.TestCase):
         self.assertEqual(self.run_alarm("cancel", "all")[0], 1)
         self.assertTrue(os.path.exists(os.path.join(self.tmp.name, "a", "stray.json")))
 
+    def test_a_time_that_is_not_a_finite_number_is_not_a_time(self):
+        for bad in ("inf", "1e400", "nan", "-inf"):
+            code, got = self.run_alarm("set", bad, "hi")
+            self.assertEqual(code, 2, bad)
+            self.assertIn("didn't catch", got["message"])
+
+    def test_a_json_in_the_alarm_folder_that_is_not_an_alarm_is_skipped(self):
+        at = int(time.time()) + 3600
+        _, got = self.run_alarm("set", str(at), "Real one")
+        os.makedirs(os.path.join(self.tmp.name, "a"), exist_ok=True)
+        with open(os.path.join(self.tmp.name, "a", "20260101-0000-abcd.json"), "w") as f:
+            json.dump({"x": 1}, f)                    # named like an alarm, holds something else
+        code, listed = self.run_alarm("list")
+        self.assertEqual(code, 0)
+        self.assertIn("1 reminder", listed["message"])
+        self.assertEqual(self.run_alarm("cancel", "all")[0], 0)
+
+    def test_history_of_zero_is_empty(self):
+        _, got = self.run_alarm("set", str(int(time.time()) + 3600), "Went off")
+        self.run_alarm("fire", got["id"])
+        self.assertEqual(len(self.run_alarm("history", "5", "--json")[1]), 1)
+        code, rows = self.run_alarm("history", "0", "--json")
+        self.assertEqual((code, rows), (0, []))
+
     def test_set_list_fire(self):
         at = int(time.time()) + 3600
         code, got = self.run_alarm("set", str(at), "Go outside with Ollie")

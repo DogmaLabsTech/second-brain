@@ -597,6 +597,9 @@ def _cmd_list():
 
 
 def _cmd_build(argv):
+    if len(argv) < 2:
+        print("usage: jobs.py build <what was said> [job id]", file=sys.stderr)
+        return 2
     text = argv[1]
     jid = argv[2] if len(argv) > 2 else match_rule(text)
     print(json.dumps(build(jid, text) if jid else None))

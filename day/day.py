@@ -362,7 +362,7 @@ def cmd_day(args):
     when = next((a for a in args if not a.startswith("--")), "today")
     try:
         d, start, end, title, spoken, live = resolve(when)
-    except ValueError:
+    except (ValueError, OverflowError):   # a date like 9999-12-31 has no next day
         print(f"day: say today, yesterday, overnight or a date like 2026-10-15, not {when!r}", file=sys.stderr)
         return 2
     g = gather(start, end, d, live)
@@ -507,7 +507,8 @@ TICKED = re.compile(r"^- \[[xX]\] (?:\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?: )?(.+)$
 def clear_ticked(path, done_path, d):
     """Ticked remember-list lines (`- [x] …`) leave the list for the done list. Returns their texts."""
     try:
-        lines = open(path).read().splitlines()
+        with open(path) as f:
+            lines = f.read().splitlines()
     except OSError:
         return []
     keep, done = [], []
@@ -701,7 +702,7 @@ def _flag_value(args, name):
 
 def picks_from_flag(mod, value):
     """--picks=3,7: the open items on those line numbers (the Fire's tick list); an empty value is nothing tonight."""
-    want = {int(n) for n in value.split(",") if n.strip().isdigit()}
+    want = {int(n) for n in value.split(",") if re.fullmatch(r"[0-9]+", n.strip())}   # not "²", which isdigit() accepts and int() rejects
     return [item for item in mod.items() if item[0] in want]
 
 
