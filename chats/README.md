@@ -74,11 +74,15 @@ python3 -I ~/projects/second-brain/chats/convert.py --all      # redo every chat
 python3 -I ~/projects/second-brain/chats/convert.py --dry-run  # just say what it would do
 python3 -I ~/projects/second-brain/chats/convert.py --sample 20 # 20 random chats into a temp folder, to look at
 python3 -I ~/projects/second-brain/chats/convert.py --quiet    # one summary line (for the reindex timer)
+python3 -I ~/projects/second-brain/chats/convert.py --prune    # also delete notes whose chat file is gone
 ```
 
 It remembers each source file's time and size in `~/brain/chats/.state.json`
-and only redoes chats that changed. If a chat file disappears, its note is deleted. Two runs at
-the same time can't happen: the second one sees the lock and quietly stops.
+and only redoes chats that changed. If a chat file disappears (Claude Code clears out old chats
+after a while), its note is **kept**: the summary line counts it as "kept". To delete those notes
+too, run it once with `--prune` (try `--dry-run --prune` first to see the list). If the whole chat
+folder is missing (a disk not mounted), nothing is deleted, even with `--prune`. Two runs at the same
+time can't happen: the second one sees the lock and quietly stops.
 
 Tests (from the project folder):
 

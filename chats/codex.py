@@ -193,6 +193,8 @@ def _parse_args(argv):
     ap.add_argument("--src", default=SRC, help=argparse.SUPPRESS)
     ap.add_argument("--out", default=OUT, help=argparse.SUPPRESS)
     ap.add_argument("--quiet", action="store_true", help="only the summary line")
+    ap.add_argument("--prune", action="store_true",
+                    help="also delete the notes of chats whose files are gone (kept by default)")
     return ap.parse_args(argv)
 
 
@@ -249,7 +251,8 @@ def _summary_line(files, stats, out_dir, t0):
     low = os.path.join(out_dir, LOW_DIR)
     n_low = len([n for n in os.listdir(low) if n.endswith(".md")]) if os.path.isdir(low) else 0
     return (f"codex chats: {len(files)} sessions, {stats['converted']} converted, {stats['written']} notes written, "
-            f"{stats['empty']} empty, {stats['removed']} removed, {stats['errors']} errors, "
+            f"{stats['empty']} empty, {stats['removed']} removed, {stats['kept']} kept (chat file gone; --prune deletes), "
+            f"{stats['errors']} errors, "
             f"{stats['redactions']} redactions; folder has {len(notes)} notes, {n_low} set aside in {LOW_DIR}/; "
             f"{time.time() - t0:.0f}s")
 
@@ -261,12 +264,13 @@ def _todo_and_gone(files, src_state, redo_all):
     return todo, [k for k in src_state if k not in set(files)]
 
 
-def _say_dry_run(files, todo, gone, src_state):
+def _say_dry_run(files, todo, gone, src_state, prune):
     for k in gone:
-        print(f"would delete note for vanished source {k}: {src_state[k].get('note')}")
+        print(f"would {'delete' if prune else 'keep'} note for vanished source {k}: {src_state[k].get('note')}")
     for f, _ in todo:
         print(f"would convert {f}")
-    print(f"dry run: {len(todo)} to convert, {len(gone)} to delete, {len(files) - len(todo)} unchanged")
+    print(f"dry run: {len(todo)} to convert, {len(gone) if prune else 0} to delete, "
+          f"{len(files) - len(todo)} unchanged")
 
 
 def main(argv=None):
@@ -296,15 +300,20 @@ def main(argv=None):
     if gone and not os.path.isdir(args.src):   # a missing source (unmounted disk, wrong --src) must not wipe the notes
         print("codex: the chat source folder is not there; keeping the %d notes made from earlier runs" % len(gone), file=sys.stderr)
         gone = []
-    stats = {"converted": 0, "written": 0, "empty": 0, "removed": 0, "redactions": 0, "errors": 0}
+    stats = {"converted": 0, "written": 0, "empty": 0, "removed": 0, "kept": 0, "redactions": 0, "errors": 0}
 
     if args.dry_run:
-        _say_dry_run(files, todo, gone, src_state)
+        _say_dry_run(files, todo, gone, src_state, args.prune)
         return 0
 
+    # A chat whose file is gone keeps its note and its state line, so a later --prune can still find it; only
+    # --prune deletes the note.
     for k in gone:
-        _drop_note(out_dir, src_state.pop(k).get("note"))
-        stats["removed"] += 1
+        if args.prune:
+            _drop_note(out_dir, src_state.pop(k).get("note"))
+            stats["removed"] += 1
+        else:
+            stats["kept"] += 1
 
     _convert_todo(todo, src_state, names, out_dir, state_path, state, stats, args.quiet, t0)
 

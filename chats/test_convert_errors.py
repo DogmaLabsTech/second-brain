@@ -29,11 +29,12 @@ class Signature(unittest.TestCase):
 
 
 class MissingSource(unittest.TestCase):
-    def run_main(self, roots, out):
-        err = io.StringIO()
+    def run_main(self, roots, out, *extra):
+        err, said = io.StringIO(), io.StringIO()
         with mock.patch.object(convert, "sources", lambda: roots), contextlib.redirect_stderr(err), \
-                contextlib.redirect_stdout(io.StringIO()):
-            code = convert.main(["--out", out, "--quiet"])
+                contextlib.redirect_stdout(said):
+            code = convert.main(["--out", out, "--quiet", *extra])
+        self.said = said.getvalue()
         return code, err.getvalue()
 
     def seed(self, out):
@@ -52,14 +53,33 @@ class MissingSource(unittest.TestCase):
             self.assertTrue(os.path.exists(os.path.join(out, "kept.md")))
             self.assertIn("is not there; keeping the 1 notes", err)
 
-    def test_a_source_folder_that_is_there_but_has_lost_the_chat_still_removes_its_note(self):
+    def test_a_chat_file_that_is_gone_keeps_its_note_unless_prune(self):
         with tempfile.TemporaryDirectory() as d:
             out, root = os.path.join(d, "out"), os.path.join(d, "projects")
             os.makedirs(out)
             os.makedirs(root)
             self.seed(out)
             self.run_main([root], out)
-            self.assertFalse(os.path.exists(os.path.join(out, "kept.md")))   # the documented mirror behaviour
+            self.assertTrue(os.path.exists(os.path.join(out, "kept.md")))   # kept by default
+            self.assertIn("0 removed, 1 kept (chat file gone; --prune deletes)", self.said)
+            self.run_main([root], out)
+            self.assertTrue(os.path.exists(os.path.join(out, "kept.md")))   # and on the next run
+            self.run_main([root], out, "--dry-run", "--prune")
+            self.assertIn("would delete note for vanished source gone-session: kept.md", self.said)
+            self.assertTrue(os.path.exists(os.path.join(out, "kept.md")))
+            self.run_main([root], out, "--prune")
+            self.assertFalse(os.path.exists(os.path.join(out, "kept.md")))   # only --prune deletes it
+            self.assertIn("1 removed, 0 kept", self.said)
+
+    def test_the_dry_run_says_a_gone_chat_keeps_its_note(self):
+        with tempfile.TemporaryDirectory() as d:
+            out, root = os.path.join(d, "out"), os.path.join(d, "projects")
+            os.makedirs(out)
+            os.makedirs(root)
+            self.seed(out)
+            self.run_main([root], out, "--dry-run")
+            self.assertIn("would keep note for vanished source gone-session: kept.md", self.said)
+            self.assertIn("0 to delete", self.said)
 
 
 def _session(session_id="s1"):

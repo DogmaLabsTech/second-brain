@@ -3,6 +3,8 @@
     CRABBOX_LOCAL=1 python3 -I -m unittest chats/test_codex.py
 """
 
+import contextlib
+import io
 import json
 import os
 import sys
@@ -119,8 +121,33 @@ class Run(unittest.TestCase):
         self.assertEqual(len(notes), 1)
         self.assertEqual(oct(os.stat(os.path.join(out, notes[0])).st_mode & 0o777), "0o600")
         os.remove(p)
-        codex.main(["--src", src, "--out", out, "--quiet"])
+        codex.main(["--src", src, "--out", out, "--quiet"])   # the chat file is gone: its note is kept by default
+        self.assertEqual([n for n in os.listdir(out) if n.endswith(".md")], notes)
+        codex.main(["--src", src, "--out", out, "--quiet"])   # and on every later run
+        self.assertEqual([n for n in os.listdir(out) if n.endswith(".md")], notes)
+        with contextlib.redirect_stdout(io.StringIO()) as said:
+            codex.main(["--src", src, "--out", out, "--dry-run", "--prune"])
+        self.assertIn("would delete", said.getvalue())
+        self.assertEqual([n for n in os.listdir(out) if n.endswith(".md")], notes)
+        codex.main(["--src", src, "--out", out, "--quiet", "--prune"])   # only --prune deletes it
         self.assertEqual([n for n in os.listdir(out) if n.endswith(".md")], [])
+
+    def test_a_kept_note_is_said_in_the_summary_and_the_dry_run(self):
+        src, out = tempfile.mkdtemp(), tempfile.mkdtemp()
+        p = os.path.join(src, "2026", "10", "16", "rollout-x-" + SID + ".jsonl")
+        os.makedirs(os.path.dirname(p))
+        with open(p, "w") as f:
+            f.write("\n".join(chat(*TALK)) + "\n")
+        codex.main(["--src", src, "--out", out, "--quiet"])
+        os.remove(p)
+        with contextlib.redirect_stdout(io.StringIO()) as said:
+            codex.main(["--src", src, "--out", out, "--dry-run"])
+        self.assertIn("would keep", said.getvalue())
+        self.assertNotIn("would delete", said.getvalue())
+        with contextlib.redirect_stdout(io.StringIO()) as said:
+            codex.main(["--src", src, "--out", out, "--quiet"])
+        self.assertIn("1 kept (chat file gone; --prune deletes)", said.getvalue())
+        self.assertIn("0 removed", said.getvalue())
 
     def test_a_missing_source_folder_keeps_the_notes(self):
         src, out = tempfile.mkdtemp(), tempfile.mkdtemp()
