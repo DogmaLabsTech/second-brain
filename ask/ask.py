@@ -85,14 +85,20 @@ def _added_collections():
     conf = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "qmd", "index.yml")
     found, name = {}, None
     try:
-        for line in open(conf, encoding="utf-8"):
-            m = re.match(r"^  ([A-Za-z0-9][\w.-]*):\s*$", line)
-            if m:
-                name = m.group(1)
-                continue
-            m = re.match(r"^    path:\s*(.+?)\s*$", line)
-            if m and name and name not in COLLECTIONS:
-                found[name] = os.path.expanduser(m.group(1).strip("\"'"))
+        with open(conf, encoding="utf-8") as f:
+            for line in f:
+                m = re.match(r"^  ([A-Za-z0-9][\w.-]*):\s*$", line)
+                if m:
+                    name = m.group(1)
+                    continue
+                m = re.match(r"^    path:\s*(.+?)\s*$", line)
+                if m and name and name not in COLLECTIONS:
+                    raw = m.group(1)
+                    try:   # onboard writes a quoted path as JSON, so a quote or backslash in a folder name is escaped
+                        raw = json.loads(raw) if raw.startswith('"') else raw.strip("'")
+                    except ValueError:
+                        raw = raw.strip("\"'")
+                    found[name] = os.path.expanduser(raw)
     except OSError:
         pass
     return found

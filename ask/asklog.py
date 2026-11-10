@@ -70,14 +70,27 @@ def outcome(qid, what, detail=""):
 
 
 def read(path):
+    rows, bad = [], 0
     try:
         with open(path) as f:
-            return [json.loads(l) for l in f if l.strip()]
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except ValueError:   # one cut or damaged line must not hide the rest of the log
+                    bad += 1
+                    continue
+                if isinstance(row, dict):
+                    rows.append(row)
     except FileNotFoundError:   # nothing recorded yet
         return []
-    except (OSError, ValueError) as why:
+    except OSError as why:
         print(f"asklog: could not read {path}: {why}", file=sys.stderr)
         return []
+    if bad:
+        print(f"asklog: skipped {bad} damaged line{'s' if bad != 1 else ''} in {path}", file=sys.stderr)
+    return rows
 
 
 def _cmd_outcome(argv):
@@ -92,9 +105,12 @@ def _cmd_rate(argv):
     if len(argv) < 3:
         print("brain rate <id|last> up|down [why]", file=sys.stderr)
         return 2
+    if argv[2] not in ("up", "down"):
+        print("brain rate <id|last> up|down [why]   (say up or down)", file=sys.stderr)
+        return 2
     qid = argv[1]
     if qid == "last":
-        rows = read(ASKS)
+        rows = [r for r in read(ASKS) if r.get("id")]
         if not rows:
             print("brain rate: nothing asked yet", file=sys.stderr)
             return 1
@@ -105,11 +121,16 @@ def _cmd_rate(argv):
 
 
 def _cmd_log(argv):
-    n = int(argv[1]) if len(argv) > 1 else 10
-    votes = {r["id"]: r["verdict"] for r in read(RATINGS)}
+    try:
+        n = int(argv[1]) if len(argv) > 1 else 10
+    except ValueError:
+        print("brain log [how many]   (a number, like 20)", file=sys.stderr)
+        return 2
+    n = max(1, n)
+    votes = {r.get("id"): r.get("verdict") for r in read(RATINGS)}
     for r in read(ASKS)[-n:]:
-        mark = {"up": "👍", "down": "👎"}.get(votes.get(r["id"]), "  ")
-        print(f"{mark} {r['at'][5:16]} {r.get('from', '?'):8} {r.get('writer', ''):14} {r.get('ms', 0):>6} ms  {r['q']}")
+        mark = {"up": "👍", "down": "👎"}.get(votes.get(r.get("id")), "  ")
+        print(f"{mark} {str(r.get('at', ''))[5:16]} {r.get('from', '?'):8} {r.get('writer', ''):14} {r.get('ms', 0):>6} ms  {r.get('q', '')}")
         print(f"      → {str(r.get('answer'))[:150]}")
     return 0
 
