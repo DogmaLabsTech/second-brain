@@ -447,6 +447,8 @@ def busy():
 
 def waiting_line():
     """whats-waiting's own sentence: who needs <user> (Claudes, helpers) and who still works."""
+    if not os.path.isfile(os.path.join(ROOT, "jobs/bin/whats-waiting")):
+        return None   # that helper is not part of this copy: the standup leaves the line out
     try:
         out = subprocess.run([os.path.join(ROOT, "jobs/bin/whats-waiting")], capture_output=True, text=True, timeout=30)
         return json.loads(out.stdout.strip().splitlines()[-1])["message"]
@@ -822,10 +824,11 @@ def standup(now=None):
     lines += ["", f"## Overnight (since {clock(night_start)})", ""] + _overnight_lines(c, ran)
     lines += ["", "Since bedtime:"] + page("x", night).splitlines()[2:]
     lines += ["", "## Waiting on you", ""]
-    lines.append(f"- {waiting or 'Could not check.'}")
+    if waiting is not None:
+        lines.append(f"- {waiting or 'Could not check.'}")
     lines.append(f"- Remember list: {open_items} open item{'s' if open_items != 1 else ''}.")
     lines.append(f"- In-tray: {fresh} new finished report{'s' if fresh != 1 else ''}.")
-    return "\n".join(lines) + "\n", _standup_spoken(g, c, ran, night, waiting, fresh)
+    return "\n".join(lines) + "\n", _standup_spoken(g, c, ran, night, waiting or "", fresh)
 
 
 def cmd_standup(args):

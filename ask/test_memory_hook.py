@@ -226,7 +226,7 @@ class Shape(Hook):
         self.assertEqual(sorted(data["hookSpecificOutput"]), ["additionalContext", "hookEventName"])
         self.assertEqual(data["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit")
         text = data["hookSpecificOutput"]["additionalContext"]
-        self.assertTrue(text.startswith("Agent memory for demo: 4 notes from <user>'s memory store"))
+        self.assertTrue(text.startswith("Agent memory for demo: 4 notes from your memory store"))
         self.assertIn('`memory` tool (brain MCP) or `brain memory demo "task"`', text)
         self.assertEqual(data["systemMessage"], f"Memory: 4 notes pushed ({memory.tokens(text)} tokens) for demo.")
 

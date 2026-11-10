@@ -149,7 +149,7 @@ def with_brief(task, cwd):
 
 
 def header(repo, count):
-    return (f"Agent memory for {repo}: {count} note{'' if count == 1 else 's'} from <user>'s memory store (rules and "
+    return (f"Agent memory for {repo}: {count} note{'' if count == 1 else 's'} from your memory store (rules and "
             f"lessons; pinned first, then the best match for this first prompt), pushed once per session by the "
             f"memory hook. Each line is a stored summary; the path holds the full note. More: the `memory` tool "
             f"(brain MCP) or `brain memory {repo} \"task\"`.\n\n")

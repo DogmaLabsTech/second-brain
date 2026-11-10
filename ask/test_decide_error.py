@@ -15,6 +15,17 @@ import ask  # noqa: E402
 UNSURE = {"label": "unsure", "confidence": 0.0, "by": "timeout"}
 
 
+class NoDeciderInThisCopy(unittest.TestCase):
+    @unittest.skipIf(os.path.exists(os.path.join(os.path.dirname(HERE), "deciders", "brain_decide.py")), "this copy has a decider")
+    def test_brain_decide_answers_unsure_quietly_when_the_decider_is_not_shipped(self):
+        home = __import__("tempfile").mkdtemp()
+        r = subprocess.run([os.path.join(os.path.dirname(HERE), "bin", "brain-decide"), "intent", "hello"],
+                           capture_output=True, text=True, env=dict(os.environ, HOME=home), timeout=30)
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stderr, "")
+        self.assertEqual(json.loads(r.stdout)["label"], "unsure")
+
+
 class Decide(unittest.TestCase):
     def decide(self, **run):
         err = io.StringIO()

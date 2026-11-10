@@ -4,4 +4,8 @@
 HERE=$(dirname "$(dirname "$(readlink -f "$0")")")
 PY="$HOME/projects/decider/.venv/bin/python"
 [ -x "$PY" ] || PY=python3
+if [ ! -f "$HERE/deciders/brain_decide.py" ]; then   # the decider is optional and not part of the public copy
+  echo '{"label": "unsure", "confidence": 0.0, "by": "none"}'
+  exit 0
+fi
 exec "$PY" -I "$HERE/deciders/brain_decide.py" "$@"

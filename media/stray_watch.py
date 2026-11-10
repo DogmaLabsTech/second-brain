@@ -14,7 +14,7 @@ sys.path.insert(0, HERE)
 import media  # noqa: E402
 
 STATE = os.path.expanduser("~/.local/state/second-brain/media-stray-counts.json")
-DEPUTY = "term-mvv3rfj4-2500fc78"
+DEPUTY = os.environ.get("BRAIN_STRAY_DEPUTY", "")   # the terminal that gets the note; none set = no message is sent
 AGENT_OS = os.path.expanduser("~/agent-os/bin/agent-os")
 
 
@@ -66,6 +66,8 @@ def line(new):
 def tell(text):
     """True when the deputy's inbox has the text. From a systemd service `agent-os tell` exits 5 (not a nodeterm node)
     but still saves the text and says "saved in", so that counts as delivered."""
+    if not DEPUTY:
+        return False
     try:
         r = subprocess.run([AGENT_OS, "tell", DEPUTY, text, "--from", "media-stray-watch"], capture_output=True, timeout=60)
     except (OSError, subprocess.SubprocessError):  # binary missing, timeout

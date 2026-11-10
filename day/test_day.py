@@ -324,6 +324,14 @@ class Goodnight(Base):
         self.assertEqual((len(text), len(set(text))), (50000, 1))   # exactly one writer's page, never a mix
         self.assertEqual(os.listdir(os.path.dirname(path)), ["page.md"])
 
+    def test_the_standup_leaves_the_waiting_line_out_when_the_helper_is_not_in_this_copy(self):
+        saved = day.ROOT
+        day.ROOT = self.tmp.name   # no jobs/bin/whats-waiting here
+        try:
+            self.assertIsNone(day.waiting_line())
+        finally:
+            day.ROOT = saved
+
     def test_goodnight_is_eod(self):
         self.assertIs(day.cmd_goodnight, day.cmd_eod)
 

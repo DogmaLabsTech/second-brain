@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# brain: <user>'s second brain from the command line.
+# brain: your second brain from the command line.
 #   brain ask <question> [--json] [--writer auto|local|local:<model>|haiku] [--how voice|typed]
 #                             a short answer from your notes (or a job), with the notes it used
 #   brain search <question>   best 5 notes, as "path — snippet"

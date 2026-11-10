@@ -579,7 +579,7 @@ def main(argv):
     cmd = argv.pop(0) if argv else "list"
     try:
         if cmd == "list":
-            print("Waiting for <user>:\n" + "\n".join(listing()))
+            print("Waiting for you:\n" + "\n".join(listing()))
         elif cmd == "run":
             days = int(_flag(argv, "--days") or 7)
             print("\n".join(lines(run(days)) or ["nothing to draft"]))

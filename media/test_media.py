@@ -296,6 +296,11 @@ class StrayWatch(unittest.TestCase):
         p.start()
         self.addCleanup(p.stop)
 
+    def test_no_message_is_sent_when_no_terminal_is_named(self):
+        with mock.patch.object(self.w, "DEPUTY", ""), mock.patch.object(self.w.subprocess, "run") as run:
+            self.assertFalse(self.real_tell("hello"))
+        run.assert_not_called()
+
     def stray(self, *names):
         for n in names:
             with open(os.path.join(self.proj, n), "wb") as f:
@@ -336,9 +341,10 @@ class StrayWatch(unittest.TestCase):
         self.assertEqual(len(self.told), 1)
 
     def run_tell(self, **kw):
-        p = mock.patch.object(self.w, "tell", self.real_tell)
-        p.start()
-        self.addCleanup(p.stop)
+        for target, name, value in ((self.w, "tell", self.real_tell), (self.w, "DEPUTY", "term-test")):
+            p = mock.patch.object(target, name, value)
+            p.start()
+            self.addCleanup(p.stop)
         return mock.patch.object(self.w.subprocess, "run", **kw)
 
     def test_tell_rc5_with_saved_in_counts_as_delivered_and_saves_counts(self):
