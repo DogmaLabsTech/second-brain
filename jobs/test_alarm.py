@@ -24,6 +24,22 @@ class Alarm(unittest.TestCase):
         out = subprocess.run([sys.executable, "-I", ALARM, *args], capture_output=True, text=True, env=self.env)
         return out.returncode, json.loads(out.stdout.strip().splitlines()[-1])
 
+    def test_cancel_and_fire_refuse_an_id_that_points_outside_the_alarm_folder(self):
+        victim = os.path.join(self.tmp.name, "victim.json")
+        with open(victim, "w") as f:
+            json.dump({"a": 1}, f)
+        for evil in ("../victim", victim[:-5], "..", "a/../../victim"):
+            for cmd in ("cancel", "fire"):
+                code, got = self.run_alarm(cmd, evil)
+                self.assertNotEqual(code, 0, (cmd, evil))
+                self.assertTrue(os.path.exists(victim), (cmd, evil))
+        os.makedirs(os.path.join(self.tmp.name, "a"), exist_ok=True)
+        with open(os.path.join(self.tmp.name, "a", "stray.json"), "w") as f:   # not an id: neither listed nor dropped
+            json.dump({"id": "stray", "at": int(time.time()) + 600, "message": "x"}, f)
+        self.assertIn("no reminders", self.run_alarm("list")[1]["message"])
+        self.assertEqual(self.run_alarm("cancel", "all")[0], 1)
+        self.assertTrue(os.path.exists(os.path.join(self.tmp.name, "a", "stray.json")))
+
     def test_set_list_fire(self):
         at = int(time.time()) + 3600
         code, got = self.run_alarm("set", str(at), "Go outside with Ollie")

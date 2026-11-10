@@ -33,6 +33,11 @@ UNITS = os.environ.get("BRAIN_ALARM_UNITS") or os.path.join(HOME, ".config/syste
 DRY = os.environ.get("BRAIN_ALARM_DRY") == "1"     # no systemctl, no card, no sound (tests)
 SOUND = "/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga"
 MAX_AHEAD = 7 * 24 * 3600
+ID_RE = re.compile(r"[0-9]{8}-[0-9]{4}-[0-9a-f]{4}")   # what cmd_set makes; anything else is never used as a file name
+
+
+def valid(aid):
+    return isinstance(aid, str) and ID_RE.fullmatch(aid) is not None
 SHELL_WAIT = 180    # after a restart the timer can fire before the desktop is up: wait this long for the island
 
 
@@ -67,6 +72,8 @@ def unit_files(aid):
 
 
 def load(aid):
+    if not valid(aid):   # "../x" or an absolute path must never reach os.path.join
+        return None
     try:
         with open(os.path.join(DIR, aid + ".json")) as f:
             return json.load(f)
@@ -123,6 +130,8 @@ def cmd_set(args):
 
 def drop(aid):
     """Forget an alarm: stop and remove its timer, its unit files and its json."""
+    if not valid(aid):
+        return
     systemctl("disable", "--now", f"brain-alarm-{aid}.timer")
     for p in (*unit_files(aid), os.path.join(DIR, aid + ".json")):
         try:
@@ -202,7 +211,7 @@ def cmd_fire(args):
     how = show(alarm)
     with open(os.path.join(DIR, "fired.jsonl"), "a") as f:
         f.write(json.dumps({**alarm, "fired": int(time.time()), "how": how}) + "\n")
-    drop(alarm["id"])
+    drop(args[0])   # the id the timer was started with, not one read from the file
     return say(f"Reminded you: {alarm['message']}.")
 
 
@@ -221,7 +230,7 @@ def fired_log():
 
 
 def cmd_done(args):
-    if not args or not re.fullmatch(r"[0-9]{8}-[0-9]{4}-[0-9a-f]{4}", args[0]):
+    if not args or not valid(args[0]):
         return say("Which reminder?", 2)
     by = args[1] if len(args) > 1 and args[1] in ("button", "key", "shell") else "button"
     if not any(r.get("id") == args[0] and "fired" in r for r in fired_log()):
