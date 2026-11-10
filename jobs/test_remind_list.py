@@ -41,6 +41,20 @@ class RemindList(unittest.TestCase):
         self.assertEqual([t for _, _, t in rl.items(self.path)], ["Ask Sam about Friday"])
         self.assertIn("→ started with Gemini", open(self.path).read().splitlines()[line])
 
+    def test_mark_finds_the_item_again_by_its_text(self):
+        pick = rl.items(self.path)[1]                      # "Ask Sam about Friday"
+        open(self.path, "w").write("- 2026-10-20: A brand new thing\n" + LIST)   # the list grew above it meanwhile
+        self.assertTrue(rl.mark(pick[0], "claude", self.path, text=pick[2]))
+        lines = open(self.path).read().splitlines()
+        self.assertIn("→ started with Claude", [l for l in lines if "Ask Sam" in l][0])
+        self.assertNotIn("→", [l for l in lines if "brand new" in l][0])
+
+    def test_mark_of_a_vanished_item_changes_nothing_and_does_not_crash(self):
+        before = open(self.path).read()
+        self.assertFalse(rl.mark(99, "claude", self.path, text="no such item"))
+        self.assertFalse(rl.mark(0, "claude", self.path, text="Fix the bar clock"))   # already started: not open any more
+        self.assertEqual(open(self.path).read(), before)
+
     def test_every_agent_gets_the_task(self):
         for agent in rl.AGENTS:
             argv = rl.AGENTS[agent][1]("do the thing")

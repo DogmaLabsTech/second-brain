@@ -56,11 +56,24 @@ def items(path=PATH):
     return out
 
 
-def mark(line_no, agent, path=PATH):
+def mark(line_no, agent, path=PATH, text=None):
+    """Put '→ started with <agent> <date>' on the item. With its text the line is found again by what it says (the
+    list may have changed since it was shown); False when the item is gone, nothing is marked."""
     lines = open(path).read().splitlines()
+    if text is not None:
+        def same(i):
+            m = ITEM.match(lines[i])
+            return bool(m) and not STARTED.search(lines[i]) and m.group(3).strip() == text
+        if not (0 <= line_no < len(lines) and same(line_no)):
+            line_no = next((i for i in range(len(lines)) if same(i)), None)
+    if line_no is None or not 0 <= line_no < len(lines):
+        return False
     lines[line_no] += " → started with %s %s" % (AGENTS[agent][0], time.strftime("%Y-%m-%d"))
-    with open(path, "w") as f:
+    tmp = "%s.%d.tmp" % (path, os.getpid())
+    with open(tmp, "w") as f:
         f.write("\n".join(lines) + "\n")
+    os.replace(tmp, path)
+    return True
 
 
 def clicked(title, body, timeout_ms=20 * 60 * 1000):
@@ -154,7 +167,7 @@ def main(argv):
         print(folder, shlex.join(argv_))
         return 0
     subprocess.Popen(argv_, cwd=folder, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-    mark(pick[0], agent)
+    mark(pick[0], agent, text=pick[2])   # found again by its text: the list may have changed while the menus were open
     subprocess.run(["notify-send", "-a", "Second brain", "-i", "brain", "Started %s" % AGENTS[agent][0], short(pick[2], 90)])
     return 0
 
