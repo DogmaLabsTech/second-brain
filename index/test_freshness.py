@@ -282,5 +282,56 @@ class Commands(Folders):
         self.assertIn("is not there", out.stdout)
 
 
+class DamagedInputs(unittest.TestCase):
+    """A broken index file or search config gives a plain warning, never a traceback."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(lambda: subprocess.run(["rm", "-rf", self.dir], check=True, timeout=30))
+        self.index = os.path.join(self.dir, "i.sqlite")
+        self.conf = os.path.join(self.dir, "index.yml")
+        with open(self.conf, "w") as f:
+            f.write("collections:\n  notes:\n    path: %s/notes\n    pattern: '**/*.md'\n" % self.dir)
+        env = {"BRAIN_LIVE_INDEX": self.index, "BRAIN_QMD_CONFIG": self.conf, "BRAIN_STATE_DIR": os.path.join(self.dir, "state")}
+        p = mock.patch.dict(os.environ, env)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def warnings(self):
+        return freshness.check(NOW)["warnings"]
+
+    def test_a_file_that_is_not_a_database(self):
+        with open(self.index, "wb") as f:
+            f.write(b"garbage, not sqlite")
+        self.assertTrue(any("cannot be read" in w for w in self.warnings()))
+
+    def test_a_database_without_qmds_tables(self):
+        db = sqlite3.connect(self.index)
+        db.execute("CREATE TABLE other (x)")
+        db.commit()
+        db.close()
+        self.assertTrue(any("cannot be read" in w for w in self.warnings()))
+
+    def test_a_collection_with_nothing_under_it(self):
+        with open(self.conf, "w") as f:
+            f.write("collections:\n  a:\n")
+        self.assertIsInstance(self.warnings(), list)
+
+    def test_a_config_that_is_not_valid_yaml(self):
+        with open(self.conf, "w") as f:
+            f.write("b: [\n")
+        self.assertTrue(any("not valid YAML" in w for w in self.warnings()))
+
+    def test_a_folder_name_with_a_question_mark_or_hash_opens_the_real_index(self):
+        odd = os.path.join(self.dir, "q?d#x")
+        os.makedirs(odd)
+        path = os.path.join(odd, "i.sqlite")
+        make_index(path, [("notes", "a.md", hours_ago(1), "h1")], ["h1"])
+        before = set(os.listdir(self.dir))
+        state = freshness.index_state(path)
+        self.assertEqual(state["collections"]["notes"]["notes"], 1)
+        self.assertEqual(set(os.listdir(self.dir)), before)           # no stray "q" or "h" file made beside it
+
+
 if __name__ == "__main__":
     unittest.main()

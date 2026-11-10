@@ -15,6 +15,7 @@ import datetime
 import fnmatch
 import json
 import os
+import pathlib
 import re
 import sqlite3
 import sys
@@ -142,7 +143,8 @@ def index_state(db_path):
     with no vectors (their modified times). None when the index file is missing."""
     if not os.path.exists(db_path):
         return None
-    db = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    # as_uri() escapes a "?" or "#" in the folder name; a bare f"file:{path}" cut the path there and opened (made) another file
+    db = sqlite3.connect(pathlib.Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)
     try:
         out = {}
         for name, n, newest in db.execute(
@@ -181,9 +183,15 @@ def load_config(path):
         raise RuntimeError("the Python package PyYAML is missing: run  pip install pyyaml  (see docs/getting-started.md)") from None
     try:
         with open(path) as f:
-            return (yaml.safe_load(f) or {}).get("collections") or {}
+            data = yaml.safe_load(f) or {}
     except OSError:
         return {}
+    except yaml.YAMLError as why:
+        raise ValueError(f"the search config {path} is not valid YAML ({str(why).splitlines()[0] if str(why) else 'parse error'})") from None
+    found = data.get("collections") if isinstance(data, dict) else None
+    if not isinstance(found, dict):
+        return {}
+    return {name: body if isinstance(body, dict) else {} for name, body in found.items()}   # "a:" with nothing under it
 
 
 # --- the verdict ---------------------------------------------------------------------------------------------------
@@ -246,12 +254,23 @@ def _rog_verdict(testbox, now, late, warnings):
 def check(now=None):
     """The real thing: read the live index, config and test machine status file."""
     p = paths()
-    state = index_state(p["index"])
-    report = assess(load_config(p["config"]), state, rog_status(p["testbox"]), now)
+    problems = []
+    try:
+        state = index_state(p["index"])
+    except sqlite3.Error as why:   # a damaged file, or one that is not qmd's index
+        state = None
+        problems.append(f"The search index file ({p['index']}) cannot be read ({why}).")
+    try:
+        conf = load_config(p["config"])
+    except ValueError as why:
+        conf = {}
+        problems.append(str(why) + ".")
+    report = assess(conf, state, rog_status(p["testbox"]), now)
     report["index"] = (state or {}).get("index")
     report["index_missing"] = state is None
-    if state is None:
+    if state is None and not problems:
         report["warnings"].insert(0, f"The search index file ({p['index']}) is not there.")
+    report["warnings"][0:0] = problems
     return report
 
 
