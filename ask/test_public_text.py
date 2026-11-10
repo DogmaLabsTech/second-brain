@@ -30,5 +30,12 @@ class PublicText(unittest.TestCase):
         self.assertNotIn("<user>", text)
 
 
+class Runner(unittest.TestCase):
+    def test_the_test_runner_covers_the_deck_app_test(self):
+        text = open(os.path.join(ROOT, "bin", "test")).read()
+        self.assertIn("deck/app/test/rules.test.js", text)
+        self.assertIn("fail=1", text.split("deck app")[1])   # a failure there fails the run
+
+
 if __name__ == "__main__":
     unittest.main()

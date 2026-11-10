@@ -16,4 +16,12 @@ echo "== day"
 echo "== deck"
 python3 -I "$root/deck/server/test_server.py" || fail=1
 python3 -I "$root/deck/server/test_talk.py" || fail=1
+echo "== deck app"
+if node --version >/dev/null 2>&1; then   # (a shim that cannot start node counts as no node)
+  node --test "$root/deck/app/test/rules.test.js" || fail=1
+else
+  echo "node is not installed: skipping the deck app rules test"
+fi
+# Not run here on purpose: deck/tests/smoke.mjs (needs Electron), and jobs/test/details_test.py,
+# eval/chat_search_test.py and index/search_test.py (need your own model and index).
 exit $fail
