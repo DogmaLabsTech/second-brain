@@ -162,6 +162,25 @@ class Goodnight(Base):
     def test_esc_picks_nothing(self):
         self.assertEqual(day.pick_overnight(self.FakeRemind(["a"]), lambda p, o: None), [])
 
+    def test_a_pick_is_marked_by_its_text_when_the_list_changed_meanwhile(self):
+        path = os.path.join(self.tmp.name, "remembered.md")
+        day.write(path, "- 2026-10-15: first thing\n- 2026-10-15: second thing\n")
+        # picked as line 1 ("second thing"), then a line above it was cleared before the mark was written
+        day.write(path, "- 2026-10-15: second thing\n- 2026-10-15: third thing\n")
+        self.assertTrue(day.mark_overnight(1, path, "second thing"))
+        lines = open(path).read().splitlines()
+        self.assertIn("→ started with Claude overnight", lines[0])
+        self.assertEqual(lines[1], "- 2026-10-15: third thing")   # the item that now sits on line 1 is untouched
+
+    def test_a_pick_that_is_gone_or_a_list_that_got_shorter_marks_nothing_and_does_not_crash(self):
+        path = os.path.join(self.tmp.name, "remembered.md")
+        day.write(path, "- 2026-10-15: only thing\n")
+        before = open(path).read()
+        self.assertFalse(day.mark_overnight(5, path, "vanished thing"))
+        self.assertFalse(day.mark_overnight(5, path))                  # no text, line past the end
+        self.assertEqual(open(path).read(), before)
+        self.assertEqual(os.listdir(self.tmp.name).count("remembered.md.tmp"), 0)
+
     def test_marked_lines_are_skipped_by_the_reminder(self):
         path = os.path.join(self.tmp.name, "remembered.md")
         day.write(path, "# list\n- 2026-10-15: build the thing\n")
@@ -281,6 +300,29 @@ class Goodnight(Base):
             day.subprocess.run, day.cmd_overnight_run = saved
         self.assertEqual(ran, [])
         self.assertIn("overnight-run", calls[1])
+
+    def test_writers_at_once_to_one_page_never_fail_or_leave_temp_files(self):
+        import threading
+        path = os.path.join(self.tmp.name, "pages", "page.md")
+        errors = []
+
+        def go(ch):
+            try:
+                for _ in range(60):
+                    day.write(path, ch * 50000)
+            except Exception as e:   # noqa: BLE001
+                errors.append(e)
+
+        threads = [threading.Thread(target=go, args=(c,)) for c in "abcd"]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(errors, [])
+        with open(path) as f:
+            text = f.read()
+        self.assertEqual((len(text), len(set(text))), (50000, 1))   # exactly one writer's page, never a mix
+        self.assertEqual(os.listdir(os.path.dirname(path)), ["page.md"])
 
     def test_goodnight_is_eod(self):
         self.assertIs(day.cmd_goodnight, day.cmd_eod)

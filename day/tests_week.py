@@ -13,6 +13,7 @@ import datetime as dt
 import glob
 import json
 import os
+import threading
 import sys
 
 HOME = os.path.expanduser("~")
@@ -114,10 +115,17 @@ def write_week(week, show=False):
     text = page(week, failures(week))
     path = os.path.join(PAGES, week + ".md")
     os.makedirs(PAGES, exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(text)
-    os.replace(tmp, path)
+    tmp = "%s.%d.%d.tmp" % (path, os.getpid(), threading.get_ident())   # not shared with another writer
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
     if show:
         print(text, end="")
     return path

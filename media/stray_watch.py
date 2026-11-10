@@ -5,6 +5,7 @@ The last counts are kept in ~/.local/state/second-brain/media-stray-counts.json.
 """
 import json
 import os
+import threading
 import subprocess
 import sys
 
@@ -37,10 +38,17 @@ def load_last():
 
 def save(now):
     os.makedirs(os.path.dirname(STATE), exist_ok=True)
-    tmp = STATE + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(now, f, sort_keys=True)
-    os.replace(tmp, STATE)
+    tmp = "%s.%d.%d.tmp" % (STATE, os.getpid(), threading.get_ident())   # not shared with another run
+    try:
+        with open(tmp, "w") as f:
+            json.dump(now, f, sort_keys=True)
+        os.replace(tmp, STATE)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def news(now, last):

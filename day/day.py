@@ -31,6 +31,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import threading
 import re
 import shutil
 import subprocess
@@ -139,12 +140,28 @@ def append_jsonl(path, obj):
         f.write(json.dumps(obj) + "\n")
 
 
+def _temp_name(path):
+    """A temp name no other writer shares (a shared name let two writers delete each other's file mid-write)."""
+    return "%s.%d.%d.tmp" % (path, os.getpid(), threading.get_ident())
+
+
+def _remove_quietly(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
 def write(path, text):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w") as f:
-        f.write(text)
-    os.replace(tmp, path)
+    tmp = _temp_name(path)
+    try:
+        with open(tmp, "w") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        _remove_quietly(tmp)
+        raise
 
 
 # ---------- sources ----------
@@ -459,13 +476,27 @@ def pick_overnight(mod, menu=None):
     return picked
 
 
-def mark_overnight(line_no, path):
-    """'→ started with Claude overnight <date>' at the end of the line, so the reminder skips it."""
+_OPEN_ITEM = re.compile(r"^- (?:\[ \] )?\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?: (.+)$")
+
+
+def mark_overnight(line_no, path, text=None):
+    """'→ started with Claude overnight <date>' at the end of the line, so the reminder skips it.
+    With the item's text the line is found again by what it says: the list may have changed since the pick (a new
+    reminder added, a ticked line cleared), and a bare line number would mark the wrong item or run off the end.
+    Returns False when the item is no longer there (nothing is marked)."""
     with open(path) as f:
         lines = f.read().splitlines()
+    if text is not None:
+        def same(i):
+            m = _OPEN_ITEM.match(lines[i])
+            return bool(m) and "→ started with" not in lines[i] and m.group(1).strip() == text
+        if not (0 <= line_no < len(lines) and same(line_no)):
+            line_no = next((i for i in range(len(lines)) if same(i)), None)
+    if line_no is None or not 0 <= line_no < len(lines):
+        return False
     lines[line_no] += " → started with Claude overnight " + time.strftime("%Y-%m-%d")
-    with open(path, "w") as f:
-        f.write("\n".join(lines) + "\n")
+    write(path, "\n".join(lines) + "\n")
+    return True
 
 
 TICKED = re.compile(r"^- \[[xX]\] (?:\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?: )?(.+)$")
@@ -689,8 +720,8 @@ def cmd_eod(args):
     speak(summary + _tidy_phrase(cleared, finished), wait=True)
     value = _flag_value(args, "--picks")   # given: the ticks come with the call, no menu to answer
     picked = pick_overnight(mod) if value is None else picks_from_flag(mod, value)
-    for line_no, _, _ in picked:
-        mark_overnight(line_no, mod.PATH)
+    for line_no, _, item_text in picked:
+        mark_overnight(line_no, mod.PATH, item_text)
     running = busy()
     append_jsonl(CLOSEOUTS, {"t": int(now), "day": d.isoformat(), "picked": [t for _, _, t in picked],
                              "running": running, "cleared": cleared, "finished": [j for j, _ in finished]})

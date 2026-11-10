@@ -17,6 +17,7 @@ import fcntl
 import glob
 import json
 import os
+import threading
 import re
 import sys
 
@@ -99,10 +100,17 @@ def text(v):
 
 def write(path, text):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(text)
-    os.replace(tmp, path)
+    tmp = "%s.%d.%d.tmp" % (path, os.getpid(), threading.get_ident())   # not shared with another writer
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def boards():
