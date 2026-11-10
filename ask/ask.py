@@ -164,18 +164,27 @@ def newer_first(hits, fresh_days=NEWER_DAYS):
     return sorted(hits, key=lambda h: -h["score"])
 
 
-# An online agent (Claude, Codex, ...) that runs `brain ask` or `brain search` in a shell never gets the private
-# section: its hits are dropped before anything is written or printed (one brain, 2026-10-29). Set by main() and
-# ask/search_cli.py from searchlog.caller(); the island, the Deck and <user>'s own terminal keep them.
-ONLINE_AGENTS = ("claude", "codex", "gemini", "opencode", "grok", "copilot", "cursor-agent")
+# `brain ask` and `brain search` show the private section only to a caller known to be you: the island, the Deck,
+# or a terminal with a person at it (its input is a keyboard, not a pipe). Anything else (Claude, Codex, an agent
+# this code does not know by name, a timer, a script) gets the brain without it: its private hits are dropped before
+# anything is written or printed. An unknown caller counts as an agent, never as you (one brain, 2026-10-29; the
+# trusted-launcher rule, 2026-11-10). Set by main() and ask/search_cli.py from searchlog.caller().
+TRUSTED_LAUNCHERS = ("island", "deck")
+TERMINALS = ("terminal", "node-terminal")   # searchlog.caller's name when no known program is above the command
 HIDE_PRIVATE = False
 
 
-def run_by_online_agent(name):
-    """True when the program that ran this command (searchlog.caller) is an online agent; never raises."""
+def private_hidden_for(name, tty=None):
+    """False only when the program that ran this command (searchlog.caller) is a trusted launcher, or a plain
+    terminal whose input is a keyboard (`tty`; None reads stdin); True for everything else. Never raises."""
     try:
         import searchlog
-        return searchlog.caller(name).get("program") in ONLINE_AGENTS
+        program = searchlog.caller(name).get("program")
+        if program in TRUSTED_LAUNCHERS:
+            return False
+        if program in TERMINALS:
+            return not (os.isatty(0) if tty is None else tty)
+        return True
     except Exception:  # noqa: BLE001  can't tell: keep them out
         return True
 
@@ -914,7 +923,7 @@ def main(argv):
     if stream:
         EMIT.append(lambda ev: print(json.dumps(ev), flush=True))
     global HIDE_PRIVATE
-    HIDE_PRIVATE = run_by_online_agent("brain ask")
+    HIDE_PRIVATE = private_hidden_for("brain ask")
     result = ask(q, writer, how)
     result["id"] = asklog.new_id()
     asklog.log_ask(result["id"], q, result, source)

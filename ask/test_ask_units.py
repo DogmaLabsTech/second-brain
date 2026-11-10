@@ -138,7 +138,8 @@ class LocalOnly(unittest.TestCase):
 
 
 class OnlineAgents(unittest.TestCase):
-    """`brain ask` / `brain search` run by an online agent leave the private section out (one brain, 2026-10-29)."""
+    """`brain ask` / `brain search` leave the private section out unless the island, the Deck or a person at a
+    terminal ran them (one brain, 2026-10-29; trusted launchers, 2026-11-10)."""
     def fake_qmd(self, files):
         body = json.dumps({"results": [{"file": f, "title": f, "snippet": "s", "line": 1, "score": 1} for f in files]})
         return mock.patch.object(ask.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(body.encode()))
@@ -151,14 +152,29 @@ class OnlineAgents(unittest.TestCase):
             with mock.patch.object(ask, "HIDE_PRIVATE", False):
                 self.assertEqual([h["file"] for h in ask.search("bank")], files)
 
-    def test_who_counts_as_online(self):
+    def test_who_gets_the_private_section(self):
+        """Only a trusted launcher (island, Deck) or a terminal with a person at it gets the private section; an agent
+        the list does not know, a timer or a script is treated as an agent, not as the owner."""
         import searchlog
-        for program, online in (("claude", True), ("codex", True), ("terminal", False), ("island", False),
-                                ("deck", False), ("node-terminal", False)):
+        for program, tty, hidden in (("island", False, False), ("deck", False, False),
+                                     ("terminal", True, False), ("node-terminal", True, False),
+                                     ("terminal", False, True), ("node-terminal", False, True),
+                                     ("claude", True, True), ("codex", False, True), ("obsidian", True, True),
+                                     ("some-new-agent", True, True), (None, True, True)):
             with mock.patch.object(searchlog, "caller", lambda name, p=program: {"program": p}):
-                self.assertEqual(ask.run_by_online_agent("brain search"), online, program)
+                self.assertEqual(ask.private_hidden_for("brain search", tty=tty), hidden, (program, tty))
         with mock.patch.object(searchlog, "caller", side_effect=OSError("no /proc")):
-            self.assertTrue(ask.run_by_online_agent("brain search"))   # can't tell: keep them out
+            self.assertTrue(ask.private_hidden_for("brain search", tty=True))   # can't tell: keep them out
+
+    def test_tty_read_from_stdin_when_not_given(self):
+        import searchlog
+        with mock.patch.object(searchlog, "caller", lambda name: {"program": "terminal"}):
+            with mock.patch.object(ask.os, "isatty", lambda fd: fd == 0):
+                self.assertFalse(ask.private_hidden_for("brain ask"))
+            with mock.patch.object(ask.os, "isatty", lambda fd: False):
+                self.assertTrue(ask.private_hidden_for("brain ask"))
+            with mock.patch.object(ask.os, "isatty", side_effect=OSError("closed")):
+                self.assertTrue(ask.private_hidden_for("brain ask"))
 
 
 class FirstSentence(unittest.TestCase):
