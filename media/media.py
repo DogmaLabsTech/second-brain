@@ -359,8 +359,11 @@ def main(argv=None):
             if not args.id:
                 raise MediaError("which item? media public <id> (or --list)")
             program, _ = caller()
-            if program in AGENT_PROGRAMS and not args.off:
-                raise MediaError("only <user> marks an item public: ask him to run `media public " + args.id + "`")
+            # Marking public needs a person: a known agent program is refused, and so is any run without a terminal
+            # (a script, an agent the list does not know, a failed caller lookup). MEDIA_HUMAN=1 is for a person's own script.
+            at_a_terminal = os.environ.get("MEDIA_HUMAN") == "1" or sys.stdin.isatty()
+            if not args.off and (program in AGENT_PROGRAMS or not at_a_terminal):
+                raise MediaError("only <user> marks an item public, from a terminal: ask him to run `media public " + args.id + "`")
             print(("private: " if args.off else "public: ") + os.path.join(STORE, set_public(args.id, not args.off)))
         elif args.cmd == "show":
             with open(os.path.join(STORE, resolve(args.id) + ".md")) as f:

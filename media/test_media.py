@@ -5,12 +5,17 @@ import os
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import media  # noqa: E402
+
+
+def at_a_terminal():
+    return mock.patch.object(sys, "stdin", types.SimpleNamespace(isatty=lambda: True))
 
 
 def run(*argv):
@@ -142,7 +147,8 @@ class Store(unittest.TestCase):
         dest = self.add()
         other = media.add(self.shot("o.png"), why="other", project="omarchy-setup", commit="", date="2026-10-30")
         self.assertEqual(media.public_items(), [])
-        code, out, _ = run("public", os.path.basename(dest))
+        with at_a_terminal():
+            code, out, _ = run("public", os.path.basename(dest))
         self.assertEqual(code, 0)
         self.assertEqual(media.public_items(), [dest])
         self.assertNotIn(other, media.public_items())
@@ -150,10 +156,43 @@ class Store(unittest.TestCase):
         run("public", os.path.basename(dest), "--off")
         self.assertEqual(media.public_items(), [])
 
+    def test_an_unknown_caller_without_a_terminal_cannot_mark_public(self):
+        dest = self.add()
+        for caller in (lambda: ("", ""), lambda: ("terminal", ""), lambda: ("some-new-agent", "x")):
+            media.caller = caller
+            with mock.patch.object(media.sys, "stdin", types.SimpleNamespace(isatty=lambda: False)), \
+                    mock.patch.dict(os.environ, {"MEDIA_HUMAN": ""}):
+                code, _, err = run("public", os.path.basename(dest))
+            self.assertEqual(code, 2)
+            self.assertIn("from a terminal", err)
+            self.assertEqual(media.public_items(), [])
+
+    def test_a_failing_caller_lookup_cannot_mark_public_either(self):
+        dest = self.add()
+        media.caller = lambda: ("", "")   # what caller() returns when the lookup itself fails
+        with mock.patch.object(media.sys, "stdin", types.SimpleNamespace(isatty=lambda: False)):
+            self.assertEqual(run("public", os.path.basename(dest))[0], 2)
+
+    def test_a_person_s_own_script_can_say_so_with_media_human(self):
+        dest = self.add()
+        with mock.patch.object(media.sys, "stdin", types.SimpleNamespace(isatty=lambda: False)), \
+                mock.patch.dict(os.environ, {"MEDIA_HUMAN": "1"}):
+            self.assertEqual(run("public", os.path.basename(dest))[0], 0)
+        self.assertEqual(media.public_items(), [dest])
+
+    def test_taking_an_item_off_public_needs_no_terminal(self):
+        dest = self.add()
+        with at_a_terminal():
+            run("public", os.path.basename(dest))
+        with mock.patch.object(media.sys, "stdin", types.SimpleNamespace(isatty=lambda: False)):
+            self.assertEqual(run("public", os.path.basename(dest), "--off")[0], 0)
+        self.assertEqual(media.public_items(), [])
+
     def test_agent_cannot_mark_public(self):
         dest = self.add()
         media.caller = lambda: ("claude", "builder")
-        code, _, err = run("public", os.path.basename(dest))
+        with at_a_terminal():   # even at a terminal, a known agent is refused
+            code, _, err = run("public", os.path.basename(dest))
         self.assertEqual(code, 2)
         self.assertIn("only <user>", err)
         self.assertEqual(media.public_items(), [])
