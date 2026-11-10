@@ -160,6 +160,47 @@ class SearchConfigTests(OnboardCase):
         self.assertIn(folder, conf)
         self.assertIn("qmd is not installed", out)
 
+    def conf_text(self):
+        with open(os.path.join(self.home, ".config", "qmd", "index.yml"), encoding="utf-8") as f:
+            return f.read()
+
+    def test_a_second_run_with_another_folder_of_the_same_name_gets_its_own_collection(self):
+        a, b = os.path.join(self.home, "a", "notes"), os.path.join(self.home, "b", "notes")
+        os.makedirs(a)
+        os.makedirs(b)
+        self.assertEqual(onboard.write_qmd_config([a], self.brain, self.home, False)[1], ["notes-notes"])
+        _, added = onboard.write_qmd_config([b], self.brain, self.home, False)
+        self.assertEqual(added, ["notes-notes-2"])
+        conf = self.conf_text()
+        self.assertIn(a, conf)
+        self.assertIn(b, conf)
+
+    def test_the_same_folder_twice_adds_nothing_and_says_so(self):
+        a = os.path.join(self.home, "a", "notes")
+        os.makedirs(a)
+        onboard.write_qmd_config([a], self.brain, self.home, False)
+        before = self.conf_text()
+        _, added = onboard.write_qmd_config([a], self.brain, self.home, False)
+        self.assertEqual(added, [])
+        self.assertEqual(self.conf_text(), before)
+        self.assertEqual(self.conf_text().count("notes-notes:"), 1)
+
+    def test_a_folder_with_a_quote_or_backslash_in_its_name_still_gives_valid_yaml(self):
+        import yaml
+        odd = os.path.join(self.home, 'my "best" notes\\v2')
+        os.makedirs(odd)
+        onboard.write_qmd_config([odd], self.brain, self.home, False)
+        data = yaml.safe_load(self.conf_text())
+        paths = [c.get("path") for c in data["collections"].values()]
+        self.assertIn(odd, paths)
+
+    def test_an_existing_config_with_the_folder_written_in_quotes_is_recognised(self):
+        a = os.path.join(self.home, "a", "notes")
+        os.makedirs(a)
+        self.write(".config/qmd/index.yml", 'collections:\n  mine:\n    path: "%s"\n' % a)
+        _, added = onboard.write_qmd_config([a], self.brain, self.home, False)
+        self.assertEqual(added, [])
+
     def test_qmd_is_run_when_it_exists_and_an_old_config_is_kept_as_a_backup(self):
         fake = self.write("bin/qmd", "#!/bin/sh\necho \"$@\" >> \"%s/qmd.calls\"\n" % self.home)
         os.chmod(fake, 0o755)

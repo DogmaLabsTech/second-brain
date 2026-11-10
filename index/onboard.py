@@ -186,6 +186,20 @@ def collection_blocks(text):
     return blocks
 
 
+def block_path(block):
+    """The folder a collection block points at (quoted or not), or None."""
+    m = re.search(r"^\s+path:\s*(\"(?:[^\"\\\n]|\\.)*\"|[^\n#]+)", block, re.M)
+    if not m:
+        return None
+    raw = m.group(1).strip()
+    if raw.startswith('"'):
+        try:
+            return json.loads(raw)
+        except ValueError:
+            return raw.strip('"')
+    return raw
+
+
 def merge_collections(current, template):
     """Your qmd config plus the collections in the template that it lacks. Nothing you have is changed or removed.
     qmd itself adds a `models:` section after `collections:` on its first run, so new collections go at the end of
@@ -209,23 +223,33 @@ def write_qmd_config(notes, brain, home, dry):
     if brain != os.path.join(home, "brain"):
         template = template.replace("~/brain", brain)
     template = re.sub(r"^(\s+path:\s*)~/", lambda m: m.group(1) + home.rstrip("/") + "/", template, flags=re.M)   # qmd does not expand ~
-    taken, added = set(), []
+    conf = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(home, ".config"), "qmd", "index.yml")
+    current = open(conf, encoding="utf-8").read() if os.path.isfile(conf) else None
+    mine = collection_blocks(current) if current else {}
+    # A re-run starts from what the config already holds: names in use are not taken again and a folder that is
+    # already there is not added twice (the second folder called "notes" used to be dropped without a word).
+    known_paths = {os.path.abspath(os.path.expanduser(p)) for p in (block_path(b) for b in mine.values()) if p}
+    taken, added = set(mine) | set(collection_blocks(template)), []
     for n in notes:
+        if os.path.abspath(n) in known_paths:
+            continue
         name = slug(n, taken)
         taken.add(name)
         added.append(name)
-        template += '  %s:\n    includeByDefault: false\n    path: "%s"\n    pattern: "**/*.md"\n    context:\n      "/": "Your notes from %s."\n' % (name, n, os.path.basename(n.rstrip("/")))
-    conf = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(home, ".config"), "qmd", "index.yml")
+        # json.dumps writes a valid quoted YAML string even when the folder name holds a quote or a backslash
+        template += '  %s:\n    includeByDefault: false\n    path: %s\n    pattern: "**/*.md"\n    context:\n      "/": %s\n' % (
+            name, json.dumps(n), json.dumps("Your notes from %s." % os.path.basename(n.rstrip("/"))))
     if not dry:
         os.makedirs(os.path.dirname(conf), exist_ok=True)
-        if os.path.isfile(conf):
-            current = open(conf, encoding="utf-8").read()
+        if current is not None:
             merged = merge_collections(current, template)
             if merged is None:      # a config we cannot extend safely: leave it alone and say so
                 added = []
             elif merged != current:
                 shutil.copy2(conf, conf + ".bak-" + time.strftime("%Y%m%d-%H%M%S"))
                 open(conf, "w", encoding="utf-8").write(merged)
+            else:
+                added = []          # nothing new went in: do not report it as added
         else:
             open(conf, "w", encoding="utf-8").write(template)
     return conf, added
