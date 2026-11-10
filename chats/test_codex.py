@@ -132,6 +132,21 @@ class Run(unittest.TestCase):
         codex.main(["--src", src, "--out", out, "--quiet"])
         self.assertEqual(len([n for n in os.listdir(out) if n.endswith(".md")]), 1)
 
+    def test_a_thread_name_row_with_odd_types_is_ignored(self):
+        home = tempfile.mkdtemp()
+        os.makedirs(os.path.join(home, ".codex"))
+        with open(os.path.join(home, ".codex", "session_index.jsonl"), "w") as f:
+            f.write(json.dumps({"id": [1], "thread_name": "x"}) + "\n" + json.dumps({"id": "a1", "thread_name": "Fine"}) + "\n")
+        old = codex.HOME
+        codex.HOME = home
+        try:
+            self.assertEqual(codex.thread_names(), {"a1": "Fine"})
+        finally:
+            codex.HOME = old
+
+    def test_sample_needs_a_number_of_one_or_more(self):
+        self.assertEqual(codex.main(["--sample", "0", "--src", tempfile.mkdtemp()]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

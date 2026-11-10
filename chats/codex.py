@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from convert import (LOW_DIR, TITLE_MAX, clean_user_text, cut_middle, fmt_duration,  # noqa: E402
+from convert import (safe_id, LOW_DIR, TITLE_MAX, clean_user_text, cut_middle, fmt_duration,  # noqa: E402
                      load_sources, lock_out_dir, low_value, one_line, parse_ts, project_slug, read_lines,
                      redact_turns, render_blocks, save_state, trim, write_note)
 from redact import redact  # noqa: E402
@@ -117,7 +117,7 @@ def _frontmatter(title, local_first, cwd, sid, name_line, turns, first_ts, last_
         f"started: {local_first.isoformat(timespec='minutes')}",
         "agent: codex",
         f"project: {json.dumps(cwd)}",
-        f"session: {sid}",
+        f"session: {safe_id(sid)}",
     ]
     if name_line:
         fm.append(name_line)
@@ -152,7 +152,7 @@ def build_note(path, names=None):
     blocks = cut_middle(render_blocks(turns, agent="Codex"))
 
     # Codex ids are time-ordered, so their first letters repeat: name the note by the last 8.
-    name = f"{local_first:%Y-%m-%d}-codex-{project_slug(cwd)}-{sid.replace('-', '')[-8:]}.md"
+    name = f"{local_first:%Y-%m-%d}-codex-{project_slug(cwd)}-{re.sub(r'[^A-Za-z0-9]', '', str(sid))[-8:] or 'chat'}.md"
     helper = is_helper(meta)
     if helper or low_value(cwd, turns):
         name = os.path.join(LOW_DIR, name)
@@ -172,7 +172,7 @@ def thread_names():
     out = {}
     for d in read_lines(os.path.join(HOME, ".codex", "session_index.jsonl")) if os.path.exists(
             os.path.join(HOME, ".codex", "session_index.jsonl")) else []:
-        if d.get("id") and d.get("thread_name"):
+        if isinstance(d.get("id"), str) and isinstance(d.get("thread_name"), str) and d["id"] and d["thread_name"]:
             out[d["id"]] = d["thread_name"]
     return out
 
@@ -276,7 +276,10 @@ def main(argv=None):
     files = sorted(glob.glob(os.path.join(args.src, "**", "*.jsonl"), recursive=True))
     names = thread_names()
 
-    if args.sample:
+    if args.sample is not None:
+        if args.sample < 1:
+            print("codex: --sample needs a number of chats, 1 or more", file=sys.stderr)
+            return 2
         return _write_sample(args.sample, files, names)
 
     out_dir = args.out

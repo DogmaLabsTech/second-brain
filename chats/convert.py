@@ -121,21 +121,23 @@ def texts_of(content, want):
 
 
 def parse_ts(s):
-    if not s:
+    """A chat line's timestamp as an aware datetime, or None when it is missing or not an ISO text."""
+    if not s or not isinstance(s, str):
         return None
     try:
-        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+        ts = datetime.fromisoformat(s.replace("Z", "+00:00"))
     except ValueError:
         return None
+    return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)   # a naive one cannot be compared with the others
 
 
 def _record_title(d, t, titles):
     """summary / custom-title / ai-title lines carry the chat's title, not talk: True when this line was one."""
-    if t == "summary" and d.get("summary"):
+    if t == "summary" and isinstance(d.get("summary"), str) and d["summary"]:
         titles.setdefault("summary", d["summary"])
-    elif t == "custom-title" and d.get("customTitle"):
+    elif t == "custom-title" and isinstance(d.get("customTitle"), str) and d["customTitle"]:
         titles["custom"] = d["customTitle"]
-    elif t == "ai-title" and d.get("aiTitle"):
+    elif t == "ai-title" and isinstance(d.get("aiTitle"), str) and d["aiTitle"]:
         titles["ai"] = d["aiTitle"]
     else:
         return False
@@ -192,7 +194,8 @@ def extract(path, include_sidechain):
         _note_clock_and_ids(d, ts, meta)
         if _machine_line(d, t):
             continue
-        content = (d.get("message") or {}).get("content")
+        message = d.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
         if t == "user":
             _add_user_turns(turns, content, ts)
         else:
@@ -337,7 +340,14 @@ def cut_middle(blocks):
     return head + [f"*[… {cut} messages cut from the middle to keep this note short …]*\n"] + tail
 
 
+def safe_id(session_id):
+    """A session id as plain letters, digits, dot, dash and underscore: it goes into a file name and a front matter
+    line, so a '/', '..' or a newline in a damaged chat must not get through."""
+    return re.sub(r"[^A-Za-z0-9_.-]", "", str(session_id))
+
+
 def _frontmatter(title, local_first, cwd, session_id, turns, meta, sess, used_sub):
+    session_id = safe_id(session_id)
     fm = [
         "---",
         f"title: {json.dumps(title, ensure_ascii=False)}",
@@ -376,7 +386,7 @@ def build_note(sess):
 
     blocks = cut_middle(render_blocks(turns))
 
-    short = session_id.replace("-", "")[:8]
+    short = re.sub(r"[^A-Za-z0-9]", "", str(session_id))[:8] or "chat"
     name = f"{local_first:%Y-%m-%d}-{project_slug(cwd)}-{short}.md"
     if low_value(cwd, turns):
         name = os.path.join(LOW_DIR, name)
@@ -400,9 +410,14 @@ def sources():
 def _sessions_in(src, projdir, all_mains):
     """The sessions of one project folder: each main chat, or a folder of subagents with no main chat anywhere."""
     pdir = os.path.join(src, projdir)
+    try:
+        listing = os.listdir(pdir)
+    except OSError as why:   # one folder that cannot be read must not stop the others
+        print(f"convert: could not read {pdir} ({why}); skipping it", file=sys.stderr)
+        return []
     mains = {os.path.basename(f)[:-6]: f for f in glob.glob(os.path.join(pdir, "*.jsonl"))
              if not os.path.basename(f).startswith("agent-")}
-    dirs = {d for d in os.listdir(pdir) if os.path.isdir(os.path.join(pdir, d)) and d != "memory"}
+    dirs = {d for d in listing if os.path.isdir(os.path.join(pdir, d)) and d != "memory"}
     sessions = []
     for sid in sorted(set(mains) | dirs):
         subs = glob.glob(os.path.join(pdir, sid, "subagents", "agent-*.jsonl"))
@@ -580,7 +595,10 @@ def main(argv=None):
     t0 = time.time()
     sessions = find_sessions()
 
-    if args.sample:
+    if args.sample is not None:
+        if args.sample < 1:
+            print("convert: --sample needs a number of chats, 1 or more", file=sys.stderr)
+            return 2
         return _write_sample(args.sample, sessions)
 
     out_dir = args.out
