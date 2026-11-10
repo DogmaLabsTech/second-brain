@@ -717,7 +717,7 @@ def chitchat(text):
         return "I'm good, and ready to look in your notes."
     if re.search(r"\b(who|what) are you\b", t):
         return "I'm your second brain. Ask me about your notes, or ask me to do a small job."
-    return "Hi <user>! Ask me anything about your notes, or ask me to do a small job."
+    return "Hi! Ask me anything about your notes, or ask me to do a small job."
 
 
 # ---------- the whole thing ----------

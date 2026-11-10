@@ -9,7 +9,7 @@ What it checks, per collection:
   - no vectors: notes older than 24 h that still have no meaning-search vectors
 and for the Codex notes, whether the test machine embed (index/codex-testbox.sh, called by index/reindex.sh) worked: that
 script leaves one line in ~/.local/share/second-brain/codex-testbox.status after each run.
-Collections in RETIRE are only named in the report; nothing is deleted.
+Collections named in BRAIN_RETIRE (or RETIRE) are only named in the report; nothing is deleted.
 """
 import datetime
 import fnmatch
@@ -24,12 +24,21 @@ HOME = os.path.expanduser("~")
 LATE_HOURS = 24
 # qmd always skips these on its own (index/index.yml header); so does the walk here.
 ALWAYS_SKIP = {"node_modules", ".git", ".cache", "vendor", "dist", "build"}
-# Collections to retire. Named in the report only; removing one is <user>'s call (qmd collection remove <name>,
-# then the block in index/index.yml).
-RETIRE = {
-    "hermes": "Hermes, the AI agent, stopped in September 2026 and its 3 notes never change. "
-              "To retire: qmd collection remove hermes, then delete its block in index/index.yml.",
-}
+# Collections to retire: none by default. Name your own with BRAIN_RETIRE, a JSON object of {"collection": "why and how"}.
+# They are only named in the report; removing one is your call (qmd collection remove <name>, then its block in index.yml).
+RETIRE = {}
+
+
+def retire_list():
+    """RETIRE plus whatever BRAIN_RETIRE adds (a bad value is ignored)."""
+    out = dict(RETIRE)
+    try:
+        extra = json.loads(os.environ.get("BRAIN_RETIRE") or "{}")
+        if isinstance(extra, dict):
+            out.update({str(k): str(v) for k, v in extra.items()})
+    except ValueError:
+        pass
+    return out
 
 
 def paths():
@@ -198,7 +207,7 @@ def assess(collections, state, testbox, now=None, late_hours=LATE_HOURS):
                "behind_hours": round(lag.total_seconds() / 3600, 1) if is_behind and lag else None,
                "no_vector": len(have["no_vector"]), "no_vector_late": len(old_no_vec),
                "folder_missing": not os.path.isdir(os.path.expanduser(conf.get("path", ""))),
-               "retire": RETIRE.get(name)}
+               "retire": retire_list().get(name)}
         rows.append(row)
         if row["folder_missing"]:
             warnings.append(f"{name}: its folder {conf.get('path')} is not there, so the index can't follow it.")

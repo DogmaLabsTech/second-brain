@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -193,6 +194,9 @@ class RogLine(Folders):
 
 class Retire(Folders):
     def test_hermes_is_named_for_retirement_and_nothing_is_removed(self):
+        patcher = mock.patch.dict(os.environ, {"BRAIN_RETIRE": json.dumps({"hermes": "an old agent that stopped. To retire: qmd collection remove hermes, then delete its block in index.yml."})})
+        patcher.start()
+        self.addCleanup(patcher.stop)
         touch(os.path.join(self.dir, "hermes", "SOUL.md"), hours_ago(500))
         conf = self.conf("hermes")
         r = self.run_assess(conf, [("hermes", "SOUL.md", hours_ago(500), "h1")], ["h1"])
@@ -219,7 +223,8 @@ class Commands(Folders):
         with open(os.path.join(self.dir, "state", "codex-testbox.status"), "w") as f:
             f.write('{"at":"2026-10-22T10:00:00Z","result":"failed","detail":"stopped at: copying the notes","ok_at":""}\n')
         self.env = dict(os.environ, BRAIN_LIVE_INDEX=os.path.join(self.dir, "i.sqlite"),
-                        BRAIN_QMD_CONFIG=os.path.join(self.dir, "index.yml"), BRAIN_STATE_DIR=os.path.join(self.dir, "state"))
+                        BRAIN_QMD_CONFIG=os.path.join(self.dir, "index.yml"), BRAIN_STATE_DIR=os.path.join(self.dir, "state"),
+                        BRAIN_RETIRE=json.dumps({"hermes": "an old agent. To retire: qmd collection remove hermes."}))
 
     def test_brain_status_says_it_in_plain_words(self):
         out = subprocess.run([os.path.join(ROOT, "bin", "brain"), "status"], env=self.env, capture_output=True,
@@ -231,6 +236,11 @@ class Commands(Folders):
         self.assertIn("RETIRE", out.stdout)
         self.assertIn("Codex vectors on the test machine: FAILED", out.stdout)
         self.assertIn("To retire (not deleted):", out.stdout)
+
+    def test_nothing_is_named_for_retirement_unless_you_say_so(self):
+        self.assertEqual(freshness.RETIRE, {})
+        with mock.patch.dict(os.environ, {"BRAIN_RETIRE": "not json"}):
+            self.assertEqual(freshness.retire_list(), {})
 
     def test_a_missing_pyyaml_gives_a_plain_message_not_a_traceback(self):
         # a stand-in "yaml" that fails to import hides the real one, as on a Python without PyYAML
