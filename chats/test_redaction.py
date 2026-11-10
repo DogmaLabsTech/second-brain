@@ -6,6 +6,7 @@
 import os
 import sys
 import unittest
+from unittest import mock
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -109,11 +110,13 @@ class Positive(unittest.TestCase):
     def test_env_line_no_secret_word(self):
         self.gone("OPENROUTER_MODEL_HASH=zz91kd83kd9a", "zz91kd83kd9a")
 
+    @mock.patch.dict(os.environ, {"BRAIN_OWN_EMAILS": "agent-os@users.noreply.github.com"})
     def test_email(self):
         out, n = redact("mail me at agent-os@users.noreply.github.com please")
         self.assertNotIn("agent-os@users.noreply.github.com", out)
         self.assertEqual(n, 1)
 
+    @mock.patch.dict(os.environ, {"BRAIN_OWN_EMAILS": "agent-os@users.noreply.github.com"})
     def test_email_cut_short(self):
         out, n = redact("203.0.113.10    owners-iphone    agent-os@users.noreply.github.com   iOS")
         self.assertNotIn("example.com", out)
@@ -171,6 +174,12 @@ class Negative(unittest.TestCase):
 
     def test_port_number(self):
         self.same("rockceen is served on port 4197 via Tailscale.")
+
+
+class NoDefaultAddress(unittest.TestCase):
+    def test_no_address_is_dropped_until_you_list_yours(self):
+        with mock.patch.dict(os.environ, {"BRAIN_OWN_EMAILS": "", "XDG_CONFIG_HOME": "/nonexistent-config"}):
+            self.assertEqual(redact("mail agent-os@users.noreply.github.com now"), ("mail agent-os@users.noreply.github.com now", 0))
 
 
 class SecretShapesThatUsedToLeak(unittest.TestCase):

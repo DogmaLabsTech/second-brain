@@ -9,6 +9,7 @@ import sys
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -71,6 +72,7 @@ class Convert(unittest.TestCase):
             self.assertNotIn(gone, text)
         self.assertEqual(n, 3)   # <user>, Codex (two replies merged), <user>
 
+    @mock.patch.dict(os.environ, {"BRAIN_OWN_EMAILS": "agent-os@users.noreply.github.com"})
     def test_redacted(self):
         name, text, red, n = self.note(chat(*TALK))
         self.assertNotIn(FAKE, text)

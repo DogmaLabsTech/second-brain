@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import unittest
+from unittest import mock
 
 sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -46,7 +47,9 @@ TEXTS = [
 
 
 def collect():
-    return {f"{i}: {t[:50]!r}": list(redact(t)) for i, t in enumerate(TEXTS)}
+    # the gold file was made with this one address listed as the owner's own
+    with mock.patch.dict(os.environ, {"BRAIN_OWN_EMAILS": "agent-os@users.noreply.github.com"}):
+        return {f"{i}: {t[:50]!r}": list(redact(t)) for i, t in enumerate(TEXTS)}
 
 
 class Pinned(unittest.TestCase):

@@ -15,7 +15,7 @@ EMAIL_MARK = "[email]"
 
 # Your own address(es): always dropped. Add yours with BRAIN_OWN_EMAILS (comma separated) or one address per line in
 # ~/.config/second-brain/own-emails. Other people's addresses are left as they are.
-OWN_EMAILS = ("agent-os@users.noreply.github.com",)
+OWN_EMAILS = ()
 
 
 def own_addresses():
@@ -160,7 +160,7 @@ def _own_emails(text):
     for email in own_addresses():
         text, k = re.subn(re.escape(email), EMAIL_MARK, text, flags=re.I)
         total += k
-        # Cut short by a column ("agent-os@users.noreply.github.com" in a tailscale status table): still his address.
+        # Cut short by a column ("agent-os@users.noreply.github.com" in a tailscale status table): still your address.
         text, k = re.subn(re.escape(email.split("@")[0] + "@") + r"(?![\w.-])", EMAIL_MARK, text, flags=re.I)
         total += k
     return text, total
