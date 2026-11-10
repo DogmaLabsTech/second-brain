@@ -547,7 +547,7 @@ def keep_lore(slug):
     with open(ctx, encoding="utf-8") as fh:
         rows = fh.read().splitlines(keepends=True)
     last = max((i for i, l in enumerate(rows) if l.startswith("| `")), default=len(rows) - 1)
-    rows.insert(last + 1, row if rows[last].endswith("\n") else "\n" + row)
+    rows.insert(last + 1, ("\n" if rows and not rows[last].endswith("\n") else "") + row)   # an empty CONTEXT.md has no last row
     _write(lore_dir(), dest, "---\nstanding: insight\n---\n" + body)
     _write(lore_dir(), ctx, "".join(rows))
     os.unlink(src)

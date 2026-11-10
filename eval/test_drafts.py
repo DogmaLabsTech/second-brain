@@ -470,6 +470,21 @@ class KeepAndDrop(Case):
         with open(os.path.join(self.lore, "drafts", slug + ".md"), "w") as f:
             f.write("---\nstanding: observation\ndraft: waiting\nlesson-line: Say it once.\n---\n# A story\n\nText.\n")
 
+    def test_keep_a_story_into_an_empty_context_file_does_not_crash(self):
+        with open(os.path.join(self.lore, "CONTEXT.md"), "w") as f:
+            f.write("")
+        self.story()
+        drafts.keep_lore("my-story")
+        self.assertEqual(read(os.path.join(self.lore, "CONTEXT.md")), "| `my-story.md` | Say it once. |\n")
+
+    def test_keep_a_story_after_a_last_row_with_no_newline_starts_a_new_line(self):
+        with open(os.path.join(self.lore, "CONTEXT.md"), "w") as f:
+            f.write("| `old-story.md` | An old lesson. |")
+        self.story()
+        drafts.keep_lore("my-story")
+        self.assertEqual(read(os.path.join(self.lore, "CONTEXT.md")),
+                         "| `old-story.md` | An old lesson. |\n| `my-story.md` | Say it once. |\n")
+
     def test_keep_a_story_makes_it_an_insight_and_adds_its_line(self):
         self.story()
         drafts.keep_lore("my-story")

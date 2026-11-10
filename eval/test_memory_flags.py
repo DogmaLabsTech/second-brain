@@ -92,6 +92,14 @@ class Files(Case):
         self.assertEqual(kind, "file-changed")
         self.assertIn("a.py: 200 lines changed since 2026-09-01 (the file has 100 now)", why)
 
+    def test_a_note_with_files_but_no_date_does_not_stop_the_pass(self):
+        self.commit("a.py", "".join("line %d\n" % i for i in range(100)), "2026-08-01")
+        self.commit("a.py", "".join("new %d\n" % i for i in range(100)), "2026-10-10")
+        note(self.store, "projects/demo/lessons/nodate.md", date="", files=["a.py"])
+        note(self.store, NOTE, files=["b-gone.py"])   # a normal note that must still be looked at
+        result = self.look()                           # used to raise "time data '' does not match format"
+        self.assertIn(NOTE, self.reasons(result))
+
     def test_changes_before_the_note_do_not_count(self):
         self.commit("a.py", "".join("line %d\n" % i for i in range(100)), "2026-08-01")
         self.commit("a.py", "".join("new %d\n" % i for i in range(100)), "2026-08-20")

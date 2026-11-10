@@ -128,7 +128,11 @@ def _safe(file):
 
 def changed_lines(repo, file, since):
     """Added + deleted lines of `file` in the repo's commits made after the day `since`, or None when git cannot say."""
-    out = _git(repo, "log", "--numstat", "--format=", "--after=" + next_day(since) + " 00:00", "--", file)
+    try:
+        after = next_day(since)
+    except ValueError:   # a note with no usable date: git cannot say, and one such note must not stop the pass
+        return None
+    out = _git(repo, "log", "--numstat", "--format=", "--after=" + after + " 00:00", "--", file)
     if out is None:
         return None
     total = 0
