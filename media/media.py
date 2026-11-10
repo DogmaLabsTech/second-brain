@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -51,10 +52,18 @@ def _val(v):
 
 def write_sidecar(path, meta, body):
     lines = ["---"] + [f"{k}: {_val(v)}" for k, v in meta.items() if v not in (None, "", [])] + ["---", "", body.strip(), ""]
-    tmp = path + ".tmp"
-    with open(tmp, "w") as f:
-        f.write("\n".join(lines))
-    os.replace(tmp, path)
+    fd, tmp = tempfile.mkstemp(prefix=os.path.basename(path) + ".", suffix=".tmp", dir=os.path.dirname(path) or ".")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write("\n".join(lines))
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def read_sidecar(path):
@@ -177,10 +186,14 @@ def add(file, why, project="", name="", sources=(), before="", commit=None, date
     folder = os.path.join(STORE, project)
     os.makedirs(folder, exist_ok=True)
     n, base = 1, f"{date}-{what}"
-    while os.path.exists(os.path.join(folder, base + ext.lower())):
-        n += 1
-        base = f"{date}-{what}-{n}"
-    dest = os.path.join(folder, base + ext.lower())
+    while True:   # claim the name for real (O_EXCL): two adds at once can no longer pick the same one and overwrite
+        dest = os.path.join(folder, base + ext.lower())
+        try:
+            os.close(os.open(dest, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644))
+            break
+        except FileExistsError:
+            n += 1
+            base = f"{date}-{what}-{n}"
     kept = []
     for i, s in enumerate(src, 1):
         sdest = os.path.join(folder, f"{base}-source{i if len(src) > 1 else ''}{os.path.splitext(s)[1].lower()}")

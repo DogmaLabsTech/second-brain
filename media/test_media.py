@@ -61,6 +61,44 @@ class Store(unittest.TestCase):
         self.assertEqual(meta["public"], "false")
         self.assertIn("the bar with the clock open", body)
 
+    def test_two_adds_of_the_same_name_at_once_keep_both_files(self):
+        import threading
+        import time
+        for who in ("a", "b"):
+            os.makedirs(os.path.join(self.src, who))
+            with open(os.path.join(self.src, who, "shot.png"), "wb") as f:
+                f.write(("image " + who).encode())
+        real_move, errors = media.shutil.move, []
+
+        def slow_move(a, b):   # widens the gap in which the old code let both adds pick the same name
+            time.sleep(0.1)
+            return real_move(a, b)
+
+        def go(who):
+            try:
+                media.add(os.path.join(self.src, who, "shot.png"), "why " + who, project="p", date="2026-11-08",
+                          by="x", commit="c")
+            except Exception as e:   # noqa: BLE001
+                errors.append(e)
+
+        with mock.patch.object(media.shutil, "move", slow_move):
+            threads = [threading.Thread(target=go, args=(w,)) for w in ("a", "b")]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+        self.assertEqual(errors, [])
+        folder = os.path.join(media.STORE, "p")
+        pngs = sorted(n for n in os.listdir(folder) if n.endswith(".png"))
+        self.assertEqual(len(pngs), 2, pngs)
+        contents = set()
+        for n in pngs:
+            with open(os.path.join(folder, n), "rb") as f:
+                contents.add(f.read())
+        self.assertEqual(contents, {b"image a", b"image b"})
+        self.assertEqual(len([n for n in os.listdir(folder) if n.endswith(".md")]), 2)
+        self.assertEqual([n for n in os.listdir(folder) if n.endswith(".tmp")], [])
+
     def test_why_is_required(self):
         with self.assertRaises(media.MediaError):
             media.add(self.shot(), why="  ")
