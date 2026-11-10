@@ -146,8 +146,20 @@ def report(days=7, today=None, store=None, home=None):
     return {"lines": lines, "repeats": repeats, "second_round": (again, done)}
 
 
+def parse_days(argv, default=7):
+    """The number after --days; the default when it is missing or not a number (so a typo never gives a traceback)."""
+    if "--days" not in argv:
+        return default
+    i = argv.index("--days") + 1
+    try:
+        return max(1, int(argv[i]))
+    except (IndexError, ValueError):
+        print(f"--days needs a number of days; using {default}", file=sys.stderr)
+        return default
+
+
 def main(argv):
-    days = int(argv[argv.index("--days") + 1]) if "--days" in argv else 7
+    days = parse_days(argv)
     print("\n".join(report(days)["lines"]))
     return 0
 

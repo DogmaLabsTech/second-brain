@@ -51,8 +51,13 @@ def set_files():
 
 
 def load(path):
-    with open(path, encoding="utf-8") as f:
-        return [json.loads(line) for line in f if line.strip()]
+    """The rows of a question set; [] (with a note) when the file is not there, as on a fresh clone."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            return [json.loads(line) for line in f if line.strip()]
+    except FileNotFoundError:
+        print(f"NOTE: {os.path.relpath(path)} is not there yet; nothing to score from it.")
+        return []
 
 
 def rank_of(listed, want):
@@ -138,7 +143,7 @@ def main(argv, find=None):
     for name in names:
         path, example = files[name]
         rows = load(path)
-        if example:
+        if example and rows:
             print(f"NOTE: the real held-out set is not on this computer; scoring the {len(rows)}-row example file.")
         for rule_on in rules:
             results, s = run_set(rows, find if rule_on is not None else no_search(find), store, bool(rule_on))

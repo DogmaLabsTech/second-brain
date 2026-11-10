@@ -53,8 +53,12 @@ def tilde(p):
 
 
 def load(name):
-    with open(os.path.join(HERE, name)) as f:
-        return [json.loads(l) for l in f if l.strip()]
+    """The rows of an eval file next to this script; [] when there is none (a fresh clone has no question sets)."""
+    try:
+        with open(os.path.join(HERE, name)) as f:
+            return [json.loads(l) for l in f if l.strip()]
+    except FileNotFoundError:
+        return []
 
 
 def search_score(rows):
@@ -294,7 +298,7 @@ def run(argv):
     auto = "--auto" in argv
     if auto:   # unattended: nothing goes to an online model and no training round starts without <user>
         argv = list(argv) + ["--no-learn", "--no-train"]
-    days = int(argv[argv.index("--days") + 1]) if "--days" in argv else 7
+    days = memory_week.parse_days(argv)
     problems = []
     problem = private_list_problem()
     if problem:
@@ -303,8 +307,13 @@ def run(argv):
     if fresh:
         print("Index freshness:\n  " + "\n  ".join(fresh) + "\n")
     rows = load("heldout.jsonl")
-    s = search_score(rows)
-    _print_search(s)
+    if rows:
+        s = _try(problems, "The search fair test", lambda: search_score(rows), search_score([]))
+        _print_search(s)
+    else:
+        s = search_score([])
+        print("Fair test (search): no questions yet. Put yours in eval/heldout.jsonl, one JSON line each: "
+              "id, q, use (a short label; 'newer' and 'missing' are special), expect_paths (a list of note paths).\n")
 
     it = None if "--no-intent" in argv else _try(problems, "The intent fair test", intent_score)
     if it:

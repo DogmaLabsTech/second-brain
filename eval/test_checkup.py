@@ -218,5 +218,30 @@ class Auto(unittest.TestCase):
         self.assertIn("qmd is not answering", self.notes[0][1])
 
 
+class FreshClone(unittest.TestCase):
+    """A fresh public clone has no question sets and the user may mistype --days: plain behaviour, no traceback."""
+
+    def test_a_missing_question_set_is_an_empty_list(self):
+        self.assertEqual(checkup.load("no-such-set-here.jsonl"), [])
+        self.assertEqual(checkup.search_score([])["n"], 0)
+
+    def test_days_takes_a_number_and_forgives_a_missing_or_bad_one(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(checkup.memory_week.parse_days(["--days", "3"]), 3)
+            self.assertEqual(checkup.memory_week.parse_days([]), 7)
+            self.assertEqual(checkup.memory_week.parse_days(["--days"]), 7)
+            self.assertEqual(checkup.memory_week.parse_days(["--days", "soon"]), 7)
+            self.assertEqual(checkup.memory_week.parse_days(["--days", "0"]), 1)
+        self.assertEqual(err.getvalue().count("--days needs a number"), 2)
+
+    def test_the_memory_score_reads_a_missing_set_as_empty(self):
+        import memory_score
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(memory_score.load(os.path.join(HERE, "no-such-set-here.jsonl")), [])
+        self.assertIn("is not there yet", out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
