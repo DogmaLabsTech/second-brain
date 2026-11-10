@@ -19,9 +19,10 @@ want "node 22.12+" "node --version | python3 -c 'import sys; v = tuple(int(x) fo
 want "ollama" "ollama --version" "optional local models for brain ask"
 want "claude" "claude --version" "optional: Claude Code, if you want your chats turned into notes"
 if [[ $json == 1 ]]; then
-  python3 - "$((${#missing[@]}==0))" "${missing[*]:-}" "${optional[*]:-}" <<'PY'
+  # names hold spaces ("python 3.12+"), so they go in one per line, never joined by spaces
+  python3 - "$((${#missing[@]}==0))" "$(printf '%s\n' ${missing[@]+"${missing[@]}"})" "$(printf '%s\n' ${optional[@]+"${optional[@]}"})" <<'PY'
 import json, sys
-print(json.dumps({"ok": sys.argv[1] == "1", "missing": [m for m in sys.argv[2].split("  ") if m], "optional_missing": [m for m in sys.argv[3].split("  ") if m]}))
+print(json.dumps({"ok": sys.argv[1] == "1", "missing": [m for m in sys.argv[2].splitlines() if m], "optional_missing": [m for m in sys.argv[3].splitlines() if m]}))
 PY
   exit $(( ${#missing[@]} == 0 ? 0 : 1 ))
 fi
