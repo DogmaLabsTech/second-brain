@@ -153,6 +153,11 @@ def interactive(found):
 
 # ---------------------------------------------------------------- doing it
 
+# Files the scan flags as secret-looking (*secret*, .env*) stay out of the search index of every notes folder added.
+# qmd globs are case-sensitive, so the usual spellings are listed.
+SECRET_IGNORE = ["**/*secret*", "**/*Secret*", "**/*SECRET*", "**/.env*"]
+
+
 def slug(path, taken):
     base = "notes-" + (re.sub(r"[^a-z0-9]+", "-", os.path.basename(path.rstrip("/")).lower()).strip("-") or "folder")
     name, i = base, 2
@@ -237,8 +242,9 @@ def write_qmd_config(notes, brain, home, dry):
         taken.add(name)
         added.append(name)
         # json.dumps writes a valid quoted YAML string even when the folder name holds a quote or a backslash
-        template += '  %s:\n    includeByDefault: false\n    path: %s\n    pattern: "**/*.md"\n    context:\n      "/": %s\n' % (
-            name, json.dumps(n), json.dumps("Your notes from %s." % os.path.basename(n.rstrip("/"))))
+        template += '  %s:\n    includeByDefault: false\n    path: %s\n    pattern: "**/*.md"\n    ignore:\n%s    context:\n      "/": %s\n' % (
+            name, json.dumps(n), "".join("      - %s\n" % json.dumps(g) for g in SECRET_IGNORE),
+            json.dumps("Your notes from %s." % os.path.basename(n.rstrip("/"))))
     if not dry:
         os.makedirs(os.path.dirname(conf), exist_ok=True)
         if current is not None:

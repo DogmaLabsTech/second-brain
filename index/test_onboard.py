@@ -164,6 +164,17 @@ class SearchConfigTests(OnboardCase):
         with open(os.path.join(self.home, ".config", "qmd", "index.yml"), encoding="utf-8") as f:
             return f.read()
 
+    def test_secret_named_notes_are_kept_out_of_the_index(self):
+        import fnmatch
+        import yaml
+        folder = self.notes()
+        onboard.write_qmd_config([folder], self.brain, self.home, False)
+        block = yaml.safe_load(self.conf_text())["collections"]["notes-notes"]
+        self.assertEqual(block["ignore"], onboard.SECRET_IGNORE)
+        for name in ("my-secrets-list.md", "Secret.md", "API_SECRET.md", "sub/dir/secrets.md"):
+            self.assertTrue(any(fnmatch.fnmatch(name, g) or fnmatch.fnmatch("x/" + name, g) for g in block["ignore"]), name)
+        self.assertFalse(any(fnmatch.fnmatch("garden.md", g) for g in block["ignore"]))
+
     def test_a_second_run_with_another_folder_of_the_same_name_gets_its_own_collection(self):
         a, b = os.path.join(self.home, "a", "notes"), os.path.join(self.home, "b", "notes")
         os.makedirs(a)
