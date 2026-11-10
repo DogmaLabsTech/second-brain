@@ -102,5 +102,29 @@ class Stream(unittest.TestCase):
         self.assertFalse(cp.is_query_call({"method": "tools/list"}))
 
 
+class BadShapes(unittest.TestCase):
+    """Malformed requests get a plain answer instead of a traceback in the log."""
+
+    def test_params_that_are_not_an_object_are_not_ours(self):
+        for params in ([1, 2], "text", 7, None):
+            m = {"method": "tools/call", "params": params}
+            self.assertFalse(cp.is_memory_call(m), params)
+            self.assertFalse(cp.is_query_call(m), params)
+
+    def test_a_bad_content_length_gets_a_400(self):
+        import socket
+        import threading
+        from http.server import ThreadingHTTPServer
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), cp.Proxy)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        for length in ("abc", "-5", "99999999999"):
+            with socket.create_connection(srv.server_address, timeout=10) as c:
+                c.sendall(("POST /mcp HTTP/1.1\r\nHost: x\r\nContent-Length: %s\r\n\r\n" % length).encode())
+                head = c.recv(4096).decode()
+            self.assertTrue(head.startswith("HTTP/1.1 400"), (length, head[:60]))
+
+
 if __name__ == "__main__":
     unittest.main()

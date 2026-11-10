@@ -72,9 +72,16 @@ MEMORY_TOOL = {
 
 # ---------- the memory tool (answered here; tested in ask/test_memory_tool.py) ----------
 
+def _params(m):
+    """A JSON-RPC message's params when it is an object, else {} (a list or a string there is a bad request that
+    qmd answers itself, not a reason to crash this handler)."""
+    p = m.get("params")
+    return p if isinstance(p, dict) else {}
+
+
 def is_memory_call(m):
     return (isinstance(m, dict) and m.get("method") == "tools/call"
-            and (m.get("params") or {}).get("name") == MEMORY_TOOL["name"])
+            and _params(m).get("name") == MEMORY_TOOL["name"])
 
 
 def is_tools_list(m):
@@ -244,7 +251,7 @@ def primary(searches):
 
 def is_query_call(m):
     return (isinstance(m, dict) and m.get("method") == "tools/call"
-            and (m.get("params") or {}).get("name") == "query")
+            and _params(m).get("name") == "query")
 
 
 # ---------- the server ----------
@@ -264,6 +271,13 @@ def sse_messages(raw):
     return out[0] if len(out) == 1 else out
 
 
+class BadRequest(Exception):
+    """The request itself is broken (a Content-Length that is not a number, or absurdly large): answer 400."""
+
+
+MAX_BODY = 8_000_000   # a search request is a few hundred bytes; this only stops a runaway Content-Length
+
+
 class CallerGone(Exception):
     """Writing to the caller failed (it closed the stream or cancelled the search): not the search server's fault."""
 
@@ -271,6 +285,7 @@ class CallerGone(Exception):
 class Proxy(BaseHTTPRequestHandler):
     upstream = urllib.parse.urlsplit("http://localhost:8182")
     protocol_version = "HTTP/1.1"
+    timeout = 120   # a caller that stops sending mid-request frees its handler thread (upstream waits are not limited by this)
 
     def log_request(self, *a):
         """No line per request (journald gets only errors): the default log_message still says every error."""
@@ -498,7 +513,12 @@ class Proxy(BaseHTTPRequestHandler):
         self._to_caller(self.wfile.write, data)
 
     def _read_body(self):
-        n = int(self.headers.get("Content-Length") or 0)
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            raise BadRequest("Content-Length is not a number") from None
+        if n < 0 or n > MAX_BODY:
+            raise BadRequest("Content-Length is out of range")
         return self.rfile.read(n) if n else (None if self.command in ("GET", "HEAD", "DELETE") else b"")
 
     def _is_query_post(self, body):
@@ -510,7 +530,15 @@ class Proxy(BaseHTTPRequestHandler):
         return None
 
     def _handle(self):
-        body = self._read_body()
+        try:
+            body = self._read_body()
+        except BadRequest as why:
+            self.close_connection = True
+            try:
+                self._reply(400, "application/json", json.dumps({"error": str(why)}).encode())
+            except CallerGone:
+                pass
+            return
         self._start_record(body)
         try:
             own = self._own_post(body)
