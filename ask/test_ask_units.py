@@ -101,6 +101,23 @@ class LocalOnly(unittest.TestCase):
             ask.write("q", hits, "haiku")
         self.assertEqual(self.sent, ["local_write"])
 
+    def test_every_spelling_the_viewer_marks_is_also_blocked_for_the_online_writer(self):
+        long_summary = "summary: " + "x" * 5000 + "\n"
+        cases = {
+            "true": ("---\nlocal-only: true\n---\nbody\n", True),
+            "capital": ("---\nlocal-only: True\n---\nbody\n", True),
+            "quoted": ("---\nlocal-only: \"true\"\n---\nbody\n", True),
+            "after a long line": ("---\n" + long_summary + "local-only: true\n---\nbody\n", True),
+            "windows line ends": ("---\r\nlocal-only: true\r\n---\r\nbody\r\n", True),
+            "said twice, last wins in the viewer": ("---\nlocal-only: false\nlocal-only: true\n---\nbody\n", True),
+            "front matter never closes": ("---\nproject: x\nbody\n", True),
+            "false": ("---\nlocal-only: false\n---\nbody\n", False),
+            "no key": ("---\nproject: x\n---\nbody\n", False),
+        }
+        for i, (label, (text, want)) in enumerate(cases.items()):
+            with self.subTest(label):
+                self.assertEqual(ask.local_only(self.hit("spelling-%d.md" % i, text)), want)
+
     def test_unreadable_memory_note_counts_as_local_only(self):
         self.assertTrue(ask.local_only(self.hit("gone.md", None)))
 

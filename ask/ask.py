@@ -229,13 +229,22 @@ def local_only(hit):
         return True
     if not hit["path"].startswith(COLLECTIONS["memory"] + os.sep):
         return False
+    import private_tag   # the same reader the viewer and `brain private list` use, so the gate and the mark never disagree
     try:
-        with open(hit["path"], errors="replace") as f:
-            head = f.read(4000)
+        with open(hit["path"], encoding="utf-8", errors="replace") as f:
+            text = f.read()
     except OSError:
         return True
-    m = re.match(r"---\n(.*?)\n---", head, re.S)
-    return bool(m and re.search(r"^local-only:\s*true\s*$", m.group(1), re.M))
+    if re.match(r"---[ \t]*\n", text) and not re.search(r"\n---[ \t]*(?:\n|\Z)", text):
+        return True   # a front matter that never closes: cannot tell, so keep it local
+    lines, end = private_tag._front_lines(text)
+    for line in lines[1:end] if end else []:   # any top-level local-only line that says true counts (readers differ on a repeated key)
+        if line[:1].isspace() or ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        if key.strip() == "local-only" and value.strip().strip("\"'").lower() == "true":
+            return True
+    return False
 
 
 def short_path(p):
