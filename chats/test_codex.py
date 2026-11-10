@@ -6,6 +6,7 @@
 import json
 import os
 import sys
+import shutil
 import tempfile
 import unittest
 
@@ -118,6 +119,18 @@ class Run(unittest.TestCase):
         os.remove(p)
         codex.main(["--src", src, "--out", out, "--quiet"])
         self.assertEqual([n for n in os.listdir(out) if n.endswith(".md")], [])
+
+    def test_a_missing_source_folder_keeps_the_notes(self):
+        src, out = tempfile.mkdtemp(), tempfile.mkdtemp()
+        p = os.path.join(src, "2026", "10", "16", "rollout-x-" + SID + ".jsonl")
+        os.makedirs(os.path.dirname(p))
+        with open(p, "w") as f:
+            f.write("\n".join(chat(*TALK)) + "\n")
+        codex.main(["--src", src, "--out", out, "--quiet"])
+        self.assertEqual(len([n for n in os.listdir(out) if n.endswith(".md")]), 1)
+        shutil.rmtree(src)   # as if the disk holding the chats were not mounted
+        codex.main(["--src", src, "--out", out, "--quiet"])
+        self.assertEqual(len([n for n in os.listdir(out) if n.endswith(".md")]), 1)
 
 
 if __name__ == "__main__":

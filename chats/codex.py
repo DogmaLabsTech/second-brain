@@ -290,6 +290,9 @@ def main(argv=None):
     src_state = state["sources"]
 
     todo, gone = _todo_and_gone(files, src_state, args.all)
+    if gone and not os.path.isdir(args.src):   # a missing source (unmounted disk, wrong --src) must not wipe the notes
+        print("codex: the chat source folder is not there; keeping the %d notes made from earlier runs" % len(gone), file=sys.stderr)
+        gone = []
     stats = {"converted": 0, "written": 0, "empty": 0, "removed": 0, "redactions": 0, "errors": 0}
 
     if args.dry_run:

@@ -1,6 +1,7 @@
 """convert.py says when it cannot read a session file (it used to skip it silently): python3 -I chats/test_convert_errors.py"""
 import contextlib
 import io
+import json
 import os
 import sys
 import tempfile
@@ -24,6 +25,40 @@ class Signature(unittest.TestCase):
                 sig = convert.Session("k", here, [gone], d).signature()
             self.assertEqual([s[0] for s in sig], ["a.jsonl"])
             self.assertIn(f"could not stat {gone}", err.getvalue())
+
+
+class MissingSource(unittest.TestCase):
+    def run_main(self, roots, out):
+        err = io.StringIO()
+        with mock.patch.object(convert, "sources", lambda: roots), contextlib.redirect_stderr(err), \
+                contextlib.redirect_stdout(io.StringIO()):
+            code = convert.main(["--out", out, "--quiet"])
+        return code, err.getvalue()
+
+    def seed(self, out):
+        with open(os.path.join(out, "kept.md"), "w") as f:
+            f.write("a note from an earlier run\n")
+        with open(os.path.join(out, convert.STATE_NAME), "w") as f:
+            json.dump({"version": 1, "sources": {"gone-session": {"note": "kept.md", "sig": []}}}, f)
+
+    def test_a_missing_source_folder_keeps_the_notes(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "out")
+            os.makedirs(out)
+            self.seed(out)
+            code, err = self.run_main([os.path.join(d, "not-mounted")], out)
+            self.assertEqual(code, 0)
+            self.assertTrue(os.path.exists(os.path.join(out, "kept.md")))
+            self.assertIn("is not there; keeping the 1 notes", err)
+
+    def test_a_source_folder_that_is_there_but_has_lost_the_chat_still_removes_its_note(self):
+        with tempfile.TemporaryDirectory() as d:
+            out, root = os.path.join(d, "out"), os.path.join(d, "projects")
+            os.makedirs(out)
+            os.makedirs(root)
+            self.seed(out)
+            self.run_main([root], out)
+            self.assertFalse(os.path.exists(os.path.join(out, "kept.md")))   # the documented mirror behaviour
 
 
 class NodetermAccounts(unittest.TestCase):

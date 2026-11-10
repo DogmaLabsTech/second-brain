@@ -594,6 +594,9 @@ def main(argv=None):
     src_state = state["sources"]
 
     todo, gone = _what_changed(sessions, src_state, args.all)
+    if gone and not any(os.path.isdir(s) for s in sources()):   # a missing source (unmounted disk, moved folder) must not wipe the notes
+        print("convert: the chat source folder is not there; keeping the %d notes made from earlier runs" % len(gone), file=sys.stderr)
+        gone = []
     stats = {"converted": 0, "written": 0, "empty": 0, "removed": 0, "redactions": 0, "errors": 0}
 
     if args.dry_run:
